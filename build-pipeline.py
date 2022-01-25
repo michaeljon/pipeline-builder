@@ -39,7 +39,6 @@ def computeIntervals(options):
             while remainder > lastBlockMax:
                 lower = segment * segmentSize + 1
                 upper = (segment + 1) * segmentSize
-
                 intervals.append(
                     "chr{c}:{lower}-{upper}".format(c=c, lower=lower, upper=upper)
                 )
@@ -93,7 +92,7 @@ def getFileNames(options, trimmed):
 def genTrimmer(script, r1, r2, options):
     pipeline = options["pipeline"]
     stats = options["stats"]
-    threads = options["threads"]
+    threads = options["cores"]
     runQC = options["doQC"]
 
     script.write("#\n")
@@ -117,13 +116,14 @@ if [[ ! -f {TRIMMED_R1} || ! -f {TRIMMED_R2} ]]; then
         {R1} \\
         {R2}
 else
-    echo "{TRIMMED_R1} and {TRIMMED_R2} found, not trimming        
+    echo "{TRIMMED_R1} and {TRIMMED_R2} found, not trimming"
 fi        
 """.format(
                 R1=r1,
                 R2=r2,
                 PIPELINE=pipeline,
                 STATS=stats,
+                THREADS=threads,
                 TRIMMED_R1=filenames[0],
                 TRIMMED_R2=filenames[1],
             )
