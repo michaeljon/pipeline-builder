@@ -1,20 +1,18 @@
 #!/usr/bin/env python
 
 import json
-import optparse
+import argparse
 from datetime import datetime
 from math import ceil
 from os.path import exists, expandvars
 from os import cpu_count, uname, getpid
 
-segmentSize = 50_000_000
-lastBlockMax = segmentSize * 0.25
-
 # This script generates an Illumina paired-read VCF annotation pipeline.
 # There are some short-circuit options generated as part of this script,
-# but they will not normally be used in production. They are meant to 
+# but they will not normally be used in production. They are meant to
 # prevent a developer from re-running various steps in the pipeline in
 # the case that the output files are already present.
+
 
 def loadIntervals(chromosomeSizes):
     with open(chromosomeSizes, "r") as file:
@@ -22,8 +20,12 @@ def loadIntervals(chromosomeSizes):
         return chromosomeSizes
 
 
-def computeIntervals(chromosomeSizes):
+def computeIntervals(options):
     intervals = []
+
+    chromosomeSizes = options["chromosomeSizes"]
+    segmentSize = options["segmentSize"]
+    lastBlockMax = options["segmentSize"] * options["factor"]
 
     with open(chromosomeSizes, "r") as file:
         chromosomeSizes = json.load(file)
@@ -67,7 +69,10 @@ def computeIntervals(chromosomeSizes):
     ]
 
 
-def getFileNames(sample, pipeline, trimmed):
+def getFileNames(options, trimmed):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+
     if trimmed == False:
         return (
             "{PIPELINE}/{SAMPLE}_R1.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
@@ -84,7 +89,12 @@ def getFileNames(sample, pipeline, trimmed):
         )
 
 
-def genTrimmer(script, r1, r2, sample, pipeline, stats, threads, runQC):
+def genTrimmer(script, r1, r2, options):
+    pipeline = options["pipeline"]
+    stats = options["stats"]
+    threads = options["threads"]
+    runQC = options["doQC"]
+
     script.write("#\n")
     script.write("# Trim reads\n")
     script.write("#\n")
@@ -92,7 +102,7 @@ def genTrimmer(script, r1, r2, sample, pipeline, stats, threads, runQC):
     # because we're in the trimmer we can assume that we want
     # trimmed output files, so we need to get those names
     # and check for a short-circuit if appropriate
-    filenames = getFileNames(sample, pipeline, True)
+    filenames = getFileNames(options, True)
 
     if runQC == True:
         script.write(
@@ -109,7 +119,12 @@ else
     echo "{TRIMMED_R1} and {TRIMMED_R2} found, not trimming        
 fi        
 """.format(
-                R1=r1, R2=r2, PIPELINE=pipeline, STATS=stats, TRIMMED_R1=filenames[0], TRIMMED_R2=filenames[1]
+                R1=r1,
+                R2=r2,
+                PIPELINE=pipeline,
+                STATS=stats,
+                TRIMMED_R1=filenames[0],
+                TRIMMED_R2=filenames[1],
             )
         )
     else:
@@ -126,12 +141,24 @@ else
     echo "{TRIMMED_R1} and {TRIMMED_R2} found, not trimming"
 fi        
 """.format(
-                R1=r1, R2=r2, PIPELINE=pipeline, THREADS=threads, TRIMMED_R1=filenames[0], TRIMMED_R2=filenames[1]
+                R1=r1,
+                R2=r2,
+                PIPELINE=pipeline,
+                THREADS=threads,
+                TRIMMED_R1=filenames[0],
+                TRIMMED_R2=filenames[1],
             )
         )
 
 
-def genBWA(script, r1, r2, reference, sample, working, stats, pipeline, threads, output):
+def genBWA(script, r1, r2, options, output):
+    reference = options["reference"]
+    sample = options["sample"]
+    working = options["working"]
+    stats = options["stats"]
+    pipeline = options["pipeline"]
+    threads = options["cores"]
+
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
     script.write("#\n")
@@ -145,7 +172,7 @@ def genBWA(script, r1, r2, reference, sample, working, stats, pipeline, threads,
     # processing thread per side
     threads -= 1
 
-    # this is one of the more time-consuming operations, so, if we've already 
+    # this is one of the more time-consuming operations, so, if we've already
     # done the alignment operation for this sample, we'll skip this
     script.write(
         """
@@ -178,13 +205,14 @@ fi
             SORTED=output,
             TMP=pipeline,
             NODENAME=uname().nodename,
-            PID=getpid()
+            PID=getpid(),
         )
     )
 
 
 def splinter(script, bam, sorted, interval):
-    script.write("""
+    script.write(
+        """
         # Splinter our interval off the main file
         if [[ ! -f {BAM} || ! -f {BAM}.bai ]]; then
             samtools view -@ 4 -bh {SORTED} {INTERVAL} >{BAM}
@@ -194,7 +222,8 @@ def splinter(script, bam, sorted, interval):
         fi
     """.format(
             SORTED=sorted, INTERVAL=interval, BAM=bam
-        ))
+        )
+    )
 
 
 def genBQSR(script, reference, interval, bam, bqsr):
@@ -284,7 +313,11 @@ def filterSNPs(script, reference, vcf, interval, snps, filtered):
             echo "SNPs already filtered for {INTERVAL}, skipping"
         fi
 """.format(
-            REFERENCE=reference, VCF=vcf, SNPS=snps, FILTERED=filtered, INTERVAL=interval
+            REFERENCE=reference,
+            VCF=vcf,
+            SNPS=snps,
+            FILTERED=filtered,
+            INTERVAL=interval,
         )
     )
 
@@ -311,7 +344,11 @@ def filterINDELs(script, reference, vcf, interval, indels, filtered):
             echo "INDELs already filtered for {INTERVAL}, skipping"
         fi
 """.format(
-            REFERENCE=reference, VCF=vcf, INDELS=indels, FILTERED=filtered, INTERVAL=interval
+            REFERENCE=reference,
+            VCF=vcf,
+            INDELS=indels,
+            FILTERED=filtered,
+            INTERVAL=interval,
         )
     )
 
@@ -326,7 +363,10 @@ def filterVariants(script, reference, interval, vcf):
     filterINDELs(script, reference, vcf, interval, indels, filtered)
 
 
-def annotate(script, reference, vep, pipeline, type, vcf, interval, filtered, annotated, summary):
+def annotate(script, options, vep, type, vcf, interval, filtered, annotated, summary):
+    reference = options["reference"]
+    pipeline = options["pipeline"]
+
     input = filtered.split("/")[-1]
     output = annotated.split("/")[-1]
 
@@ -363,23 +403,24 @@ def annotate(script, reference, vep, pipeline, type, vcf, interval, filtered, an
     )
 
 
-def annotateVariants(script, reference, working, pipeline, vcf, interval):
+def annotateVariants(script, options, vcf, interval):
+    working = options["working"]
+
     vep = "{WORKING}/vep_data".format(WORKING=working)
 
     filtered = vcf.replace(".vcf", ".indels.filtered.vcf")
     annotated = vcf.replace(".vcf", ".indels.filtered.annotated.vcf")
     summary = vcf.replace(".vcf", ".indels.filtered.vcf_summary.html")
-    annotate(script, reference, vep, pipeline, 'INDEL', vcf, interval, filtered, annotated, summary)
+    annotate(script, options, vep, "INDEL", vcf, interval, filtered, annotated, summary)
 
     filtered = vcf.replace(".vcf", ".snps.filtered.vcf")
     annotated = vcf.replace(".vcf", ".snps.filtered.annotated.vcf")
     summary = vcf.replace(".vcf", ".snps.filtered.vcf_summary.html")
-    annotate(script, reference, vep, pipeline, 'SNP', vcf, interval, filtered, annotated, summary)
+    annotate(script, options, vep, "SNP", vcf, interval, filtered, annotated, summary)
 
 
-
-def runIntervals(script, working, reference, pipeline, chromosomeSizes, prefix, sorted):
-    intervals = computeIntervals(chromosomeSizes)
+def runIntervals(script, options, prefix, sorted):
+    intervals = computeIntervals(options)
 
     for interval in intervals:
         bam = """{PREFIX}.{INTERVAL}.bam""".format(PREFIX=prefix, INTERVAL=interval[1])
@@ -395,10 +436,10 @@ def runIntervals(script, working, reference, pipeline, chromosomeSizes, prefix, 
         script.write("    (\n")
 
         splinter(script, bam, sorted, interval[0])
-        genBQSR(script, reference, interval[0], bam, bqsr)
-        callVariants(script, reference, interval[0], bam, bqsr, vcf)
-        filterVariants(script, reference, interval[0], vcf)
-        annotateVariants(script, reference, working, pipeline, vcf, interval[0])
+        genBQSR(script, options["reference"], interval[0], bam, bqsr)
+        callVariants(script, options["reference"], interval[0], bam, bqsr, vcf)
+        filterVariants(script, options["reference"], interval[0], vcf)
+        annotateVariants(script, options, vcf, interval[0])
 
         script.write("    )&\n")
         script.write("\n")
@@ -406,7 +447,11 @@ def runIntervals(script, working, reference, pipeline, chromosomeSizes, prefix, 
     script.write("wait\n")
 
 
-def merge(script, reference, pipeline, sample):
+def merge(script, options):
+    reference = options["reference"]
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
     script.write(
         """
 #
@@ -457,7 +502,13 @@ fi
     )
 
 
-def runQC(script, reference, pipeline, sample, stats, threads):
+def runQC(script, options):
+    reference = options["reference"]
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+    stats = options["stats"]
+    threads = options["cores"]
+
     script.write(
         """
 #
@@ -536,8 +587,12 @@ wait
     )
 
 
-def runInputQC(script, pipeline, sample, stats, threads):
-    filenames = getFileNames(sample, pipeline, False)
+def runInputQC(script, options):
+    sample = options["sample"]
+    stats = options["stats"]
+    threads = options["cores"]
+
+    filenames = getFileNames(options, False)
 
     script.write(
         """
@@ -568,7 +623,9 @@ wait
     )
 
 
-def runMultiQC(script, stats):
+def runMultiQC(script, options):
+    stats = options["stats"]
+
     script.write(
         """
 #
@@ -587,82 +644,29 @@ def runMultiQC(script, stats):
     )
 
 
-def cleanup(script, prefix, pipeline, sample, byInterval):
-    intervals = computeIntervals()
+def cleanup(script, prefix, options):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
 
     script.write("#\n")
     script.write("# Clean up all intermediate interval files\n")
     script.write("#\n")
 
-    if byInterval == True:
-        for interval in intervals:
-            bam = """{PREFIX}.{INTERVAL}.bam""".format(
-                PREFIX=prefix, INTERVAL=interval[1]
-            )
-            bqsr = """{PREFIX}.{INTERVAL}_bqsr.bam""".format(
-                PREFIX=prefix, INTERVAL=interval[1]
-            )
-            vcf = """{PREFIX}.{INTERVAL}.vcf""".format(
-                PREFIX=prefix, INTERVAL=interval[1]
-            )
+    bam = """{PREFIX}.chr*.bam""".format(PREFIX=prefix)
+    bqsr = """{PREFIX}.chr*_bqsr.bam""".format(PREFIX=prefix)
+    vcf = """{PREFIX}.chr*.vcf""".format(PREFIX=prefix)
 
-            script.write("rm -f {BAM}\n".format(BAM=bam))
-            script.write("rm -f {BAM}.bai\n".format(BAM=bam))
+    script.write("rm -f {BAM}\n".format(BAM=bam))
+    script.write("rm -f {BAM}.bai\n".format(BAM=bam))
 
-            script.write("\n")
-            script.write("rm -f {BQSR}\n".format(BQSR=bqsr))
-            script.write("rm -f {BQSR}.bai\n".format(BQSR=bqsr))
-            script.write("rm -f {BQSR}.table\n".format(BQSR=bqsr))
+    script.write("\n")
+    script.write("rm -f {BQSR}\n".format(BQSR=bqsr))
+    script.write("rm -f {BQSR}.bai\n".format(BQSR=bqsr))
+    script.write("rm -f {BQSR}.table\n".format(BQSR=bqsr))
 
-            script.write("\n")
-            script.write("rm -f {VCF}\n".format(VCF=vcf))
-
-            for type in ["snps", "indels"]:
-                script.write("\n")
-                script.write(
-                    "rm -f {VCF}\n".format(
-                        VCF=vcf.replace(".vcf", ".{TYPE}.vcf").format(TYPE=type)
-                    )
-                )
-                script.write(
-                    "rm -f {VCF}\n".format(
-                        VCF=vcf.replace(".vcf", ".{TYPE}.filtered.vcf").format(
-                            TYPE=type
-                        )
-                    )
-                )
-                script.write(
-                    "rm -f {VCF}\n".format(
-                        VCF=vcf.replace(
-                            ".vcf", ".{TYPE}.filtered.annotated.vcf"
-                        ).format(TYPE=type)
-                    )
-                )
-                script.write(
-                    "rm -f {VCF}\n".format(
-                        VCF=vcf.replace(
-                            ".vcf", ".{TYPE}.filtered.vcf_summary.html"
-                        ).format(TYPE=type)
-                    )
-                )
-
-            script.write("\n")
-    else:
-        bam = """{PREFIX}.chr*.bam""".format(PREFIX=prefix)
-        bqsr = """{PREFIX}.chr*_bqsr.bam""".format(PREFIX=prefix)
-        vcf = """{PREFIX}.chr*.vcf""".format(PREFIX=prefix)
-
-        script.write("rm -f {BAM}\n".format(BAM=bam))
-        script.write("rm -f {BAM}.bai\n".format(BAM=bam))
-
-        script.write("\n")
-        script.write("rm -f {BQSR}\n".format(BQSR=bqsr))
-        script.write("rm -f {BQSR}.bai\n".format(BQSR=bqsr))
-        script.write("rm -f {BQSR}.table\n".format(BQSR=bqsr))
-
-        script.write("\n")
-        script.write("rm -f {VCF}\n".format(VCF=vcf))
-        script.write("rm -f {VCF}\n".format(VCF=vcf).replace(".vcf", ".html"))
+    script.write("\n")
+    script.write("rm -f {VCF}\n".format(VCF=vcf))
+    script.write("rm -f {VCF}\n".format(VCF=vcf).replace(".vcf", ".html"))
 
     script.write("\n")
     script.write("#\n")
@@ -716,7 +720,11 @@ def writeHeader(script, options, filenames):
     script.write("#\n")
 
     script.write("#\n")
-    script.write("# Assumed chromosome sizes (from {SIZES})\n".format(SIZES=options["chromosomeSizes"]))
+    script.write(
+        "# Assumed chromosome sizes (from {SIZES})\n".format(
+            SIZES=options["chromosomeSizes"]
+        )
+    )
     intervals = loadIntervals(options["chromosomeSizes"])
     for c in intervals.keys():
         script.write("#   {CHROME} = {SIZE}\n".format(CHROME=c, SIZE=intervals[c]))
@@ -724,8 +732,13 @@ def writeHeader(script, options, filenames):
 
     script.write("#\n")
     script.write("# Split parameters\n")
-    script.write("#   segmentSize = {P}\n".format(P=segmentSize))
-    script.write("#   lastBlockMax = {P}\n".format(P=lastBlockMax))
+    script.write("#   segmentSize = {P}\n".format(P=options["segmentSize"]))
+    script.write("#   factor = {P}\n".format(P=options["factor"]))
+    script.write(
+        "#   last block max size = {P}\n".format(
+            P=options["segmentSize"] * options["factor"]
+        )
+    )
 
 
 def writeVersions(script):
@@ -735,53 +748,59 @@ def writeVersions(script):
 
 
 def main():
-    parser = optparse.OptionParser()
+    parser = argparse.ArgumentParser()
     parser.set_defaults(doQC=False, trim=True, cleanIntermediateFiles=True)
-    parser.add_option(
+    parser.add_argument(
         "-s",
         "--sample",
+        required=True,
         action="store",
         metavar="SAMPLE",
         dest="sample",
         help="short name of sample, e.g. DPZw_k file must be in <WORKING>/pipeline/<sample>_R[12].fastq.gz",
     )
-    parser.add_option(
+    parser.add_argument(
+        "-w",
+        "--work-dir",
+        required=True,
+        action="store",
+        metavar="WORKING_DIR",
+        dest="working",
+        help="Working directory, e.g. base for $WORKING/pipeline, $WORKING/stats",
+    )
+    parser.add_argument(
+        "-q",
         "--skip-qc",
         action="store_false",
         dest="doQC",
         default=True,
         help="Skip QC process on input and output files",
     )
-    parser.add_option(
+    parser.add_argument(
+        "-t",
         "--trim",
         action="store_true",
         dest="trim",
         default=False,
         help="Run trim-galore on the input FASTQ",
     )
-    parser.add_option(
-        "--cores",
-        action="store",
-        dest="cores",
-        default=cpu_count(),
-        help="Specify the number of available CPU",
-    )
-    parser.add_option(
+    parser.add_argument(
+        "-c",
         "--clean",
         action="store_true",
         dest="cleanIntermediateFiles",
         default=False,
         help="Clean up the mess we make",
     )
-    parser.add_option(
-        "-w",
-        "--work-dir",
+    parser.add_argument(
+        "-z",
+        "--cores",
         action="store",
-        metavar="WORKING_DIR",
-        dest="working",
-        help="Working directory, e.g. base for $WORKING/pipeline, $WORKING/stats",
+        dest="cores",
+        default=cpu_count(),
+        help="Specify the number of available CPU",
     )
-    parser.add_option(
+    parser.add_argument(
         "-r",
         "--reference-dir",
         action="store",
@@ -789,7 +808,7 @@ def main():
         dest="reference",
         help="Location of the reference genome files",
     )
-    parser.add_option(
+    parser.add_argument(
         "-p",
         "--pipeline-dir",
         action="store",
@@ -797,7 +816,7 @@ def main():
         dest="pipeline",
         help="Location of R1 and R2 files",
     )
-    parser.add_option(
+    parser.add_argument(
         "-o",
         "--stats-dir",
         action="store",
@@ -805,7 +824,7 @@ def main():
         dest="stats",
         help="Destination for statistics and QC files",
     )
-    parser.add_option(
+    parser.add_argument(
         "-b",
         "--bin-dir",
         action="store",
@@ -814,7 +833,7 @@ def main():
         default="$HOME/bin",
         help="Install location of all tooling",
     )
-    parser.add_option(
+    parser.add_argument(
         "--script",
         action="store",
         metavar="SHELL_SCRIPT",
@@ -822,7 +841,7 @@ def main():
         default="pipeline-runner",
         help="Filename of bash shell to create",
     )
-    parser.add_option(
+    parser.add_argument(
         "--sizes",
         action="store",
         metavar="CHROME_SIZES",
@@ -831,7 +850,24 @@ def main():
         help="Name of JSON file containing chromosome sizes",
     )
 
-    (opts, args) = parser.parse_args()
+    parser.add_argument(
+        "--segment",
+        action="store",
+        metavar="SEGMENT_SIZE",
+        dest="segmentSize",
+        default=50_000_000,
+        help="Size of interval partition",
+    )
+    parser.add_argument(
+        "--factor",
+        action="store",
+        metavar="FACTOR",
+        dest="factor",
+        default=0.25,
+        help="Interval remainder buffer (between 0.10 and 0.50)",
+    )
+
+    opts = parser.parse_args()
 
     options = vars(opts)
 
@@ -848,10 +884,18 @@ def main():
         print("--sample is a required option")
         return
 
-    for opt in ["working", "reference", "pipeline", "stats", "bin", "script", "chromosomeSizes"]:
+    for opt in [
+        "working",
+        "reference",
+        "pipeline",
+        "stats",
+        "bin",
+        "script",
+        "chromosomeSizes",
+    ]:
         options[opt] = expandvars(options[opt])
 
-    filenames = getFileNames(options["sample"], options["pipeline"], False)
+    filenames = getFileNames(options, False)
 
     if (
         exists(expandvars(filenames[0])) == False
@@ -928,74 +972,39 @@ def main():
         script.write("\n")
 
         # assume we're not trimming, this gets the original R1/R2
-        filenames = getFileNames(options["sample"], options["pipeline"], False)
+        filenames = getFileNames(options, False)
 
         if options["trim"] == True:
-            genTrimmer(
-                script,
-                filenames[0],
-                filenames[1],
-                options["sample"],
-                options["pipeline"],
-                "${HOME}/stats",
-                options["cores"],
-                options["doQC"],
-            )
+            genTrimmer(script, filenames[0], filenames[1], options)
 
             # trimming writes new files under different names, this will grab those
-            filenames = getFileNames(
-                options["sample"], options["pipeline"], options["trim"]
-            )
+            filenames = getFileNames(options, options["trim"])
 
         genBWA(
             script,
             filenames[0],
             filenames[1],
-            options["reference"],
-            options["sample"],
-            options["working"],
-            options["stats"],
-            options["pipeline"],
-            options["cores"],
+            options,
             sorted,
         )
         runIntervals(
             script,
-            options["working"],
-            options["reference"],
-            options["pipeline"],
-            options["chromosomeSizes"],
+            options,
             prefix,
             sorted,
         )
-        merge(script, options["reference"], options["pipeline"], options["sample"])
+        merge(script, options)
 
         if options["doQC"]:
-            runQC(
-                script,
-                options["reference"],
-                options["pipeline"],
-                options["sample"],
-                options["stats"],
-                options["cores"],
-            )
-
-            runInputQC(
-                script,
-                options["pipeline"],
-                options["sample"],
-                options["stats"],
-                options["cores"],
-            )
-
-            runMultiQC(script, options["stats"])
+            runQC(script, options)
+            runInputQC(script, options)
+            runMultiQC(script, options)
 
         if options["cleanIntermediateFiles"] == True:
-            cleanup(script, prefix, options["pipeline"], options["sample"], False)
+            cleanup(script, prefix, options)
 
         script.write(
-            """echo "Done processing {SAMPLE}\\n\\tstats in {STATS}\\n\\tVCFs in {PIPELINE}"
-""".format(
+            """echo "Done processing {SAMPLE}\\n\\tstats in {STATS}\\n\\tVCFs in {PIPELINE}"\n""".format(
                 SAMPLE=options["sample"],
                 STATS=options["stats"],
                 PIPELINE=options["pipeline"],
