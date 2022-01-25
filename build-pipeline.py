@@ -115,6 +115,9 @@ if [[ ! -f {TRIMMED_R1} || ! -f {TRIMMED_R2} ]]; then
         --fastqc_args "--outdir {STATS} --noextract" \\
         {R1} \\
         {R2}
+
+    mv {PIPELINE}/{TRIMMED_R1}_trimming_report.txt {STATS}
+    mv {PIPELINE}/{TRIMMED_R2}_trimming_report.txt {STATS}
 else
     echo "{TRIMMED_R1} and {TRIMMED_R2} found, not trimming"
 fi        
@@ -510,6 +513,8 @@ def runQC(script, options):
     stats = options["stats"]
     threads = options["cores"]
 
+    filenames = getFileNames(options, False)
+
     script.write(
         """
 #
@@ -572,51 +577,24 @@ else
     echo "WGS metrics already run, skipping"
 fi
 
-## TODO - find out how to short-circuit this
-fastqc \\
-    --threads={THREADS} \\
-    --outdir {STATS} \\
-    {PIPELINE}/{SAMPLE}.merged.bqsr.bam &
-wait
-""".format(
-            REFERENCE=reference,
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-            STATS=stats,
-            THREADS=threads,
-        )
-    )
-
-
-def runInputQC(script, options):
-    sample = options["sample"]
-    stats = options["stats"]
-    threads = options["cores"]
-
-    filenames = getFileNames(options, False)
-
-    script.write(
-        """
 #
-# RUN QC process on input files
+# RUN QC process on input files (we use 3 thread because there are 3 files)
 # 
 ## TODO - find out how to short-circuit this
 fastqc \\
-    --threads={THREADS} \\
+    --threads=3 \\
     --outdir {STATS} \\
     --noextract \\
-    {R1} &
-
-## TODO - find out how to short-circuit this
-fastqc \\
-    --threads={THREADS} \\
-    --outdir {STATS} \\
-    --noextract \\
+    {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
+    {R1} \\
     {R2} &
+
 wait
 """.format(
             R1=filenames[0],
             R2=filenames[1],
+            REFERENCE=reference,
+            PIPELINE=pipeline,
             SAMPLE=sample,
             STATS=stats,
             THREADS=threads,
@@ -998,7 +976,6 @@ def main():
 
         if options["doQC"]:
             runQC(script, options)
-            runInputQC(script, options)
             runMultiQC(script, options)
 
         if options["cleanIntermediateFiles"] == True:
