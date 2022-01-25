@@ -1,23 +1,31 @@
+#!/usr/bin/env python
+
 import json
 import optparse
 from datetime import datetime
 from math import ceil
 from os.path import exists, expandvars
+from os import cpu_count, uname, getpid
 
 segmentSize = 50_000_000
 lastBlockMax = segmentSize * 0.25
 
+# This script generates an Illumina paired-read VCF annotation pipeline.
+# There are some short-circuit options generated as part of this script,
+# but they will not normally be used in production. They are meant to 
+# prevent a developer from re-running various steps in the pipeline in
+# the case that the output files are already present.
 
-def loadIntervals():
-    with open("chromosomeSizes.json", "r") as file:
+def loadIntervals(chromosomeSizes):
+    with open(chromosomeSizes, "r") as file:
         chromosomeSizes = json.load(file)
         return chromosomeSizes
 
 
-def computeIntervals():
+def computeIntervals(chromosomeSizes):
     intervals = []
 
-    with open("chromosomeSizes.json", "r") as file:
+    with open(chromosomeSizes, "r") as file:
         chromosomeSizes = json.load(file)
 
         for c in chromosomeSizes:
@@ -76,58 +84,89 @@ def getFileNames(sample, pipeline, trimmed):
         )
 
 
-def genTrimmer(script, r1, r2, pipeline, stats, runQC):
+def genTrimmer(script, r1, r2, sample, pipeline, stats, threads, runQC):
     script.write("#\n")
     script.write("# Trim reads\n")
     script.write("#\n")
 
+    # because we're in the trimmer we can assume that we want
+    # trimmed output files, so we need to get those names
+    # and check for a short-circuit if appropriate
+    filenames = getFileNames(sample, pipeline, True)
+
     if runQC == True:
         script.write(
-            """trim_galore \\
-    --illumina \\
-    --cores 72 \\
-    --output_dir {PIPELINE} \\
-    --fastqc_args "--outdir {STATS} --noextract" \\
-    {R1} \\
-    {R2}
+            """
+if [[ ! -f {TRIMMED_R1} || ! -f {TRIMMED_R2} ]]; then
+    trim_galore \\
+        --illumina \\
+        --cores {THREADS} \\
+        --output_dir {PIPELINE} \\
+        --fastqc_args "--outdir {STATS} --noextract" \\
+        {R1} \\
+        {R2}
+else
+    echo "{TRIMMED_R1} and {TRIMMED_R2} found, not trimming        
+fi        
 """.format(
-                R1=r1, R2=r2, PIPELINE=pipeline, STATS=stats
+                R1=r1, R2=r2, PIPELINE=pipeline, STATS=stats, TRIMMED_R1=filenames[0], TRIMMED_R2=filenames[1]
             )
         )
     else:
         script.write(
-            """trim_galore \\
-    --illumina \\
-    --cores 72 \\
-    --output_dir {PIPELINE} \\
-    {R1} \\
-    {R2}
+            """
+if [[ ! -f {TRIMMED_R1} || ! -f {TRIMMED_R2} ]]; then
+    trim_galore \\
+        --illumina \\
+        --cores {THREADS} \\
+        --output_dir {PIPELINE} \\
+        {R1} \\
+        {R2}
+else
+    echo "{TRIMMED_R1} and {TRIMMED_R2} found, not trimming"
+fi        
 """.format(
-                R1=r1, R2=r2, PIPELINE=pipeline
+                R1=r1, R2=r2, PIPELINE=pipeline, THREADS=threads, TRIMMED_R1=filenames[0], TRIMMED_R2=filenames[1]
             )
         )
 
 
-def genBWA(script, r1, r2, reference, sample, working, stats, threads, output):
+def genBWA(script, r1, r2, reference, sample, working, stats, pipeline, threads, output):
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
     script.write("#\n")
 
-    script.write(
-        """bwa-mem2 mem -t {THREADS} \\
-    {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-    {R1} \\
-    {R2} \\
-    -Y \\
-    -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:MJS.SEQUENCER.7\\tLB:{SAMPLE}\\tSM:{SAMPLE}" |
-bamsormadup \\
-    SO=coordinate \\
-    threads={THREADS} \\
-    level=6 \\
-    inputformat=sam \\
-    indexfilename={SORTED}.bai \\
-    M={STATS}/{SAMPLE}.duplication_metrics >{SORTED}
+    # we need to split the threads across the to pipeline halves, these two tools
+    # are actually designed to properly consume CPU threads, so we let them share
+    threads //= 2
 
+    # each side of the pipeline also wants a read / write thread to push data
+    # through the UNIX pipe, we'll provide one here by giving up one
+    # processing thread per side
+    threads -= 1
+
+    # this is one of the more time-consuming operations, so, if we've already 
+    # done the alignment operation for this sample, we'll skip this
+    script.write(
+        """
+if [[ ! -f {SORTED} || ! -f {SORTED}.bai || ! -f {STATS}/{SAMPLE}.duplication_metrics ]]; then
+    bwa-mem2 mem -t {THREADS} \\
+        {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+        {R1} \\
+        {R2} \\
+        -Y \\
+        -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:MJS.SEQUENCER.7\\tLB:{SAMPLE}\\tSM:{SAMPLE}" |
+    bamsormadup \\
+        SO=coordinate \\
+        threads={THREADS} \\
+        level=0 \\
+        tmpfile={TMP}/bamsormapdup_{NODENAME}_{PID} \\
+        inputformat=sam \\
+        indexfilename={SORTED}.bai \\
+        M={STATS}/{SAMPLE}.duplication_metrics >{SORTED}
+else
+    echo "{SORTED}, index, and metrics found, not aligning"
+fi
 """.format(
             R1=r1,
             R2=r2,
@@ -137,52 +176,63 @@ bamsormadup \\
             STATS=stats,
             THREADS=threads,
             SORTED=output,
+            TMP=pipeline,
+            NODENAME=uname().nodename,
+            PID=getpid()
         )
     )
 
 
 def splinter(script, bam, sorted, interval):
-    script.write("        # Splinter our interval off the main file\n")
-    script.write(
-        """        samtools view -@ 4 -bh {SORTED} {INTERVAL} >{BAM}\n""".format(
+    script.write("""
+        # Splinter our interval off the main file
+        if [[ ! -f {BAM} || ! -f {BAM}.bai ]]; then
+            samtools view -@ 4 -bh {SORTED} {INTERVAL} >{BAM}
+            samtools index -@ 4 {BAM}
+        else
+            echo "Splinter for {INTERVAL} has been computed, not re-splintering"
+        fi
+    """.format(
             SORTED=sorted, INTERVAL=interval, BAM=bam
-        )
-    )
-    script.write(
-        """        samtools index -@ 4 {BAM}\n""".format(
-            SORTED=sorted, INTERVAL=interval, BAM=bam
-        )
-    )
+        ))
 
 
 def genBQSR(script, reference, interval, bam, bqsr):
     script.write(
         """
         # run base quality score recalibration - build the bqsr table
-        gatk BaseRecalibrator \\
-            -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-            -I {BAM} \\
-            -O {BQSR}.table \\
-            --preserve-qscores-less-than 6 \\
-            --known-sites {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
-            --known-sites {REFERENCE}/Homo_sapiens_assembly38.known_indels.vcf \\
-            --known-sites {REFERENCE}/Mills_and_1000G_gold_standard.indels.hg38.vcf \\
-            -L {INTERVAL}
+        if [[ ! -f {BQSR}.table ]]; then
+            gatk BaseRecalibrator \\
+                -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+                -I {BAM} \\
+                -O {BQSR}.table \\
+                --preserve-qscores-less-than 6 \\
+                --known-sites {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
+                --known-sites {REFERENCE}/Homo_sapiens_assembly38.known_indels.vcf \\
+                --known-sites {REFERENCE}/Mills_and_1000G_gold_standard.indels.hg38.vcf \\
+                -L {INTERVAL}
+        else
+            echo "BQSR table generation for {INTERVAL} skipped"
+        fi
 
         # run base quality score recalibration - apply the bqsr table
-        gatk ApplyBQSR \\
-            -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-            -I {BAM} \\
-            -O {BQSR} \\
-            --preserve-qscores-less-than 6 \\
-            --static-quantized-quals 10 \\
-            --static-quantized-quals 20 \\
-            --static-quantized-quals 30 \\
-            --bqsr-recal-file {BQSR}.table \\
-            -L {INTERVAL}
+        if [[ ! -f {BQSR} || ! -f {BQSR}.bai ]]; then
+            gatk ApplyBQSR \\
+                -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+                -I {BAM} \\
+                -O {BQSR} \\
+                --preserve-qscores-less-than 6 \\
+                --static-quantized-quals 10 \\
+                --static-quantized-quals 20 \\
+                --static-quantized-quals 30 \\
+                --bqsr-recal-file {BQSR}.table \\
+                -L {INTERVAL}
 
-        # index that file, this is our target for getting vcf
-        samtools index -@ 4 {BQSR}
+            # index that file, this is our target for getting vcf
+            samtools index -@ 4 {BQSR}
+        else
+            echo "BQSR application for {INTERVAL} already completed"
+        fi
 """.format(
             REFERENCE=reference, INTERVAL=interval, BAM=bam, BQSR=bqsr
         )
@@ -193,128 +243,143 @@ def callVariants(script, reference, interval, bam, bqsr, vcf):
     script.write(
         """
         # call variants
-        gatk HaplotypeCaller \\
-            -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-            -I {BQSR} \\
-            -O {VCF} \\
-            --pairHMM AVX_LOGLESS_CACHING_OMP \\
-            --native-pair-hmm-threads 8 \\
-            -L {INTERVAL}
+        if [[ ! -f {VCF} ]]; then
+            gatk HaplotypeCaller \\
+                -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+                -I {BQSR} \\
+                -O {VCF} \\
+                --pairHMM AVX_LOGLESS_CACHING_OMP \\
+                --native-pair-hmm-threads 8 \\
+                -L {INTERVAL}
+        else
+            echo "Variants already called for {INTERVAL}, skipping"
+        fi
 """.format(
             REFERENCE=reference, INTERVAL=interval, BAM=bam, BQSR=bqsr, VCF=vcf
         )
     )
 
 
-def filterSNPs(script, reference, vcf, snps, filtered):
+def filterSNPs(script, reference, vcf, interval, snps, filtered):
     script.write(
         """
         # pull snps out of out called variants and annotate them
-        gatk SelectVariants \\
-            -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-            -V {VCF} \\
-            -select-type SNP \\
-            -O {SNPS}
+        if [[ ! -f {SNPS} || ! -f {FILTERED} ]]; then
+            gatk SelectVariants \\
+                -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+                -V {VCF} \\
+                -select-type SNP \\
+                -O {SNPS}
 
-        gatk VariantFiltration \\
-            -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-            -V {SNPS} \\
-            --filter-expression "QD < 2.0" --filter-name "QD_lt_2" \\
-            --filter-expression "FS > 60.0" --filter-name "FS_gt_60" \\
-            --filter-expression "MQ < 40.0" --filter-name "MQ_lt_40" \\
-            --filter-expression "MQRankSum < -12.5" --filter-name "MQRS_lt_n12.5" \\
-            --filter-expression "ReadPosRankSum < -8.0" --filter-name "RPRS_lt_n8" \\
-            -O {FILTERED}
+            gatk VariantFiltration \\
+                -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+                -V {SNPS} \\
+                --filter-expression "QD < 2.0" --filter-name "QD_lt_2" \\
+                --filter-expression "FS > 60.0" --filter-name "FS_gt_60" \\
+                --filter-expression "MQ < 40.0" --filter-name "MQ_lt_40" \\
+                --filter-expression "MQRankSum < -12.5" --filter-name "MQRS_lt_n12.5" \\
+                --filter-expression "ReadPosRankSum < -8.0" --filter-name "RPRS_lt_n8" \\
+                -O {FILTERED}
+        else
+            echo "SNPs already filtered for {INTERVAL}, skipping"
+        fi
 """.format(
-            REFERENCE=reference, VCF=vcf, SNPS=snps, FILTERED=filtered
+            REFERENCE=reference, VCF=vcf, SNPS=snps, FILTERED=filtered, INTERVAL=interval
         )
     )
 
 
-def filterINDELs(script, reference, vcf, indels, filtered):
+def filterINDELs(script, reference, vcf, interval, indels, filtered):
     script.write(
         """
         # pull indels out of out called variants and annotate them
-        gatk SelectVariants \\
-            -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-            -V {VCF} \\
-            -select-type INDEL \\
-            -O {INDELS}
+        if [[ ! -f {INDELS} || ! -f {FILTERED} ]]; then
+            gatk SelectVariants \\
+                -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+                -V {VCF} \\
+                -select-type INDEL \\
+                -O {INDELS}
 
-        gatk VariantFiltration \\
-            -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-            -V {INDELS} \\
-            --filter-expression "QD < 2.0" --filter-name "QD_lt_2" \\
-            --filter-expression "FS > 200.0" --filter-name "FS_gt_200" \\
-            --filter-expression "ReadPosRankSum < -20.0" --filter-name "RPRS_lt_n20" \\
-            -O {FILTERED}
+            gatk VariantFiltration \\
+                -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+                -V {INDELS} \\
+                --filter-expression "QD < 2.0" --filter-name "QD_lt_2" \\
+                --filter-expression "FS > 200.0" --filter-name "FS_gt_200" \\
+                --filter-expression "ReadPosRankSum < -20.0" --filter-name "RPRS_lt_n20" \\
+                -O {FILTERED}
+        else
+            echo "INDELs already filtered for {INTERVAL}, skipping"
+        fi
 """.format(
-            REFERENCE=reference, VCF=vcf, INDELS=indels, FILTERED=filtered
+            REFERENCE=reference, VCF=vcf, INDELS=indels, FILTERED=filtered, INTERVAL=interval
         )
     )
 
 
-def filterVariants(script, reference, vcf):
+def filterVariants(script, reference, interval, vcf):
     snps = vcf.replace(".vcf", ".snps.vcf")
     filtered = vcf.replace(".vcf", ".snps.filtered.vcf")
-    filterSNPs(script, reference, vcf, snps, filtered)
+    filterSNPs(script, reference, vcf, interval, snps, filtered)
 
     indels = vcf.replace(".vcf", ".indels.vcf")
     filtered = vcf.replace(".vcf", ".indels.filtered.vcf")
-    filterINDELs(script, reference, vcf, indels, filtered)
+    filterINDELs(script, reference, vcf, interval, indels, filtered)
 
 
-def annotate(script, reference, vep, pipeline, vcf, filtered, annotated, summary):
+def annotate(script, reference, vep, pipeline, type, vcf, interval, filtered, annotated, summary):
     input = filtered.split("/")[-1]
     output = annotated.split("/")[-1]
 
     script.write(
         """
-        # remove these if they're leftover from a previous run
-        rm -f {ANNOTATED}
-        rm -f {SUMMARY}
-
         # run vep in a docker container to annotate the vcf
-        sudo docker run \\
-            -v {VEP}:/opt/vep/.vep:Z \\
-            -v {PIPELINE}:/opt/vep/.vep/input:Z \\
-            -v {PIPELINE}:/opt/vep/.vep/output:Z \\
-            -v {REFERENCE}:/opt/vep/.vep/reference:Z \\
-            ensemblorg/ensembl-vep \\
-                ./vep --cache --format vcf --merged --offline --use_given_ref --vcf --verbose \\
-                --fasta /opt/vep/.vep/reference/Homo_sapiens_assembly38.fasta \\
-                --input_file /opt/vep/.vep/input/{INPUT} \\
-                --output_file /opt/vep/.vep/output/{OUTPUT}
+        if [[ ! -f {ANNOTATED} || ! -f {SUMMARY} ]]; then
+            sudo docker run \\
+                -v {VEP}:/opt/vep/.vep:Z \\
+                -v {PIPELINE}:/opt/vep/.vep/input:Z \\
+                -v {PIPELINE}:/opt/vep/.vep/output:Z \\
+                -v {REFERENCE}:/opt/vep/.vep/reference:Z \\
+                ensemblorg/ensembl-vep \\
+                    ./vep --cache --format vcf --merged --offline --use_given_ref --vcf --verbose \\
+                    --fasta /opt/vep/.vep/reference/Homo_sapiens_assembly38.fasta \\
+                    --input_file /opt/vep/.vep/input/{INPUT} \\
+                    --output_file /opt/vep/.vep/output/{OUTPUT}
+        else
+            echo "{TYPE} annotations for {INTERVAL} already completed, skipping"
+        fi
 """.format(
             VEP=vep,
             PIPELINE=pipeline,
             REFERENCE=reference,
+            TYPE=type,
             VCF=vcf,
             ANNOTATED=annotated,
             FILTERED=filtered,
             SUMMARY=summary,
             INPUT=input,
             OUTPUT=output,
+            INTERVAL=interval,
         )
     )
 
 
-def annotateVariants(script, reference, working, pipeline, vcf):
+def annotateVariants(script, reference, working, pipeline, vcf, interval):
     vep = "{WORKING}/vep_data".format(WORKING=working)
-
-    filtered = vcf.replace(".vcf", ".snps.filtered.vcf")
-    annotated = vcf.replace(".vcf", ".snps.filtered.annotated.vcf")
-    summary = vcf.replace(".vcf", ".snps.filtered.vcf_summary.html")
-    annotate(script, reference, vep, pipeline, vcf, filtered, annotated, summary)
 
     filtered = vcf.replace(".vcf", ".indels.filtered.vcf")
     annotated = vcf.replace(".vcf", ".indels.filtered.annotated.vcf")
     summary = vcf.replace(".vcf", ".indels.filtered.vcf_summary.html")
-    annotate(script, reference, vep, pipeline, vcf, filtered, annotated, summary)
+    annotate(script, reference, vep, pipeline, 'INDEL', vcf, interval, filtered, annotated, summary)
+
+    filtered = vcf.replace(".vcf", ".snps.filtered.vcf")
+    annotated = vcf.replace(".vcf", ".snps.filtered.annotated.vcf")
+    summary = vcf.replace(".vcf", ".snps.filtered.vcf_summary.html")
+    annotate(script, reference, vep, pipeline, 'SNP', vcf, interval, filtered, annotated, summary)
 
 
-def runIntervals(script, working, reference, pipeline, prefix, sorted):
-    intervals = computeIntervals()
+
+def runIntervals(script, working, reference, pipeline, chromosomeSizes, prefix, sorted):
+    intervals = computeIntervals(chromosomeSizes)
 
     for interval in intervals:
         bam = """{PREFIX}.{INTERVAL}.bam""".format(PREFIX=prefix, INTERVAL=interval[1])
@@ -323,6 +388,7 @@ def runIntervals(script, working, reference, pipeline, prefix, sorted):
         )
         vcf = """{PREFIX}.{INTERVAL}.vcf""".format(PREFIX=prefix, INTERVAL=interval[1])
 
+        script.write("\n")
         script.write("    #\n")
         script.write("    # Run interval {INTERVAL}\n".format(INTERVAL=interval[0]))
         script.write("    #\n")
@@ -331,8 +397,8 @@ def runIntervals(script, working, reference, pipeline, prefix, sorted):
         splinter(script, bam, sorted, interval[0])
         genBQSR(script, reference, interval[0], bam, bqsr)
         callVariants(script, reference, interval[0], bam, bqsr, vcf)
-        filterVariants(script, reference, vcf)
-        annotateVariants(script, reference, working, pipeline, vcf)
+        filterVariants(script, reference, interval[0], vcf)
+        annotateVariants(script, reference, working, pipeline, vcf, interval[0])
 
         script.write("    )&\n")
         script.write("\n")
@@ -346,28 +412,45 @@ def merge(script, reference, pipeline, sample):
 #
 # Create final VCF file(s)
 # 
-/bin/ls -1 {PIPELINE}/*.indels.filtered.annotated.vcf >{PIPELINE}/merge.indels.list
-/bin/ls -1 {PIPELINE}/*.snps.filtered.annotated.vcf >{PIPELINE}/merge.snps.list
+if [[ ! -f {PIPELINE}/{SAMPLE}.snps.final.vcf ]]; then
+    /bin/ls -1 {PIPELINE}/*.snps.filtered.annotated.vcf >{PIPELINE}/merge.snps.list
 
-gatk MergeVcfs \\
-    -I {PIPELINE}/merge.indels.list \\
-    -O {PIPELINE}/{SAMPLE}.indels.final.vcf &
+    gatk MergeVcfs \\
+        -I {PIPELINE}/merge.snps.list \\
+        -O {PIPELINE}/{SAMPLE}.snps.final.vcf &
+    wait
+else
+    echo "SNPs already merged, skipping"
+fi
 
-gatk MergeVcfs \\
-    -I {PIPELINE}/merge.snps.list \\
-    -O {PIPELINE}/{SAMPLE}.snps.final.vcf &
-wait
+if [[ ! -f {PIPELINE}/{SAMPLE}.indels.final.vcf ]]; then
+    /bin/ls -1 {PIPELINE}/*.indels.filtered.annotated.vcf >{PIPELINE}/merge.indels.list
 
-gatk MergeVcfs \\
-    -I {PIPELINE}/{SAMPLE}.snps.final.vcf \\
-    -I {PIPELINE}/{SAMPLE}.indels.final.vcf \\
-    -O {PIPELINE}/{SAMPLE}.final.unfiltered.vcf
+    gatk MergeVcfs \\
+        -I {PIPELINE}/merge.indels.list \\
+        -O {PIPELINE}/{SAMPLE}.indels.final.vcf &
+else
+    echo "INDELs already merged, skipping"
+fi
 
-gatk SelectVariants \\
-    -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-    -V {PIPELINE}/{SAMPLE}.final.unfiltered.vcf \\
-    -O {PIPELINE}/{SAMPLE}.final.filtered.vcf \\
-    --exclude-filtered
+if [[ ! -f {PIPELINE}/{SAMPLE}.final.unfiltered.vcf ]]; then
+    gatk MergeVcfs \\
+        -I {PIPELINE}/{SAMPLE}.snps.final.vcf \\
+        -I {PIPELINE}/{SAMPLE}.indels.final.vcf \\
+        -O {PIPELINE}/{SAMPLE}.final.unfiltered.vcf
+else
+    echo "Unfiltered INDEL and SNP VCFs already merged, skipping"
+fi
+
+if [[ ! -f {PIPELINE}/{SAMPLE}.final.filtered.vcf ]]; then
+    gatk SelectVariants \\
+        -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+        -V {PIPELINE}/{SAMPLE}.final.unfiltered.vcf \\
+        -O {PIPELINE}/{SAMPLE}.final.filtered.vcf \\
+        --exclude-filtered
+else
+    echo "Filtered INDEL and SNP VCFs already merged, skipping"
+fi
 """.format(
             REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample
         )
@@ -380,39 +463,64 @@ def runQC(script, reference, pipeline, sample, stats, threads):
 #
 # RUN QC process
 # 
-samtools merge -@ 72 -o {PIPELINE}/{SAMPLE}.merged.bqsr.bam {PIPELINE}/*bqsr*.bam
-samtools index -@ 72 {PIPELINE}/{SAMPLE}.merged.bqsr.bam
+if [[ ! -f {PIPELINE}/{SAMPLE}.merged.bqsr.bam || ! -f {PIPELINE}/{SAMPLE}.merged.bqsr.bam.bai ]]; then
+    samtools merge -@ {THREADS} -o {PIPELINE}/{SAMPLE}.merged.bqsr.bam {PIPELINE}/*bqsr*.bam
+    samtools index -@ {THREADS} {PIPELINE}/{SAMPLE}.merged.bqsr.bam
+else
+    echo "Intermediate BQSR files already merged and indexed, skipping"
+fi
 
-samtools flagstat \\
-    {PIPELINE}/{SAMPLE}.merged.bqsr.bam >{STATS}/{SAMPLE}.bqsr.flagstat.txt &
+if [[ ! -f {STATS}/{SAMPLE}.bqsr.flagstat.txt ]]; then
+    samtools flagstat \\
+        {PIPELINE}/{SAMPLE}.merged.bqsr.bam >{STATS}/{SAMPLE}.bqsr.flagstat.txt &
+else
+    echo "samtools flagstat already run, skipping"
+fi
 
-gatk CollectInsertSizeMetrics \\
-    -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
-    -O {STATS}/{SAMPLE}.bqsr.insert_metrics.txt \\
-    -H {STATS}/{SAMPLE}.bqsr.insert_metrics.pdf \\
-    -M 0.5 &
+if [[ ! -f {STATS}/{SAMPLE}.bqsr.insert_metrics.txt || ! -f {STATS}/{SAMPLE}.bqsr.insert_metrics.pdf ]]; then
+    gatk CollectInsertSizeMetrics \\
+        -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
+        -O {STATS}/{SAMPLE}.bqsr.insert_metrics.txt \\
+        -H {STATS}/{SAMPLE}.bqsr.insert_metrics.pdf \\
+        -M 0.5 &
+else
+    echo "Insert metrics already run, skipping"
+fi
 
-gatk CollectAlignmentSummaryMetrics \\
-    -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-    -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
-    -O {STATS}/{SAMPLE}.bqsr.alignment_metrics.txt &
+if [[ ! -f {STATS}/{SAMPLE}.bqsr.alignment_metrics.txt ]]; then
+    gatk CollectAlignmentSummaryMetrics \\
+        -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+        -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
+        -O {STATS}/{SAMPLE}.bqsr.alignment_metrics.txt &
+else
+    echo "Alignment metrics already run, skipping"
+fi
 
-gatk CollectGcBiasMetrics \\
-    -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-    -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
-    -O {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.txt \\
-    -CHART {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.pdf \\
-    -S {STATS}/{SAMPLE}.bqsr.gc_bias_summary.txt &
+if [[ ! -f {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.bqsr.gc_bias_summary.txt ]]; then
+    gatk CollectGcBiasMetrics \\
+        -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+        -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
+        -O {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.txt \\
+        -CHART {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.pdf \\
+        -S {STATS}/{SAMPLE}.bqsr.gc_bias_summary.txt &
+else
+    echo "GC bias metrics already run, skipping"
+fi
 
-gatk CollectWgsMetrics \\
-    -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-    -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
-    -O {STATS}/{SAMPLE}.metrics.txt \\
-    --READ_LENGTH 151 \\
-    -INTERVALS {REFERENCE}/ref_genome_autosomal.interval_list \\
-    --USE_FAST_ALGORITHM \\
-    --INCLUDE_BQ_HISTOGRAM &
+if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
+    gatk CollectWgsMetrics \\
+        -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+        -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
+        -O {STATS}/{SAMPLE}.wgs_metrics.txt \\
+        --READ_LENGTH 151 \\
+        -INTERVALS {REFERENCE}/ref_genome_autosomal.interval_list \\
+        --USE_FAST_ALGORITHM \\
+        --INCLUDE_BQ_HISTOGRAM &
+else
+    echo "WGS metrics already run, skipping"
+fi
 
+## TODO - find out how to short-circuit this
 fastqc \\
     --threads={THREADS} \\
     --outdir {STATS} \\
@@ -436,12 +544,14 @@ def runInputQC(script, pipeline, sample, stats, threads):
 #
 # RUN QC process on input files
 # 
+## TODO - find out how to short-circuit this
 fastqc \\
     --threads={THREADS} \\
     --outdir {STATS} \\
     --noextract \\
     {R1} &
 
+## TODO - find out how to short-circuit this
 fastqc \\
     --threads={THREADS} \\
     --outdir {STATS} \\
@@ -465,6 +575,7 @@ def runMultiQC(script, stats):
 # Run MultiQC across everything
 # 
 (
+    ## TODO - find out how to short-circuit this
     mkdir -p {STATS}/qc
     cd {STATS}/qc
     multiqc -f {STATS}
@@ -605,10 +716,11 @@ def writeHeader(script, options, filenames):
     script.write("#\n")
 
     script.write("#\n")
-    script.write("# Assumed chromosome sizes\n")
-    intervals = loadIntervals()
+    script.write("# Assumed chromosome sizes (from {SIZES})\n".format(SIZES=options["chromosomeSizes"]))
+    intervals = loadIntervals(options["chromosomeSizes"])
     for c in intervals.keys():
         script.write("#   {CHROME} = {SIZE}\n".format(CHROME=c, SIZE=intervals[c]))
+    script.write("#\n")
 
     script.write("#\n")
     script.write("# Split parameters\n")
@@ -618,7 +730,7 @@ def writeHeader(script, options, filenames):
 
 def writeVersions(script):
     script.write("#\n")
-    script.write("# This will write version numbers of tools here...")
+    script.write("# This will write version numbers of tools here...\n")
     script.write("#\n")
 
 
@@ -634,7 +746,6 @@ def main():
         help="short name of sample, e.g. DPZw_k file must be in <WORKING>/pipeline/<sample>_R[12].fastq.gz",
     )
     parser.add_option(
-        "-q",
         "--skip-qc",
         action="store_false",
         dest="doQC",
@@ -642,7 +753,6 @@ def main():
         help="Skip QC process on input and output files",
     )
     parser.add_option(
-        "-t",
         "--trim",
         action="store_true",
         dest="trim",
@@ -650,7 +760,13 @@ def main():
         help="Run trim-galore on the input FASTQ",
     )
     parser.add_option(
-        "-c",
+        "--cores",
+        action="store",
+        dest="cores",
+        default=cpu_count(),
+        help="Specify the number of available CPU",
+    )
+    parser.add_option(
         "--clean",
         action="store_true",
         dest="cleanIntermediateFiles",
@@ -699,13 +815,20 @@ def main():
         help="Install location of all tooling",
     )
     parser.add_option(
-        "-j",
         "--script",
         action="store",
         metavar="SHELL_SCRIPT",
         dest="script",
         default="pipeline-runner",
         help="Filename of bash shell to create",
+    )
+    parser.add_option(
+        "--sizes",
+        action="store",
+        metavar="CHROME_SIZES",
+        dest="chromosomeSizes",
+        default="chromosomeSizes.json",
+        help="Name of JSON file containing chromosome sizes",
     )
 
     (opts, args) = parser.parse_args()
@@ -725,7 +848,7 @@ def main():
         print("--sample is a required option")
         return
 
-    for opt in ["working", "reference", "pipeline", "stats", "bin", "script"]:
+    for opt in ["working", "reference", "pipeline", "stats", "bin", "script", "chromosomeSizes"]:
         options[opt] = expandvars(options[opt])
 
     filenames = getFileNames(options["sample"], options["pipeline"], False)
@@ -812,8 +935,10 @@ def main():
                 script,
                 filenames[0],
                 filenames[1],
+                options["sample"],
                 options["pipeline"],
                 "${HOME}/stats",
+                options["cores"],
                 options["doQC"],
             )
 
@@ -830,7 +955,8 @@ def main():
             options["sample"],
             options["working"],
             options["stats"],
-            72,
+            options["pipeline"],
+            options["cores"],
             sorted,
         )
         runIntervals(
@@ -838,6 +964,7 @@ def main():
             options["working"],
             options["reference"],
             options["pipeline"],
+            options["chromosomeSizes"],
             prefix,
             sorted,
         )
@@ -850,11 +977,15 @@ def main():
                 options["pipeline"],
                 options["sample"],
                 options["stats"],
-                24,
+                options["cores"],
             )
 
             runInputQC(
-                script, options["pipeline"], options["sample"], options["stats"], 24
+                script,
+                options["pipeline"],
+                options["sample"],
+                options["stats"],
+                options["cores"],
             )
 
             runMultiQC(script, options["stats"])
