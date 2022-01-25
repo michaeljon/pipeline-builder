@@ -142,10 +142,6 @@ def genBWA(script, r1, r2, options, output):
     script.write("# Align, sort, and mark duplicates\n")
     script.write("#\n")
 
-    # we need to split the threads across the to pipeline halves, these two tools
-    # are actually designed to properly consume CPU threads, so we let them share
-    threads //= 2
-
     # each side of the pipeline also wants a read / write thread to push data
     # through the UNIX pipe, we'll provide one here by giving up one
     # processing thread per side
