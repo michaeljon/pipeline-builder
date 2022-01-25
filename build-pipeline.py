@@ -93,7 +93,6 @@ def genTrimmer(script, r1, r2, options):
     pipeline = options["pipeline"]
     stats = options["stats"]
     threads = options["cores"]
-    runQC = options["doQC"]
 
     script.write("#\n")
     script.write("# Trim reads\n")
@@ -104,15 +103,13 @@ def genTrimmer(script, r1, r2, options):
     # and check for a short-circuit if appropriate
     filenames = getFileNames(options, True)
 
-    if runQC == True:
-        script.write(
-            """
+    script.write(
+        """
 if [[ ! -f {TRIMMED_R1} || ! -f {TRIMMED_R2} ]]; then
     trim_galore \\
         --illumina \\
         --cores {THREADS} \\
         --output_dir {PIPELINE} \\
-        --fastqc_args "--outdir {STATS} --noextract" \\
         {R1} \\
         {R2}
 
@@ -122,37 +119,15 @@ else
     echo "{TRIMMED_R1} and {TRIMMED_R2} found, not trimming"
 fi        
 """.format(
-                R1=r1,
-                R2=r2,
-                PIPELINE=pipeline,
-                STATS=stats,
-                THREADS=threads,
-                TRIMMED_R1=filenames[0],
-                TRIMMED_R2=filenames[1],
-            )
+            R1=r1,
+            R2=r2,
+            PIPELINE=pipeline,
+            THREADS=threads,
+            TRIMMED_R1=filenames[0],
+            TRIMMED_R2=filenames[1],
+            STATS=stats,
         )
-    else:
-        script.write(
-            """
-if [[ ! -f {TRIMMED_R1} || ! -f {TRIMMED_R2} ]]; then
-    trim_galore \\
-        --illumina \\
-        --cores {THREADS} \\
-        --output_dir {PIPELINE} \\
-        {R1} \\
-        {R2}
-else
-    echo "{TRIMMED_R1} and {TRIMMED_R2} found, not trimming"
-fi        
-""".format(
-                R1=r1,
-                R2=r2,
-                PIPELINE=pipeline,
-                THREADS=threads,
-                TRIMMED_R1=filenames[0],
-                TRIMMED_R2=filenames[1],
-            )
-        )
+    )
 
 
 def genBWA(script, r1, r2, options, output):
@@ -796,7 +771,7 @@ def main():
         action="store_true",
         dest="trim",
         default=False,
-        help="Run trim-galore on the input FASTQ",
+        help="Run trim-galore on the input FASTQ. Use this with great caution because it can blow up the read pair matching.",
     )
     parser.add_argument(
         "-c",
