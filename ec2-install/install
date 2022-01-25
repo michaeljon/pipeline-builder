@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+
+# format the drives
+mkfs.ext4 -E nodiscard /dev/nvme1n1
+mkfs.ext4 -E nodiscard /dev/nvme2n1
+
+# make our working directory and mount point
+mkdir -p /pipeline
+mkdir -p /pipeline/tools
+mkdir -p /pipeline/bin
+mkdir -p /pipeline/temp
+mkdir -p /pipeline/working
+mkdir -p /pipeline/reference
+
+# mount the SSDs on our mount points
+mount /dev/nvme1n1 /pipeline/temp
+mount /dev/nvme2n1 /pipeline/working
+
+mkdir /pipeline/working/input
+mkdir /pipeline/working/output
+
+cd /pipeline/tools
+
+# download and unpack
+curl https://github.com/samtools/samtools/releases/download/1.14/samtools-1.14.tar.bz2 --location -O
+curl https://github.com/samtools/bcftools/releases/download/1.14/bcftools-1.14.tar.bz2 --location -O
+curl https://github.com/samtools/htslib/releases/download/1.14/htslib-1.14.tar.bz2 --location -O
+
+curl https://github.com/lh3/bwa/releases/download/v0.7.17/bwa-0.7.17.tar.bz2 --location -O
+curl https://github.com/broadinstitute/picard/releases/download/2.26.6/picard.jar --location -O
+curl https://github.com/broadinstitute/gatk/releases/download/4.2.3.0/gatk-4.2.3.0.zip --location -O
+curl https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.9.zip --location -O
+
+curl https://github.com/bwa-mem2/bwa-mem2/releases/download/v2.2.1/bwa-mem2-2.2.1_x64-linux.tar.bz2 --location -O
+curl https://gitlab.com/german.tischler/libmaus2/-/archive/2.0.807-release-20211122112933/libmaus2-2.0.807-release-20211122112933.tar.gz --location -O
+curl https://gitlab.com/german.tischler/biobambam2/-/archive/2.0.183-release-20210802180148/biobambam2-2.0.183-release-20210802180148.tar.gz --location -O
+
+curl https://github.com/FelixKrueger/TrimGalore/archive/refs/tags/0.6.7.tar.gz --location -o trim_galore.tgz
+
+bzip2 -d bwa-0.7.17.tar.bz2
+bzip2 -d samtools-1.14.tar.bz2
+bzip2 -d bcftools-1.14.tar.bz2
+bzip2 -d htslib-1.14.tar.bz2
+
+tar xvf bwa-0.7.17.tar
+tar xvf samtools-1.14.tar
+tar xvf bcftools-1.14.tar
+tar xvf htslib-1.14.tar
+
+bzip2 -d bwa-mem2-2.2.1_x64-linux.tar.bz2
+tar xvf bwa-mem2-2.2.1_x64-linux.tar
+
+tar xvzf libmaus2-2.0.807-release-20211122112933.tar.gz
+tar xvzf biobambam2-2.0.183-release-20210802180148.tar.gz
+
+unzip fastqc_v0.11.9.zip
+
+tar xvzf trim_galore.tgz
+mv TrimGalore-0.6.7 ${WORKING}/bin
+
+# basic requirements
+yum install -y bzip2
+yum install -y java-11-amazon-corretto-headless
+yum install -y gcc10.x86_64 gcc10-c++.x86_64
+yum install libtool
+yum install yum install boost-devel
+update-alternatives \
+    --install /usr/bin/gcc gcc /usr/bin/gcc10-gcc 100 \
+    --slave /usr/bin/g++ g++ /usr/bin/gcc10-g++
+
+# bwa requirements
+yum install -y zlib-devel
+
+# samtools requirements
+yum install -y libcurl-devel
+yum install -y bzip2-devel
+yum install -y xz-devel
+yum install -y ncurses-devel ncurses
+
+# docker components
+sudo apt update
+sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu focal stable"
+apt-cache policy docker-ce
+sudo apt install -y docker-ce
+sudo usermod -aG docker ${USER}
+
+# build the tools
+cd /pipeline/tools/bwa-0.7.17
+make
+cp *.pl /pipeline/bin
+cp bwa /pipeline/bin
+cp bwa-mem2-2.2.1_x64-linux/bwa* /pipeline/bin
+cp -r bwakit/* /pipeline/bin
+
+cd /pipeline/tools/samtools-1.14
+make
+cp samtools /pipeline/bin
+
+cd /pipeline/tools/bcftools-1.14
+./configure --prefix=$HOME/bin
+make
+
+cd /pipeline/tools/htslib-1.14
+make
+
+cd /pipeline/tools
+unzip gatk-4.2.3.0.zip
+cp -r gatk-4.2.3.0/* /pipeline/bin
+
+# download the reference genomes (in this case we're only interested in GRCh38)
+# this pulls the reference, the index, and the dict, plus some other components of interest
+# specifically those files needed by bwa
+cd /pipeline/reference
+
+#
+# note: these need to be pulled from our own S3, pulling from 1000Genomes takes too long and is unstable
+#
+curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa -O
+curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla-extra.fa -O
+curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa.alt -O
+
+export PATH=/pipeline/bin:/pipeline/bin/FastQC:/pipeline/bin/gsutil:$PATH
+
+bwa index GRCh38_full_analysis_set_plus_decoy_hla.fa
+samtools faidx GRCh38_full_analysis_set_plus_decoy_hla.fa
+gatk CreateSequenceDictionary -R GRCh38_full_analysis_set_plus_decoy_hla.fa -O GRCh38_full_analysis_set_plus_decoy_hla.dict
+
+# SNP calibration call sets - dbsnp, hapmap, omni, and 1000G
+gsutil cp gs://genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.dbsnp138.vcf .
+gsutil cp gs://genomics-public-data/resources/broad/hg38/v0/hapmap_3.3.hg38.vcf.gz .
+gsutil cp gs://genomics-public-data/resources/broad/hg38/v0/1000G_omni2.5.hg38.vcf.gz .
+gsutil cp gs://genomics-public-data/resources/broad/hg38/v0/1000G_phase1.snps.high_confidence.hg38.vcf.gz .
+
+# Indel calibration call sets - dbsnp, Mills
+gsutil cp gs://genomics-public-data/resources/broad/hg38/v0/Homo_sapiens_assembly38.known_indels.vcf.gz .
+gsutil cp gs://genomics-public-data/resources/broad/hg38/v0/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz .
+
+# Interval lists that can be used to parallelize certain GATK tasks
+gsutil cp gs://genomics-public-data/resources/broad/hg38/v0/wgs_calling_regions.hg38.interval_list .
+gsutil cp -r gs://genomics-public-data/resources/broad/hg38/v0/scattered_calling_intervals/ .

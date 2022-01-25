@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+
+# format the drives
+mkfs.ext4 -E nodiscard /dev/nvme1n1
+mkfs.ext4 -E nodiscard /dev/nvme2n1
+
+# make our working directory and mount point
+mkdir -p /pipeline
+mkdir -p /pipeline/tools
+mkdir -p /pipeline/bin
+mkdir -p /pipeline/temp
+mkdir -p /pipeline/working
+mkdir -p /pipeline/reference
+
+# mount the SSDs on our mount points
+mount /dev/nvme1n1 /pipeline/temp
+mount /dev/nvme2n1 /pipeline/working
+
+mkdir /pipeline/working/input
+mkdir /pipeline/working/output
+
+cd /pipeline/tools
+
+# download and unpack
+curl https://github.com/samtools/samtools/releases/download/1.14/samtools-1.14.tar.bz2 --location -O
+curl https://github.com/lh3/bwa/releases/download/v0.7.17/bwa-0.7.17.tar.bz2 --location -O
+curl https://github.com/broadinstitute/picard/releases/download/2.26.6/picard.jar --location -O
+curl https://github.com/broadinstitute/gatk/releases/download/4.2.3.0/gatk-4.2.3.0.zip --location -O
+
+bzip2 -d bwa-0.7.17.tar.bz2
+bzip2 -d samtools-1.14.tar.bz2
+
+tar xvf bwa-0.7.17.tar 
+tar xvf samtools-1.14.tar
+
+# basic requirements
+yum install -y bzip2
+yum install -y java-11-amazon-corretto-headless
+yum install -y gcc
+
+# bwa requirements
+yum install -y zlib-devel
+
+# samtools requirements
+yum install -y libcurl-devel
+yum install -y bzip2-devel
+yum install -y xz-devel
+yum install -y ncurses-devel ncurses
+
+# build the tools
+cd /pipeline/tools/bwa-0.7.17
+make
+cp *.pl /pipeline/bin
+cp bwa /pipeline/bin
+cp -r bwakit/* /pipeline/bin
+
+cd /pipeline/tools/samtools-1.14
+make
+cp samtools /pipeline/bin
+
+cd /pipeline/tools
+unzip gatk-4.2.3.0.zip
+cp -r gatk-4.2.3.0/* /pipeline/bin
+
+# download the reference genomes (in this case we're only interested in GRCh38)
+# this pulls the reference, the index, and the dict, plus some other components of interest
+# specifically those files needed by bwa
+cd /pipeline/reference
+curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla-extra.fa -O
+curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.dict -O
+curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa -O
+curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa.alt -O
+curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa.amb -O
+curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa.ann -O
+curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa.bwt -O
+curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa.fai -O
+curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa.pac -O
+curl http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/GRCh38_reference_genome/GRCh38_full_analysis_set_plus_decoy_hla.fa.sa -O

@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+
+# Installation notes
+WORKING=$HOME
+
+# baseline tooling
+sudo apt update
+sudo apt install -y unzip
+sudo apt install -y gcc g++
+sudo apt install -y openjdk-11-jdk-headless
+sudo apt install -y make
+sudo apt install -y libtool
+sudo apt install -y pkg-config
+sudo apt install -y python-is-python3
+sudo apt install -y python3-pip
+sudo apt install -y awscli
+
+sudo apt install -y jq
+sudo apt install -y r-base
+
+# runtime monitoring
+sudo apt install -y sysstat
+sudo apt install -y iotop
+sudo apt install -y dstat
+
+# baseline libraries
+sudo apt install -y zlib1g-dev
+sudo apt install -y libncurses-dev
+sudo apt install -y liblzma-dev
+sudo apt install -y libbz2-dev
+sudo apt install -y libcurl4-nss-dev
+sudo apt install -y libboost-dev
+sudo apt install -y libgsl-dev
+sudo apt install -y libperl-dev
+
+sudo pip3 install multiqc
+sudo pip3 install cutadapt
+
+# pipeline tool setup and path
+mkdir ${WORKING}/bin
+mkdir ${WORKING}/src
+
+# pipeline workspace
+mkdir ${WORKING}/reference
+mkdir ${WORKING}/pipeline
+
+# working filesystem space, this'll change per configuration (zero, one, or two disks)
+sudo mkfs.ext4 -E nodiscard /dev/nvme1n1
+sudo mkfs.ext4 -E nodiscard /dev/nvme2n1
+
+sudo mount /dev/nvme1n1 ${WORKING}/pipeline
+sudo mount /dev/nvme2n1 ${WORKING}/stats
+
+sudo chown -R ubuntu:ubuntu ${WORKING}/pipeline
+sudo chown -R ubuntu:ubuntu ${WORKING}/stats
+
+# sudo dd if=/dev/zero of=$HOME/stats/swap bs=1M count=65536
+# sudo chmod 0600 $HOME/stats/swap
+# sudo mkswap $HOME/stats/swap
+# sudo swapon $HOME/stats/swap
+
+# pipeline tooling
+cd ${WORKING}/src
+
+curl https://www.zlib.net/pigz/pigz.tar.gz -O
+tar xvzf pigz.tar.gz && rm pigz.tar.gz
+cd pigz-2.6 && make && mv pigz unpigz ${WORKING}/bin
+
+curl https://github.com/samtools/samtools/releases/download/1.14/samtools-1.14.tar.bz2 --location -O
+curl https://github.com/lh3/bwa/releases/download/v0.7.17/bwa-0.7.17.tar.bz2 --location -O
+curl https://github.com/broadinstitute/picard/releases/download/2.26.6/picard.jar --location -O
+curl https://github.com/broadinstitute/gatk/releases/download/4.2.3.0/gatk-4.2.3.0.zip --location -O
+curl https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.9.zip --location -O
+
+curl https://github.com/bwa-mem2/bwa-mem2/releases/download/v2.2.1/bwa-mem2-2.2.1_x64-linux.tar.bz2 --location -O
+curl https://gitlab.com/german.tischler/libmaus2/-/archive/2.0.807-release-20211122112933/libmaus2-2.0.807-release-20211122112933.tar.gz --location -O
+curl https://gitlab.com/german.tischler/biobambam2/-/archive/2.0.183-release-20210802180148/biobambam2-2.0.183-release-20210802180148.tar.gz --location -O
+
+curl https://github.com/FelixKrueger/TrimGalore/archive/refs/tags/0.6.7.tar.gz --location -o trim_galore.tgz
+
+bzip2 -d samtools-1.14.tar.bz2 && tar xvf samtools-1.14.tar && rm samtools-1.14.tar
+bzip2 -d bwa-0.7.17.tar.bz2 && tar xvf bwa-0.7.17.tar && rm bwa-0.7.17.tar
+unzip gatk-4.2.3.0.zip && rm gatk-4.2.3.0.zip
+unzip fastqc_v0.11.9.zip && rm fastqc_v0.11.9.zip
+bzip2 -d bwa-mem2-2.2.1_x64-linux.tar.bz2 && tar xvf bwa-mem2-2.2.1_x64-linux.tar && rm bwa-mem2-2.2.1_x64-linux.tar
+tar xvzf libmaus2-2.0.807-release-20211122112933.tar.gz
+tar xvzf biobambam2-2.0.183-release-20210802180148.tar.gz
+
+tar xvzf trim_galore.tgz && rm trim_galore.tgz
+
+# TODO: build and / or install all the components
+mv ${WORKING}/src/picard.jar ${WORKING}/bin
+mv ${WORKING}/src/FastQC ${WORKING}/bin
+mv ${WORKING}/src/gatk-4.2.3.0 ${WORKING}/bin
+mv ${WORKING}/src/bwa-mem2-2.2.1_x64-linux/bam* ${WORKING}/bin
+mv TrimGalore-0.6.7 ${WORKING}/bin
+
+cd ${WORKING}/src/samtools-1.14 && make
+cd ${WORKING}/src/bwa-0.7.17 && make
+cd ${WORKING}/src/libmaus2-2.0.807-release-20211122112933 && ./configure && make
+cd ${WORKING}/src/biobambam2-2.0.183-release-20210802180148 && ./configure --with-libmaus=${WORKING}/src/libmaus2-2.0.807-release-20211122112933 && make
+
+export PATH=$HOME/bin/FastQC:$HOME/bin/TrimGalore-0.6.7:$HOME/bin/gatk-4.2.3.0:$HOME/bin:$PATH
