@@ -2,6 +2,7 @@
 
 import json
 import argparse
+import math
 from datetime import datetime
 from math import ceil
 from os.path import exists, expandvars
@@ -25,7 +26,7 @@ def computeIntervals(options):
 
     chromosomeSizes = options["chromosomeSizes"]
     segmentSize = options["segmentSize"]
-    lastBlockMax = options["segmentSize"] * options["factor"]
+    lastBlockMax = math.floor(options["segmentSize"] * options["factor"])
 
     with open(chromosomeSizes, "r") as file:
         chromosomeSizes = json.load(file)
@@ -736,7 +737,7 @@ def writeHeader(script, options, filenames):
     script.write("#   factor = {P}\n".format(P=options["factor"]))
     script.write(
         "#   last block max size = {P}\n".format(
-            P=options["segmentSize"] * options["factor"]
+            P=math.floor(options["segmentSize"] * options["factor"])
         )
     )
 
