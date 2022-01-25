@@ -116,8 +116,8 @@ if [[ ! -f {TRIMMED_R1} || ! -f {TRIMMED_R2} ]]; then
         {R1} \\
         {R2}
 
-    mv {PIPELINE}/{TRIMMED_R1}_trimming_report.txt {STATS}
-    mv {PIPELINE}/{TRIMMED_R2}_trimming_report.txt {STATS}
+    mv {TRIMMED_R1}_trimming_report.txt {STATS}
+    mv {TRIMMED_R2}_trimming_report.txt {STATS}
 else
     echo "{TRIMMED_R1} and {TRIMMED_R2} found, not trimming"
 fi        
@@ -576,20 +576,6 @@ if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
 else
     echo "WGS metrics already run, skipping"
 fi
-
-#
-# RUN QC process on input files (we use 3 thread because there are 3 files)
-# 
-## TODO - find out how to short-circuit this
-fastqc \\
-    --threads=3 \\
-    --outdir {STATS} \\
-    --noextract \\
-    {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
-    {R1} \\
-    {R2} &
-
-wait
 """.format(
             R1=filenames[0],
             R2=filenames[1],
@@ -600,6 +586,55 @@ wait
             THREADS=threads,
         )
     )
+
+    if options["trim"] == True:
+        trimmed = getFileNames(options, True)
+
+        script.write(
+            """
+fastqc \\
+    --threads=5 \\
+    --outdir {STATS} \\
+    --noextract \\
+    {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
+    {R1} \\
+    {R2} \\
+    {TRIMMED_R1} \\
+    {TRIMMED_R2} &
+""".format(
+                R1=filenames[0],
+                R2=filenames[1],
+                TRIMMED_R1=trimmed[0],
+                TRIMMED_R2=trimmed[1],
+                REFERENCE=reference,
+                PIPELINE=pipeline,
+                SAMPLE=sample,
+                STATS=stats,
+                THREADS=threads,
+            )
+        )
+    else:
+        script.write(
+            """
+fastqc \\
+    --threads=3 \\
+    --outdir {STATS} \\
+    --noextract \\
+    {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
+    {R1} \\
+    {R2} &
+""".format(
+                R1=filenames[0],
+                R2=filenames[1],
+                REFERENCE=reference,
+                PIPELINE=pipeline,
+                SAMPLE=sample,
+                STATS=stats,
+                THREADS=threads,
+            )
+        )
+
+    script.write("\nwait\n")
 
 
 def runMultiQC(script, options):
@@ -881,8 +916,9 @@ def main():
         or exists(expandvars(filenames[1])) == False
     ):
         print(
-            "Unable to locate the R1 or R2 files at {FILENAMES}".format(
-                FILENAMES=filenames
+            "Unable to locate the R1 or R2 files at {R1} and {R2}".format(
+                R1=filenames[0],
+                R2=filenames[1],
             )
         )
         print("Check your --sample and --work-dir parameters")
@@ -982,7 +1018,7 @@ def main():
             cleanup(script, prefix, options)
 
         script.write(
-            """echo "Done processing {SAMPLE}\\n\\tstats in {STATS}\\n\\tVCFs in {PIPELINE}"\n""".format(
+            """\necho "Done processing {SAMPLE}\\n\\tstats in {STATS}\\n\\tVCFs in {PIPELINE}"\n""".format(
                 SAMPLE=options["sample"],
                 STATS=options["stats"],
                 PIPELINE=options["pipeline"],
