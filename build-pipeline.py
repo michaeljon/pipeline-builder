@@ -135,6 +135,7 @@ fi
         )
     )
 
+
 def updateDictionary(script, options):
     reference = options["reference"]
     bin = options["bin"]
@@ -143,8 +144,10 @@ def updateDictionary(script, options):
     script.write("# Build the reference dictionary and interval list\n")
     script.write("#\n")
 
-    chromosomes = [ 'chr' + str(c) for c in loadChromosomeList(options["chromosomeSizes"])]
-    regex = '|'.join(chromosomes)
+    chromosomes = [
+        "chr" + str(c) for c in loadChromosomeList(options["chromosomeSizes"])
+    ]
+    regex = "|".join(chromosomes)
     print(regex)
 
     script.write(
@@ -170,10 +173,10 @@ else
 fi
 
 """.format(
-    REFERENCE=reference,
-    BIN = bin,
-    REGEX=regex
-))
+            REFERENCE=reference, BIN=bin, REGEX=regex
+        )
+    )
+
 
 def genBWA(script, r1, r2, options, output):
     reference = options["reference"]
@@ -757,14 +760,16 @@ def writeHeader(script, options, filenames):
     )
     intervals = loadIntervals(options["chromosomeSizes"])
     for interval in intervals.keys():
-        script.write("#   {CHROME} = {SIZE}\n".format(CHROME=interval, SIZE=intervals[interval]))
+        script.write(
+            "#   {CHROME} = {SIZE}\n".format(CHROME=interval, SIZE=intervals[interval])
+        )
     script.write("#\n")
 
     script.write("#\n")
     script.write("# Intervals\n")
     intervals = computeIntervals(options)
     for i, f in intervals:
-        script.write("#   {INTERVAL} -> {FILE}\n".format(INTERVAL = i, FILE = f))
+        script.write("#   {INTERVAL} -> {FILE}\n".format(INTERVAL=i, FILE=f))
     script.write("#\n")
 
     script.write("#\n")
