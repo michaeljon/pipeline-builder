@@ -53,18 +53,24 @@ def computeIntervals(options):
                 remainder -= segmentSize
 
             if remainder > 0:
+                lower = (segments - 2) * segmentSize
+                if lower % 10 == 0: lower += 1
+
                 intervals.append(
                     "chr{c}:{lower}-{upper}".format(
                         c=c,
-                        lower=(segments - 2) * segmentSize,
+                        lower=lower,
                         upper=chromosomeSizes[c],
                     )
                 )
             else:
+                lower = (segments - 1) * segmentSize
+                if lower % 10 == 0: lower += 1
+
                 intervals.append(
                     "chr{c}:{lower}-{upper}".format(
                         c=c,
-                        lower=(segments - 1) * segmentSize,
+                        lower=lower,
                         upper=chromosomeSizes[c],
                     )
                 )
@@ -168,7 +174,7 @@ if [[ ! -f {REFERENCE}/ref_genome_autosomal.interval_list ]]; then
         awk '{{print $1"\\t1\\t"$2"\\t+\\t"$1}}' |
         cat {REFERENCE}/Homo_sapiens_assembly38.dict - >{REFERENCE}/ref_genome_autosomal.interval_list
 else
-    echo "Reference dictionary {REFERENCE}/Homo_sapiens_assembly38.dict already present"
+    echo "Interval list {REFERENCE}/ref_genome_autosomal.interval_list already present"
 fi
 
 """.format(

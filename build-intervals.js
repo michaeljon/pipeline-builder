@@ -21,9 +21,15 @@ const computeIntervals = () => {
     }
 
     if (remainder > 0) {
-      intervals.push(`"chr${c}:${(segments - 2) * segmentSize}-${chromosomeSizes[c]}"`);
+      let lower = (segments - 2) * segmentSize;
+      if (lower % 10 == 0) lower += 1;
+
+      intervals.push(`"chr${c}:${lower}-${chromosomeSizes[c]}"`);
     } else {
-      intervals.push(`"chr${c}:${(segments - 1) * segmentSize}-${chromosomeSizes[c]}"`);
+      let lower = (segments - 1) * segmentSize;
+      if (lower % 10 == 0) lower += 1;
+
+      intervals.push(`"chr${c}:${lower}-${chromosomeSizes[c]}"`);
     }
   });
 
