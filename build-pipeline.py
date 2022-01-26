@@ -21,6 +21,12 @@ def loadIntervals(chromosomeSizes):
         return chromosomeSizes
 
 
+def loadChromosomeList(chromosomeSizes):
+    with open(chromosomeSizes, "r") as file:
+        chromosomeSizes = json.load(file)
+        return chromosomeSizes.keys()
+
+
 def computeIntervals(options):
     intervals = []
 
@@ -129,6 +135,45 @@ fi
         )
     )
 
+def updateDictionary(script, options):
+    reference = options["reference"]
+    bin = options["bin"]
+
+    script.write("#\n")
+    script.write("# Build the reference dictionary and interval list\n")
+    script.write("#\n")
+
+    chromosomes = [ 'chr' + str(c) for c in loadChromosomeList(options["chromosomeSizes"])]
+    regex = '|'.join(chromosomes)
+    print(regex)
+
+    script.write(
+        """
+if [[ ! -f {REFERENCE}/Homo_sapiens_assembly38.dict ]]; then
+    java -jar {BIN}/picard.jar CreateSequenceDictionary \\
+        -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+        -O {REFERENCE}/Homo_sapiens_assembly38.dict
+else
+    echo "Reference dictionary {REFERENCE}/Homo_sapiens_assembly38.dict already present"
+fi
+
+if [[ ! -f {REFERENCE}/ref_genome_autosomal.interval_list ]]; then
+    # build the interval list, this is only done in the case where we're
+    # processing a partial set of chromosomes. in the typical case this would
+    # be a WGS collection.
+
+    egrep '({REGEX})\\s' {REFERENCE}/Homo_sapiens_assembly38.fasta.fai |
+        awk '{{print $1"\\t1\\t"$2"\\t+\\t"$1}}' |
+        cat {REFERENCE}/Homo_sapiens_assembly38.dict - >{REFERENCE}/ref_genome_autosomal.interval_list
+else
+    echo "Reference dictionary {REFERENCE}/Homo_sapiens_assembly38.dict already present"
+fi
+
+""".format(
+    REFERENCE=reference,
+    BIN = bin,
+    REGEX=regex
+))
 
 def genBWA(script, r1, r2, options, output):
     reference = options["reference"]
@@ -385,12 +430,12 @@ def annotateVariants(script, options, vcf, interval):
 
     filtered = vcf.replace(".vcf", ".indels.filtered.vcf")
     annotated = vcf.replace(".vcf", ".indels.filtered.annotated.vcf")
-    summary = vcf.replace(".vcf", ".indels.filtered.vcf_summary.html")
+    summary = vcf.replace(".vcf", ".indels.filtered.annotated.vcf_summary.html")
     annotate(script, options, vep, "INDEL", vcf, interval, filtered, annotated, summary)
 
     filtered = vcf.replace(".vcf", ".snps.filtered.vcf")
     annotated = vcf.replace(".vcf", ".snps.filtered.annotated.vcf")
-    summary = vcf.replace(".vcf", ".snps.filtered.vcf_summary.html")
+    summary = vcf.replace(".vcf", ".snps.filtered.annotated.vcf_summary.html")
     annotate(script, options, vep, "SNP", vcf, interval, filtered, annotated, summary)
 
 
@@ -711,8 +756,15 @@ def writeHeader(script, options, filenames):
         )
     )
     intervals = loadIntervals(options["chromosomeSizes"])
-    for c in intervals.keys():
-        script.write("#   {CHROME} = {SIZE}\n".format(CHROME=c, SIZE=intervals[c]))
+    for interval in intervals.keys():
+        script.write("#   {CHROME} = {SIZE}\n".format(CHROME=interval, SIZE=intervals[interval]))
+    script.write("#\n")
+
+    script.write("#\n")
+    script.write("# Intervals\n")
+    intervals = computeIntervals(options)
+    for i, f in intervals:
+        script.write("#   {INTERVAL} -> {FILE}\n".format(INTERVAL = i, FILE = f))
     script.write("#\n")
 
     script.write("#\n")
@@ -956,6 +1008,8 @@ def main():
             )
         )
         script.write("\n")
+
+        updateDictionary(script, options)
 
         # assume we're not trimming, this gets the original R1/R2
         filenames = getFileNames(options, False)
