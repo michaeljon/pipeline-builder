@@ -463,9 +463,10 @@ def runIntervals(script, options, prefix, sorted):
         filterVariants(script, options["reference"], interval[0], vcf)
         annotateVariants(script, options, vcf, interval[0])
 
-        script.write("    )&\n")
+        script.write("    ) &\n")
         script.write("\n")
 
+    script.write("echo Waiting for intervals to complete\n")
     script.write("wait\n")
 
 
@@ -485,7 +486,6 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.snps.final.vcf ]]; then
     gatk MergeVcfs \\
         -I {PIPELINE}/merge.snps.list \\
         -O {PIPELINE}/{SAMPLE}.snps.final.vcf &
-    wait
 else
     echo "SNPs already merged, skipping"
 fi
@@ -499,6 +499,9 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.indels.final.vcf ]]; then
 else
     echo "INDELs already merged, skipping"
 fi
+
+echo Waiting for SNP and INDEL merge to complete
+wait
 
 if [[ ! -f {PIPELINE}/{SAMPLE}.final.unfiltered.vcf ]]; then
     gatk MergeVcfs \\
@@ -652,7 +655,8 @@ fastqc \\
             )
         )
 
-    script.write("\nwait\n")
+    script.write("\necho Waiting for QC metrics to complete\n")
+    script.write("wait\n")
 
 
 def runMultiQC(script, options):
