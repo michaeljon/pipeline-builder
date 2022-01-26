@@ -148,7 +148,6 @@ def updateDictionary(script, options):
         "chr" + str(c) for c in loadChromosomeList(options["chromosomeSizes"])
     ]
     regex = "|".join(chromosomes)
-    print(regex)
 
     script.write(
         """
