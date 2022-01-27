@@ -54,7 +54,8 @@ def computeIntervals(options):
 
             if remainder > 0:
                 lower = (segments - 2) * segmentSize
-                if lower % 10 == 0: lower += 1
+                if lower % 10 == 0:
+                    lower += 1
 
                 intervals.append(
                     "chr{c}:{lower}-{upper}".format(
@@ -65,7 +66,8 @@ def computeIntervals(options):
                 )
             else:
                 lower = (segments - 1) * segmentSize
-                if lower % 10 == 0: lower += 1
+                if lower % 10 == 0:
+                    lower += 1
 
                 intervals.append(
                     "chr{c}:{lower}-{upper}".format(
@@ -199,7 +201,7 @@ def genBWA(script, r1, r2, options, output):
     # each side of the pipeline also wants a read / write thread to push data
     # through the UNIX pipe, we'll provide one here by giving up one
     # processing thread per side
-    threads -= 1
+    threads -= 4
 
     # this is one of the more time-consuming operations, so, if we've already
     # done the alignment operation for this sample, we'll skip this
@@ -244,7 +246,7 @@ fi
             TMP=pipeline,
             NODENAME=uname().nodename,
             PID=getpid(),
-            TIMEOUT=timeout
+            TIMEOUT=timeout,
         )
     )
 
@@ -715,7 +717,7 @@ def cleanup(script, prefix, options):
 
     script.write("\n")
     script.write("rm -f {BQSR}\n".format(BQSR=bqsr))
-    script.write("rm -f {BQSR}.bai\n".format(BQSR=bqsr.replace('.bam', '')))
+    script.write("rm -f {BQSR}.bai\n".format(BQSR=bqsr.replace(".bam", "")))
     script.write("rm -f {BQSR}.table\n".format(BQSR=bqsr))
 
     script.write("\n")
@@ -729,7 +731,9 @@ def cleanup(script, prefix, options):
             """
 rm -f {SAMPLE}.chr*.{TYPE}.filtered.vcf.idx
 rm -f {SAMPLE}.chr*.{TYPE}.vcf.idx
-            """.format(PIPELINE=pipeline, TYPE=type, SAMPLE=sample)
+            """.format(
+                PIPELINE=pipeline, TYPE=type, SAMPLE=sample
+            )
         )
 
     script.write("\n")
@@ -867,7 +871,7 @@ def main():
         default=False,
         help="Clean up the mess we make",
     )
-    
+
     parser.add_argument(
         "-r",
         "--reference-dir",
