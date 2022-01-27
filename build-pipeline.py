@@ -690,6 +690,7 @@ def cleanup(script, prefix, options):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
+    script.write("\n")
     script.write("#\n")
     script.write("# Clean up all intermediate interval files\n")
     script.write("#\n")
@@ -703,12 +704,22 @@ def cleanup(script, prefix, options):
 
     script.write("\n")
     script.write("rm -f {BQSR}\n".format(BQSR=bqsr))
-    script.write("rm -f {BQSR}.bai\n".format(BQSR=bqsr))
+    script.write("rm -f {BQSR}.bai\n".format(BQSR=bqsr.replace('.bam', '')))
     script.write("rm -f {BQSR}.table\n".format(BQSR=bqsr))
 
     script.write("\n")
     script.write("rm -f {VCF}\n".format(VCF=vcf))
+    script.write("rm -f {SAMPLE}.chr*.vcf.idx".format(SAMPLE=sample))
+    script.write("rm -f {VCF}.idx\n".format(VCF=vcf))
     script.write("rm -f {VCF}\n".format(VCF=vcf).replace(".vcf", ".html"))
+
+    for type in ["snps", "indels"]:
+        script.write(
+            """
+rm -f {SAMPLE}.chr*.{TYPE}.filtered.vcf.idx
+rm -f {SAMPLE}.chr*.{TYPE}.vcf.idx
+            """.format(PIPELINE=pipeline, TYPE=type, SAMPLE=sample)
+        )
 
     script.write("\n")
     script.write("#\n")
@@ -720,10 +731,12 @@ def cleanup(script, prefix, options):
             "rm -f {PIPELINE}/merge.{TYPE}.list\n".format(PIPELINE=pipeline, TYPE=type)
         )
 
-    script.write("\n")
     for type in ["snps", "indels"]:
         script.write(
-            "rm -f {PIPELINE}/{SAMPLE}.{TYPE}.final.vcf\n".format(
+            """
+rm -f {PIPELINE}/{SAMPLE}.{TYPE}.final.vcf
+rm -f {PIPELINE}/{SAMPLE}.{TYPE}.final.vcf.idx
+""".format(
                 PIPELINE=pipeline, SAMPLE=sample, TYPE=type
             )
         )
