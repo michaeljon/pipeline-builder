@@ -254,14 +254,13 @@ fi
 def splinter(script, bam, sorted, interval):
     script.write(
         """
-        # Splinter our interval off the main file
-        if [[ ! -f {BAM} || ! -f {BAM}.bai ]]; then
-            samtools view -@ 4 -bh {SORTED} {INTERVAL} >{BAM}
-            samtools index -@ 4 {BAM}
-        else
-            echo "Splinter for {INTERVAL} has been computed, not re-splintering"
-        fi
-    """.format(
+\n# Scatter interval {INTERVAL}        
+if [[ ! -f {BAM} || ! -f {BAM}.bai ]]; then
+    samtools view -@ 4 -bh {SORTED} {INTERVAL} >{BAM}
+    samtools index -@ 4 {BAM} &
+else
+    echo "Splinter for {INTERVAL} has been computed, not re-splintering"
+fi""".format(
             SORTED=sorted, INTERVAL=interval, BAM=bam
         )
     )
@@ -309,7 +308,7 @@ def genBQSR(script, reference, interval, bam, bqsr):
     )
 
 
-def callVariants(script, reference, interval, bam, bqsr, vcf):
+def callVariants(script, reference, interval, bqsr, vcf):
     script.write(
         """
         # call variants
@@ -325,7 +324,7 @@ def callVariants(script, reference, interval, bam, bqsr, vcf):
             echo "Variants already called for {INTERVAL}, skipping"
         fi
 """.format(
-            REFERENCE=reference, INTERVAL=interval, BAM=bam, BQSR=bqsr, VCF=vcf
+            REFERENCE=reference, INTERVAL=interval, BQSR=bqsr, VCF=vcf
         )
     )
 
@@ -459,8 +458,18 @@ def annotateVariants(script, options, vcf, interval):
     summary = vcf.replace(".vcf", ".snps.filtered.annotated.vcf_summary.html")
     annotate(script, options, vep, "SNP", vcf, interval, filtered, annotated, summary)
 
+def scatter(script, options, prefix, sorted):
+    intervals = computeIntervals(options)
 
-def runIntervals(script, options, prefix, sorted):
+    for interval in intervals:
+        bam = """{PREFIX}.{INTERVAL}.bam""".format(PREFIX=prefix, INTERVAL=interval[1])
+        splinter(script, bam, sorted, interval[0])
+
+    script.write("\n\necho Waiting for scattering to complete\n")
+    script.write("wait\n")
+
+
+def runIntervals(script, options, prefix):
     intervals = computeIntervals(options)
 
     for interval in intervals:
@@ -476,9 +485,8 @@ def runIntervals(script, options, prefix, sorted):
         script.write("    #\n")
         script.write("    (\n")
 
-        splinter(script, bam, sorted, interval[0])
         genBQSR(script, options["reference"], interval[0], bam, bqsr)
-        callVariants(script, options["reference"], interval[0], bam, bqsr, vcf)
+        callVariants(script, options["reference"], interval[0], bqsr, vcf)
         filterVariants(script, options["reference"], interval[0], vcf)
         annotateVariants(script, options, vcf, interval[0])
 
@@ -489,7 +497,7 @@ def runIntervals(script, options, prefix, sorted):
     script.write("wait\n")
 
 
-def merge(script, options):
+def gather(script, options):
     reference = options["reference"]
     pipeline = options["pipeline"]
     sample = options["sample"]
@@ -1082,13 +1090,18 @@ def main():
             options,
             sorted,
         )
-        runIntervals(
+        scatter(
             script,
             options,
             prefix,
             sorted,
         )
-        merge(script, options)
+        runIntervals(
+            script,
+            options,
+            prefix
+        )
+        gather(script, options)
 
         if options["doQC"]:
             runQC(script, options)
