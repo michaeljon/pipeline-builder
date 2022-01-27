@@ -190,6 +190,7 @@ def genBWA(script, r1, r2, options, output):
     stats = options["stats"]
     pipeline = options["pipeline"]
     threads = options["cores"]
+    timeout = options["watchdog"]
 
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
@@ -205,20 +206,29 @@ def genBWA(script, r1, r2, options, output):
     script.write(
         """
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai || ! -f {STATS}/{SAMPLE}.duplication_metrics ]]; then
-    bwa-mem2 mem -t {THREADS} \\
-        {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-        {R1} \\
-        {R2} \\
-        -Y \\
-        -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:MJS.SEQUENCER.7\\tLB:{SAMPLE}\\tSM:{SAMPLE}" |
-    bamsormadup \\
-        SO=coordinate \\
-        threads={THREADS} \\
-        level=0 \\
-        tmpfile={TMP}/bamsormapdup_{NODENAME}_{PID} \\
-        inputformat=sam \\
-        indexfilename={SORTED}.bai \\
-        M={STATS}/{SAMPLE}.duplication_metrics >{SORTED}
+    timeout {TIMEOUT}m bash -c \\
+        'bwa-mem2 mem -t {THREADS} \\
+            {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            {R1} \\
+            {R2} \\
+            -Y \\
+            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:MJS.SEQUENCER.7\\tLB:{SAMPLE}\\tSM:{SAMPLE}" |
+        bamsormadup \\
+            SO=coordinate \\
+            threads={THREADS} \\
+            level=0 \\
+            tmpfile={TMP}/bamsormadup_{NODENAME}_{PID} \\
+            inputformat=sam \\
+            indexfilename={SORTED}.bai \\
+            M={STATS}/{SAMPLE}.duplication_metrics >{SORTED}'
+
+        status=$?
+        if [ $status -ne 0 ]; then
+            echo "Watchdog timer killed alignment process errno = $status"
+            rm -f {SORTED}
+            rm -f {SORTED}.bai
+            exit $status
+        fi            
 else
     echo "{SORTED}, index, and metrics found, not aligning"
 fi
@@ -234,6 +244,7 @@ fi
             TMP=pipeline,
             NODENAME=uname().nodename,
             PID=getpid(),
+            TIMEOUT=timeout
         )
     )
 
@@ -856,14 +867,7 @@ def main():
         default=False,
         help="Clean up the mess we make",
     )
-    parser.add_argument(
-        "-z",
-        "--cores",
-        action="store",
-        dest="cores",
-        default=cpu_count(),
-        help="Specify the number of available CPU",
-    )
+    
     parser.add_argument(
         "-r",
         "--reference-dir",
@@ -897,6 +901,7 @@ def main():
         default="$HOME/bin",
         help="Install location of all tooling",
     )
+
     parser.add_argument(
         "--script",
         action="store",
@@ -905,6 +910,25 @@ def main():
         default="pipeline-runner",
         help="Filename of bash shell to create",
     )
+
+    parser.add_argument(
+        "-z",
+        "--cores",
+        action="store",
+        dest="cores",
+        default=cpu_count(),
+        help="Specify the number of available CPU",
+    )
+
+    parser.add_argument(
+        "-d",
+        "--watchdog",
+        action="store",
+        dest="watchdog",
+        default=120,
+        help="Specify a watchdog timeout for the alignment process. Value is in minutes",
+    )
+
     parser.add_argument(
         "--sizes",
         action="store",
