@@ -408,6 +408,7 @@ def annotate(script, options, vep, type, vcf, interval, filtered, annotated, sum
 
     input = filtered.split("/")[-1]
     output = annotated.split("/")[-1]
+    chromosome = interval.split(":'")[0]
 
     script.write(
         """
@@ -419,10 +420,14 @@ def annotate(script, options, vep, type, vcf, interval, filtered, annotated, sum
                 -v {PIPELINE}:/opt/vep/.vep/output:Z \\
                 -v {REFERENCE}:/opt/vep/.vep/reference:Z \\
                 ensemblorg/ensembl-vep \\
-                    ./vep --cache --format vcf --merged --offline --use_given_ref --vcf --verbose \\
-                    --fasta /opt/vep/.vep/reference/Homo_sapiens_assembly38.fasta \\
-                    --input_file /opt/vep/.vep/input/{INPUT} \\
-                    --output_file /opt/vep/.vep/output/{OUTPUT}
+                    ./vep --cache --format vcf --vcf \\
+                        --merged --offline \\
+                        --use_given_ref \\
+                        --verbose --force_overwrite \\
+                        --chr {CHROMOSOME} \\
+                        --fasta /opt/vep/.vep/reference/Homo_sapiens_assembly38.fasta \\
+                        --input_file /opt/vep/.vep/input/{INPUT} \\
+                        --output_file /opt/vep/.vep/output/{OUTPUT}
         else
             echo "{TYPE} annotations for {INTERVAL} already completed, skipping"
         fi
@@ -438,6 +443,7 @@ def annotate(script, options, vep, type, vcf, interval, filtered, annotated, sum
             INPUT=input,
             OUTPUT=output,
             INTERVAL=interval,
+            CHROMOSOME=chromosome
         )
     )
 
@@ -558,7 +564,9 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.final.filtered.vcf ]]; then
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         -V {PIPELINE}/{SAMPLE}.final.unfiltered.vcf \\
         -O {PIPELINE}/{SAMPLE}.final.filtered.vcf \\
-        --exclude-filtered
+        --exclude-filtered \\
+        --exclude-non-variants \\
+        --remove-unused-alternates
 else
     echo "Filtered INDEL and SNP VCFs already merged, skipping"
 fi
