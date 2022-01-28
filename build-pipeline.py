@@ -271,7 +271,7 @@ def genBQSR(script, reference, interval, bam, bqsr):
         """
         # run base quality score recalibration - build the bqsr table
         if [[ ! -f {BQSR}.table ]]; then
-            gatk BaseRecalibrator \\
+            gatk BaseRecalibrator --java-options '-Xmx8g' \\
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -I {BAM} \\
                 -O {BQSR}.table \\
@@ -286,7 +286,7 @@ def genBQSR(script, reference, interval, bam, bqsr):
 
         # run base quality score recalibration - apply the bqsr table
         if [[ ! -f {BQSR} || ! -f {BQSR}.bai ]]; then
-            gatk ApplyBQSR \\
+            gatk ApplyBQSR --java-options '-Xmx8g' \\
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -I {BAM} \\
                 -O {BQSR} \\
@@ -313,12 +313,12 @@ def callVariants(script, reference, interval, bqsr, vcf):
         """
         # call variants
         if [[ ! -f {VCF} ]]; then
-            gatk HaplotypeCaller \\
+            gatk HaplotypeCaller --java-options '-Xmx8g' \\
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -I {BQSR} \\
                 -O {VCF} \\
                 --pairHMM AVX_LOGLESS_CACHING_OMP \\
-                --native-pair-hmm-threads 8 \\
+                --native-pair-hmm-threads 4 \\
                 -L {INTERVAL}
         else
             echo "Variants already called for {INTERVAL}, skipping"
@@ -334,13 +334,13 @@ def filterSNPs(script, reference, vcf, interval, snps, filtered):
         """
         # pull snps out of out called variants and annotate them
         if [[ ! -f {SNPS} || ! -f {FILTERED} ]]; then
-            gatk SelectVariants \\
+            gatk SelectVariants --java-options '-Xmx8g' \\
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -V {VCF} \\
                 -select-type SNP \\
                 -O {SNPS}
 
-            gatk VariantFiltration \\
+            gatk VariantFiltration --java-options '-Xmx8g' \\
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -V {SNPS} \\
                 --filter-expression "QD < 2.0" --filter-name "QD_lt_2" \\
@@ -367,13 +367,13 @@ def filterINDELs(script, reference, vcf, interval, indels, filtered):
         """
         # pull indels out of out called variants and annotate them
         if [[ ! -f {INDELS} || ! -f {FILTERED} ]]; then
-            gatk SelectVariants \\
+            gatk SelectVariants --java-options '-Xmx8g' \\
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -V {VCF} \\
                 -select-type INDEL \\
                 -O {INDELS}
 
-            gatk VariantFiltration \\
+            gatk VariantFiltration --java-options '-Xmx8g' \\
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -V {INDELS} \\
                 --filter-expression "QD < 2.0" --filter-name "QD_lt_2" \\
@@ -458,6 +458,7 @@ def annotateVariants(script, options, vcf, interval):
     summary = vcf.replace(".vcf", ".snps.filtered.annotated.vcf_summary.html")
     annotate(script, options, vep, "SNP", vcf, interval, filtered, annotated, summary)
 
+
 def scatter(script, options, prefix, sorted):
     intervals = computeIntervals(options)
 
@@ -498,14 +499,13 @@ def runIntervals(script, options, prefix):
 
 
 def gather(script, options):
-    reference = options["reference"]
     pipeline = options["pipeline"]
     sample = options["sample"]
 
     script.write(
         """
 #
-# Create final VCF file(s)
+# Gather interval data and recombine(s)
 # 
 if [[ ! -f {PIPELINE}/{SAMPLE}.snps.final.vcf ]]; then
     /bin/ls -1 {PIPELINE}/*.snps.filtered.annotated.vcf >{PIPELINE}/merge.snps.list
@@ -529,7 +529,22 @@ fi
 
 echo Waiting for SNP and INDEL merge to complete
 wait
+""".format(
+            PIPELINE=pipeline, SAMPLE=sample
+        )
+    )
 
+
+def mergeFinal(script, options):
+    reference = options["reference"]
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
+    script.write(
+        """
+#
+# Create final VCF file(s)
+# 
 if [[ ! -f {PIPELINE}/{SAMPLE}.final.unfiltered.vcf ]]; then
     gatk MergeVcfs \\
         -I {PIPELINE}/{SAMPLE}.snps.final.vcf \\
@@ -1096,12 +1111,9 @@ def main():
             prefix,
             sorted,
         )
-        runIntervals(
-            script,
-            options,
-            prefix
-        )
+        runIntervals(script, options, prefix)
         gather(script, options)
+        mergeFinal(script, options)
 
         if options["doQC"]:
             runQC(script, options)
