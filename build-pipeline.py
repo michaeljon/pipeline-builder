@@ -415,6 +415,7 @@ def filterVariants(script, reference, interval, vcf):
 
 def annotate(script, options, vep, type, interval, input, output, summary):
     reference = options["reference"]
+    chromosome = interval.split(":")[0]
 
     script.write(
         """
@@ -430,7 +431,7 @@ def annotate(script, options, vep, type, interval, input, output, summary):
                 --use_given_ref \\
                 --verbose \\
                 --force_overwrite \\
-                --chr {INTERVAL} \\
+                --chr {CHROMOSOME} \\
                 --fasta {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 --input_file {INPUT} \\
                 --output_file {OUTPUT} \\
@@ -446,6 +447,7 @@ def annotate(script, options, vep, type, interval, input, output, summary):
             OUTPUT=output,
             SUMMARY=summary,
             INTERVAL=interval,
+            CHROMOSOME=chromosome,
         )
     )
 
@@ -1097,7 +1099,7 @@ export PERL5LIB=/home/ubuntu/perl5/lib/perl5:$PERL5LIB
 export PERL_LOCAL_LIB_ROOT=/home/ubuntu/perl5:$PERL_LOCAL_LIB_ROOT
 
 # handy path
-export PATH=PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/TrimGalore-0.6.7:{WORKING}/bin/gatk-4.2.3.0:{WORKING}/bin:$PATH\n""".format(
+export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/TrimGalore-0.6.7:{WORKING}/bin/gatk-4.2.3.0:{WORKING}/bin:$PATH\n""".format(
                 WORKING=options["working"]
             )
         )
