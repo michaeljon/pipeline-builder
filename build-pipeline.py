@@ -316,7 +316,8 @@ def callVariants(script, reference, interval, bqsr, vcf):
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -I {BQSR} \\
                 -O {VCF} \\
-                --pairHMM AVX_LOGLESS_CACHING_OMP \\
+                --dbsnp {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
+                --pairHMM FASTEST_AVAILABLE \\
                 --native-pair-hmm-threads 4 \\
                 -L {INTERVAL}
         else
@@ -370,6 +371,7 @@ def filterINDELs(script, reference, vcf, interval, indels, filtered):
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -V {VCF} \\
                 -select-type INDEL \\
+                -L {INTERVAL} \\
                 -O {INDELS}
 
             gatk VariantFiltration --java-options '-Xmx8g' \\
@@ -378,6 +380,7 @@ def filterINDELs(script, reference, vcf, interval, indels, filtered):
                 --filter-expression "QD < 2.0" --filter-name "QD_lt_2" \\
                 --filter-expression "FS > 200.0" --filter-name "FS_gt_200" \\
                 --filter-expression "ReadPosRankSum < -20.0" --filter-name "RPRS_lt_n20" \\
+                -L {INTERVAL} \\
                 -O {FILTERED}
         else
             echo "INDELs already filtered for {INTERVAL}, skipping"
