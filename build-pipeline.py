@@ -333,13 +333,17 @@ def filterSNPs(script, reference, vcf, interval, snps, filtered):
     script.write(
         """
         # pull snps out of out called variants and annotate them
-        if [[ ! -f {SNPS} || ! -f {FILTERED} ]]; then
+        if [[ ! -f {SNPS} ]]; then
             gatk SelectVariants --java-options '-Xmx8g' \\
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -V {VCF} \\
                 -select-type SNP \\
                 -O {SNPS}
+        else
+            echo "SNPs already selected for {INTERVAL}, skipping"
+        fi
 
+        if [[ ! -f {FILTERED} ]]; then
             gatk VariantFiltration --java-options '-Xmx8g' \\
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -V {SNPS} \\
@@ -366,14 +370,18 @@ def filterINDELs(script, reference, vcf, interval, indels, filtered):
     script.write(
         """
         # pull indels out of out called variants and annotate them
-        if [[ ! -f {INDELS} || ! -f {FILTERED} ]]; then
+        if [[ ! -f {INDELS} ]]; then
             gatk SelectVariants --java-options '-Xmx8g' \\
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -V {VCF} \\
                 -select-type INDEL \\
                 -L {INTERVAL} \\
                 -O {INDELS}
+        else
+            echo "INDELs already selected for {INTERVAL}, skipping"
+        fi
 
+        if [[ ! -f {FILTERED} ]]; then
             gatk VariantFiltration --java-options '-Xmx8g' \\
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -V {INDELS} \\
