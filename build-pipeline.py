@@ -431,7 +431,8 @@ def annotate(script, options, vep, type, interval, input, output, summary):
                 --chr {INTERVAL} \\
                 --fasta {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 --input_file {INPUT} \\
-                --output_file {OUTPUT}
+                --output_file {OUTPUT} \\
+                --stats_file {SUMMARY}
         else
             echo "{TYPE} annotations for {INTERVAL} already completed, skipping"
         fi
