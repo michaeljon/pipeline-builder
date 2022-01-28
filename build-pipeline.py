@@ -185,7 +185,7 @@ fi
     )
 
 
-def genBWA(script, r1, r2, options, output):
+def alignAndSort(script, r1, r2, options, output):
     reference = options["reference"]
     sample = options["sample"]
     working = options["working"]
@@ -419,6 +419,8 @@ def annotate(script, options, vep, type, interval, input, output, summary):
     script.write(
         """
         if [[ ! -f {INPUT} || ! -f {SUMMARY} ]]; then
+            echo Annotating {INTERVAL} 
+            
             vep --dir {VEP} \\
                 --cache \\
                 --format vcf \\
@@ -1088,7 +1090,14 @@ def main():
 
         script.write("#\n")
         script.write(
-            """export PATH={WORKING}/bin/FastQC:{WORKING}/bin/TrimGalore-0.6.7:{WORKING}/bin/gatk-4.2.3.0:{WORKING}/bin:$PATH\n""".format(
+            """
+# perl stuff
+export PATH=/home/ubuntu/perl5/bin:$PATH
+export PERL5LIB=/home/ubuntu/perl5/lib/perl5:$PERL5LIB
+export PERL_LOCAL_LIB_ROOT=/home/ubuntu/perl5:$PERL_LOCAL_LIB_ROOT
+
+# handy path
+export PATH=PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/TrimGalore-0.6.7:{WORKING}/bin/gatk-4.2.3.0:{WORKING}/bin:$PATH\n""".format(
                 WORKING=options["working"]
             )
         )
@@ -1109,7 +1118,7 @@ def main():
             # trimming writes new files under different names, this will grab those
             filenames = getFileNames(options, options["trim"])
 
-        genBWA(
+        alignAndSort(
             script,
             filenames[0],
             filenames[1],
