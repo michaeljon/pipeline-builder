@@ -413,48 +413,36 @@ def filterVariants(script, reference, interval, vcf):
     filterINDELs(script, reference, vcf, interval, indels, filtered)
 
 
-def annotate(script, options, vep, type, vcf, interval, filtered, annotated, summary):
+def annotate(script, options, vep, type, interval, input, output, summary):
     reference = options["reference"]
-    pipeline = options["pipeline"]
-
-    input = filtered.split("/")[-1]
-    output = annotated.split("/")[-1]
-    chromosome = interval.split(":'")[0]
 
     script.write(
         """
-        # run vep in a docker container to annotate the vcf
-        if [[ ! -f {ANNOTATED} || ! -f {SUMMARY} ]]; then
-            sudo docker run \\
-                -v {VEP}:/opt/vep/.vep:Z \\
-                -v {PIPELINE}:/opt/vep/.vep/input:Z \\
-                -v {PIPELINE}:/opt/vep/.vep/output:Z \\
-                -v {REFERENCE}:/opt/vep/.vep/reference:Z \\
-                ensemblorg/ensembl-vep \\
-                    ./vep --cache --format vcf --vcf \\
-                        --merged --offline \\
-                        --use_given_ref \\
-                        --verbose --force_overwrite \\
-                        --chr {CHROMOSOME} \\
-                        --fasta /opt/vep/.vep/reference/Homo_sapiens_assembly38.fasta \\
-                        --input_file /opt/vep/.vep/input/{INPUT} \\
-                        --output_file /opt/vep/.vep/output/{OUTPUT}
+        if [[ ! -f {INPUT} || ! -f {SUMMARY} ]]; then
+            vep --dir {VEP} \\
+                --cache \\
+                --format vcf \\
+                --vcf \\
+                --merged \\
+                --offline \\
+                --use_given_ref \\
+                --verbose \\
+                --force_overwrite \\
+                --chr {INTERVAL} \\
+                --fasta {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+                --input_file {INPUT} \\
+                --output_file {OUTPUT}
         else
             echo "{TYPE} annotations for {INTERVAL} already completed, skipping"
         fi
 """.format(
             VEP=vep,
-            PIPELINE=pipeline,
             REFERENCE=reference,
             TYPE=type,
-            VCF=vcf,
-            ANNOTATED=annotated,
-            FILTERED=filtered,
-            SUMMARY=summary,
             INPUT=input,
             OUTPUT=output,
+            SUMMARY=summary,
             INTERVAL=interval,
-            CHROMOSOME=chromosome
         )
     )
 
@@ -467,12 +455,12 @@ def annotateVariants(script, options, vcf, interval):
     filtered = vcf.replace(".vcf", ".indels.filtered.vcf")
     annotated = vcf.replace(".vcf", ".indels.filtered.annotated.vcf")
     summary = vcf.replace(".vcf", ".indels.filtered.annotated.vcf_summary.html")
-    annotate(script, options, vep, "INDEL", vcf, interval, filtered, annotated, summary)
+    annotate(script, options, vep, "INDEL", interval, filtered, annotated, summary)
 
     filtered = vcf.replace(".vcf", ".snps.filtered.vcf")
     annotated = vcf.replace(".vcf", ".snps.filtered.annotated.vcf")
     summary = vcf.replace(".vcf", ".snps.filtered.annotated.vcf_summary.html")
-    annotate(script, options, vep, "SNP", vcf, interval, filtered, annotated, summary)
+    annotate(script, options, vep, "SNP", interval, filtered, annotated, summary)
 
 
 def scatter(script, options, prefix, sorted):
