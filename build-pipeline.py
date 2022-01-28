@@ -420,7 +420,7 @@ def annotate(script, options, vep, type, interval, input, output, summary):
     script.write(
         """
         if [[ ! -f {INPUT} || ! -f {SUMMARY} ]]; then
-            echo Annotating {INTERVAL} 
+            echo Starting {TYPE} annotation for {INTERVAL}
             
             vep --dir {VEP} \\
                 --cache \\
@@ -436,6 +436,8 @@ def annotate(script, options, vep, type, interval, input, output, summary):
                 --input_file {INPUT} \\
                 --output_file {OUTPUT} \\
                 --stats_file {SUMMARY}
+
+            echo Completed {TYPE} annotation for {INTERVAL}
         else
             echo "{TYPE} annotations for {INTERVAL} already completed, skipping"
         fi
