@@ -596,8 +596,10 @@ def runQC(script, options):
 #
 # RUN QC process
 # 
+echo "Starting QC processes"
+
 if [[ ! -f {PIPELINE}/{SAMPLE}.merged.bqsr.bam || ! -f {PIPELINE}/{SAMPLE}.merged.bqsr.bam.bai ]]; then
-    samtools merge -@ {THREADS} -o {PIPELINE}/{SAMPLE}.merged.bqsr.bam {PIPELINE}/*bqsr*.bam
+    samtools merge -@ {THREADS} -c -p -f -o {PIPELINE}/{SAMPLE}.merged.bqsr.bam {PIPELINE}/{SAMPLE}.chr*_bqsr.bam
     samtools index -@ {THREADS} {PIPELINE}/{SAMPLE}.merged.bqsr.bam
 else
     echo "Intermediate BQSR files already merged and indexed, skipping"
