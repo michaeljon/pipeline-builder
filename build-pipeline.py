@@ -1105,6 +1105,10 @@ def main():
         )
         script.write("\n")
 
+        script.write("\n")
+        script.write("touch {PIPELINE}/00-started\n".format(PIPELINE=options["pipeline"]))
+        script.write("\n")
+
         updateDictionary(script, options)
 
         # assume we're not trimming, this gets the original R1/R2
@@ -1141,13 +1145,16 @@ def main():
             cleanup(script, prefix, options)
 
         script.write(
-            """\necho "Done processing {SAMPLE}\\n\\tstats in {STATS}\\n\\tVCFs in {PIPELINE}"\n""".format(
+            """\necho -e "Done processing {SAMPLE}\\n\\tstats in {STATS}\\n\\tVCFs in {PIPELINE}"\n""".format(
                 SAMPLE=options["sample"],
                 STATS=options["stats"],
                 PIPELINE=options["pipeline"],
             )
         )
 
+        script.write("\n")
+        script.write("touch {PIPELINE}/00-completed\n".format(PIPELINE=options["pipeline"]))
+        script.write("\n")
 
 if __name__ == "__main__":
     main()
