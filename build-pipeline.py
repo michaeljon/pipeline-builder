@@ -218,7 +218,7 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai || ! -f {STATS}/{SAMPLE}.duplication_me
         bamsormadup \\
             SO=coordinate \\
             threads={THREADS} \\
-            level=0 \\
+            level=6 \\
             tmpfile={TMP}/bamsormadup_{NODENAME}_{PID} \\
             inputformat=sam \\
             indexfilename={SORTED}.bai \\
