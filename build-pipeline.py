@@ -256,8 +256,7 @@ def splinter(script, bam, sorted, interval):
         """
 \n# Scatter interval {INTERVAL}        
 if [[ ! -f {BAM} || ! -f {BAM}.bai ]]; then
-    samtools view -@ 4 -bh {SORTED} {INTERVAL} >{BAM}
-    samtools index -@ 4 {BAM} &
+    (samtools view -@ 4 -bh {SORTED} {INTERVAL} >{BAM} && samtools index -@ 4 {BAM})&
 else
     echo "Splinter for {INTERVAL} has been computed, not re-splintering"
 fi""".format(
