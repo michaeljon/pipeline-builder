@@ -188,8 +188,6 @@ fi
 def alignAndSort(script, r1, r2, options, output):
     reference = options["reference"]
     sample = options["sample"]
-    working = options["working"]
-    stats = options["stats"]
     pipeline = options["pipeline"]
     threads = options["cores"]
     timeout = options["watchdog"]
@@ -198,39 +196,61 @@ def alignAndSort(script, r1, r2, options, output):
     script.write("# Align, sort, and mark duplicates\n")
     script.write("#\n")
 
-    # each side of the pipeline also wants a read / write thread to push data
-    # through the UNIX pipe, we'll provide one here by giving up one
-    # processing thread per side
-    threads -= 4
-
     # this is one of the more time-consuming operations, so, if we've already
     # done the alignment operation for this sample, we'll skip this
     script.write(
         """
-if [[ ! -f {SORTED} || ! -f {SORTED}.bai || ! -f {STATS}/{SAMPLE}.duplication_metrics ]]; then
+#
+# align the input files
+#
+if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam ]]; then
     timeout {TIMEOUT}m bash -c \\
         'bwa-mem2 mem -t {THREADS} \\
             {REFERENCE}/Homo_sapiens_assembly38.fasta \\
             {R1} \\
             {R2} \\
             -Y \\
-            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:MJS.SEQUENCER.7\\tLB:{SAMPLE}\\tSM:{SAMPLE}" |
-        bamsormadup \\
-            SO=coordinate \\
-            threads={THREADS} \\
-            level=6 \\
-            tmpfile={TMP}/bamsormadup_{NODENAME}_{PID} \\
-            inputformat=sam \\
-            indexfilename={SORTED}.bai \\
-            M={STATS}/{SAMPLE}.duplication_metrics >{SORTED}'
+            -v 2 \\
+            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:MJS.SEQUENCER.7\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+            >{PIPELINE}/{SAMPLE}.aligned.bam'
 
-        status=$?
-        if [ $status -ne 0 ]; then
-            echo "Watchdog timer killed alignment process errno = $status"
-            rm -f {SORTED}
-            rm -f {SORTED}.bai
-            exit $status
-        fi            
+    status=$?
+    if [ $status -ne 0 ]; then
+        echo "Watchdog timer killed alignment process errno = $status"
+        rm -f {PIPELINE}/{SAMPLE}.aligned.bam
+        exit $status
+    fi            
+else
+    echo "{PIPELINE}/{SAMPLE}.aligned.bam interim file found, not aligning"
+fi
+
+if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
+    timeout {TIMEOUT}m bash -c \\
+        'bamsort \\
+            I={PIPELINE}/{SAMPLE}.aligned.bam \\
+            O={SORTED} \\
+            SO=coordinate \\
+            indexfilename={SORTED}.bai \\
+            tmpfile={PIPELINE}/bamsormadup_{NODENAME}_{PID} \\
+            inputformat=bam \\
+            outputformat=bam \\
+            inputthreads=2 \\
+            outputthreads=2 \\
+            sortthreads=66 \\
+            verbose=1 \\
+            adddupmarksupport=1 \\
+            fixmates=1 \\
+            markduplicates=1 \\
+            rmdup=1 \\
+            streaming=1'
+
+    status=$?
+    if [ $status -ne 0 ]; then
+        echo "Watchdog timer killed sort / mark process errno = $status"
+        rm -f {SORTED}
+        rm -f {SORTED}.bai
+        exit $status
+    fi            
 else
     echo "{SORTED}, index, and metrics found, not aligning"
 fi
@@ -239,11 +259,9 @@ fi
             R2=r2,
             REFERENCE=reference,
             SAMPLE=sample,
-            WORKING=working,
-            STATS=stats,
             THREADS=threads,
             SORTED=output,
-            TMP=pipeline,
+            PIPELINE=pipeline,
             NODENAME=uname().nodename,
             PID=getpid(),
             TIMEOUT=timeout,
@@ -278,6 +296,7 @@ def genBQSR(script, reference, interval, bam, bqsr):
                 --known-sites {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
                 --known-sites {REFERENCE}/Homo_sapiens_assembly38.known_indels.vcf \\
                 --known-sites {REFERENCE}/Mills_and_1000G_gold_standard.indels.hg38.vcf \\
+                --MAX_RECORDS_IN_RAM 10000000 \\
                 -L {INTERVAL}
         else
             echo "BQSR table generation for {INTERVAL} skipped"
@@ -294,6 +313,7 @@ def genBQSR(script, reference, interval, bam, bqsr):
                 --static-quantized-quals 20 \\
                 --static-quantized-quals 30 \\
                 --bqsr-recal-file {BQSR}.table \\
+                --MAX_RECORDS_IN_RAM 10000000 \\
                 -L {INTERVAL}
 
             # index that file, this is our target for getting vcf
@@ -319,6 +339,7 @@ def callVariants(script, reference, interval, bqsr, vcf):
                 --dbsnp {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
                 --pairHMM FASTEST_AVAILABLE \\
                 --native-pair-hmm-threads 4 \\
+                --MAX_RECORDS_IN_RAM 10000000 \\
                 -L {INTERVAL}
         else
             echo "Variants already called for {INTERVAL}, skipping"
@@ -338,6 +359,7 @@ def filterSNPs(script, reference, vcf, interval, snps, filtered):
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -V {VCF} \\
                 -select-type SNP \\
+                --MAX_RECORDS_IN_RAM 10000000 \\
                 -O {SNPS}
         else
             echo "SNPs already selected for {INTERVAL}, skipping"
@@ -352,6 +374,7 @@ def filterSNPs(script, reference, vcf, interval, snps, filtered):
                 --filter-expression "MQ < 40.0" --filter-name "MQ_lt_40" \\
                 --filter-expression "MQRankSum < -12.5" --filter-name "MQRS_lt_n12.5" \\
                 --filter-expression "ReadPosRankSum < -8.0" --filter-name "RPRS_lt_n8" \\
+                --MAX_RECORDS_IN_RAM 10000000 \\
                 -O {FILTERED}
         else
             echo "SNPs already filtered for {INTERVAL}, skipping"
@@ -376,6 +399,7 @@ def filterINDELs(script, reference, vcf, interval, indels, filtered):
                 -V {VCF} \\
                 -select-type INDEL \\
                 -L {INTERVAL} \\
+                --MAX_RECORDS_IN_RAM 10000000 \\
                 -O {INDELS}
         else
             echo "INDELs already selected for {INTERVAL}, skipping"
@@ -389,6 +413,7 @@ def filterINDELs(script, reference, vcf, interval, indels, filtered):
                 --filter-expression "FS > 200.0" --filter-name "FS_gt_200" \\
                 --filter-expression "ReadPosRankSum < -20.0" --filter-name "RPRS_lt_n20" \\
                 -L {INTERVAL} \\
+                --MAX_RECORDS_IN_RAM 10000000 \\
                 -O {FILTERED}
         else
             echo "INDELs already filtered for {INTERVAL}, skipping"
@@ -522,6 +547,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.snps.final.vcf ]]; then
     /bin/ls -1 {PIPELINE}/*.snps.filtered.annotated.vcf >{PIPELINE}/merge.snps.list
 
     gatk MergeVcfs \\
+        --MAX_RECORDS_IN_RAM 10000000 \\
         -I {PIPELINE}/merge.snps.list \\
         -O {PIPELINE}/{SAMPLE}.snps.final.vcf &
 else
@@ -532,6 +558,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.indels.final.vcf ]]; then
     /bin/ls -1 {PIPELINE}/*.indels.filtered.annotated.vcf >{PIPELINE}/merge.indels.list
 
     gatk MergeVcfs \\
+        --MAX_RECORDS_IN_RAM 10000000 \\
         -I {PIPELINE}/merge.indels.list \\
         -O {PIPELINE}/{SAMPLE}.indels.final.vcf &
 else
@@ -558,6 +585,7 @@ def mergeFinal(script, options):
 # 
 if [[ ! -f {PIPELINE}/{SAMPLE}.final.unfiltered.vcf ]]; then
     gatk MergeVcfs \\
+        --MAX_RECORDS_IN_RAM 10000000 \\
         -I {PIPELINE}/{SAMPLE}.snps.final.vcf \\
         -I {PIPELINE}/{SAMPLE}.indels.final.vcf \\
         -O {PIPELINE}/{SAMPLE}.final.unfiltered.vcf
@@ -567,6 +595,7 @@ fi
 
 if [[ ! -f {PIPELINE}/{SAMPLE}.final.filtered.vcf ]]; then
     gatk SelectVariants \\
+        --MAX_RECORDS_IN_RAM 10000000 \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         -V {PIPELINE}/{SAMPLE}.final.unfiltered.vcf \\
         -O {PIPELINE}/{SAMPLE}.final.filtered.vcf \\
@@ -614,6 +643,7 @@ fi
 
 if [[ ! -f {STATS}/{SAMPLE}.bqsr.insert_metrics.txt || ! -f {STATS}/{SAMPLE}.bqsr.insert_metrics.pdf ]]; then
     gatk CollectInsertSizeMetrics \\
+        --MAX_RECORDS_IN_RAM 10000000 \\
         -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
         -O {STATS}/{SAMPLE}.bqsr.insert_metrics.txt \\
         -H {STATS}/{SAMPLE}.bqsr.insert_metrics.pdf \\
@@ -624,6 +654,7 @@ fi
 
 if [[ ! -f {STATS}/{SAMPLE}.bqsr.alignment_metrics.txt ]]; then
     gatk CollectAlignmentSummaryMetrics \\
+        --MAX_RECORDS_IN_RAM 10000000 \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
         -O {STATS}/{SAMPLE}.bqsr.alignment_metrics.txt &
@@ -633,8 +664,9 @@ fi
 
 if [[ ! -f {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.bqsr.gc_bias_summary.txt ]]; then
     gatk CollectGcBiasMetrics \\
+        --MAX_RECORDS_IN_RAM 10000000 \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-        -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
+        -I vmware \\
         -O {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.txt \\
         -CHART {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.pdf \\
         -S {STATS}/{SAMPLE}.bqsr.gc_bias_summary.txt &
@@ -644,6 +676,7 @@ fi
 
 if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
     gatk CollectWgsMetrics \\
+        --MAX_RECORDS_IN_RAM 10000000 \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
         -O {STATS}/{SAMPLE}.wgs_metrics.txt \\
