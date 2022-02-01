@@ -203,41 +203,27 @@ def alignAndSort(script, r1, r2, options, output):
 #
 # align the input files
 #
-if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam ]]; then
+if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
     timeout {TIMEOUT}m bash -c \\
         'bwa-mem2 mem -t {THREADS} \\
             {REFERENCE}/Homo_sapiens_assembly38.fasta \\
             {R1} \\
             {R2} \\
             -Y \\
-            -v 2 \\
-            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:MJS.SEQUENCER.7\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
-            >{PIPELINE}/{SAMPLE}.aligned.sam'
-
-    status=$?
-    if [ $status -ne 0 ]; then
-        echo "Watchdog timer killed alignment process errno = $status"
-        rm -f {PIPELINE}/{SAMPLE}.aligned.sam
-        exit $status
-    fi            
-else
-    echo "{PIPELINE}/{SAMPLE}.aligned.sam interim file found, not aligning"
-fi
-
-if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
-    timeout {TIMEOUT}m bash -c \\
-        'bamsort \\
-            I={PIPELINE}/{SAMPLE}.aligned.sam \\
+            -v 1 \\
+            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:MJS.SEQUENCER.7\\tLB:{SAMPLE}\\tSM:{SAMPLE}" | \\
+        bamsort \\
             O={SORTED} \\
             SO=coordinate \\
+            index=1 \\
             indexfilename={SORTED}.bai \\
             tmpfile={PIPELINE}/bamsormadup_{NODENAME}_{PID} \\
             inputformat=sam \\
             outputformat=bam \\
             inputthreads=2 \\
             outputthreads=2 \\
-            sortthreads=66 \\
-            verbose=1 \\
+            sortthreads={SORT_THREADS} \\
+            verbose=0 \\
             adddupmarksupport=1 \\
             fixmates=1 \\
             markduplicates=1 \\
@@ -246,9 +232,8 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
 
     status=$?
     if [ $status -ne 0 ]; then
-        echo "Watchdog timer killed sort / mark process errno = $status"
-        rm -f {SORTED}
-        rm -f {SORTED}.bai
+        echo "Watchdog timer killed alignment process errno = $status"
+        rm -f {PIPELINE}/{SAMPLE}.aligned.sam
         exit $status
     fi            
 else
@@ -260,6 +245,7 @@ fi
             REFERENCE=reference,
             SAMPLE=sample,
             THREADS=threads,
+            SORT_THREADS=threads // 4,
             SORTED=output,
             PIPELINE=pipeline,
             NODENAME=uname().nodename,
