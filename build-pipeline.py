@@ -212,27 +212,27 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam ]]; then
             -Y \\
             -v 2 \\
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:MJS.SEQUENCER.7\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
-            >{PIPELINE}/{SAMPLE}.aligned.bam'
+            >{PIPELINE}/{SAMPLE}.aligned.sam'
 
     status=$?
     if [ $status -ne 0 ]; then
         echo "Watchdog timer killed alignment process errno = $status"
-        rm -f {PIPELINE}/{SAMPLE}.aligned.bam
+        rm -f {PIPELINE}/{SAMPLE}.aligned.sam
         exit $status
     fi            
 else
-    echo "{PIPELINE}/{SAMPLE}.aligned.bam interim file found, not aligning"
+    echo "{PIPELINE}/{SAMPLE}.aligned.sam interim file found, not aligning"
 fi
 
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
     timeout {TIMEOUT}m bash -c \\
         'bamsort \\
-            I={PIPELINE}/{SAMPLE}.aligned.bam \\
+            I={PIPELINE}/{SAMPLE}.aligned.sam \\
             O={SORTED} \\
             SO=coordinate \\
             indexfilename={SORTED}.bai \\
             tmpfile={PIPELINE}/bamsormadup_{NODENAME}_{PID} \\
-            inputformat=bam \\
+            inputformat=sam \\
             outputformat=bam \\
             inputthreads=2 \\
             outputthreads=2 \\
