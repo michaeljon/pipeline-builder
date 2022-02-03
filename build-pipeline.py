@@ -6,7 +6,7 @@ import math
 from datetime import datetime
 from math import ceil
 from os.path import exists, expandvars
-from os import cpu_count, uname, getpid
+from os import cpu_count
 
 # This script generates an Illumina paired-read VCF annotation pipeline.
 # There are some short-circuit options generated as part of this script,
@@ -83,64 +83,13 @@ def computeIntervals(options):
     ]
 
 
-def getFileNames(options, trimmed):
+def getFileNames(options):
     sample = options["sample"]
     pipeline = options["pipeline"]
 
-    if trimmed == False:
-        return (
-            "{PIPELINE}/{SAMPLE}_R1.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
-            "{PIPELINE}/{SAMPLE}_R2.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
-        )
-    else:
-        return (
-            "{PIPELINE}/{SAMPLE}_R1_trimmed.fq.gz".format(
-                PIPELINE=pipeline, SAMPLE=sample
-            ),
-            "{PIPELINE}/{SAMPLE}_R2_trimmed.fq.gz".format(
-                PIPELINE=pipeline, SAMPLE=sample
-            ),
-        )
-
-
-def genTrimmer(script, r1, r2, options):
-    pipeline = options["pipeline"]
-    stats = options["stats"]
-    threads = options["cores"]
-
-    script.write("#\n")
-    script.write("# Trim reads\n")
-    script.write("#\n")
-
-    # because we're in the trimmer we can assume that we want
-    # trimmed output files, so we need to get those names
-    # and check for a short-circuit if appropriate
-    filenames = getFileNames(options, True)
-
-    script.write(
-        """
-if [[ ! -f {TRIMMED_R1} || ! -f {TRIMMED_R2} ]]; then
-    trim_galore \\
-        --illumina \\
-        --cores {THREADS} \\
-        --output_dir {PIPELINE} \\
-        {R1} \\
-        {R2}
-
-    mv {TRIMMED_R1}_trimming_report.txt {STATS}
-    mv {TRIMMED_R2}_trimming_report.txt {STATS}
-else
-    echo "{TRIMMED_R1} and {TRIMMED_R2} found, not trimming"
-fi        
-""".format(
-            R1=r1,
-            R2=r2,
-            PIPELINE=pipeline,
-            THREADS=threads,
-            TRIMMED_R1=filenames[0],
-            TRIMMED_R2=filenames[1],
-            STATS=stats,
-        )
+    return (
+        "{PIPELINE}/{SAMPLE}_R1.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
+        "{PIPELINE}/{SAMPLE}_R2.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
     )
 
 
@@ -191,6 +140,9 @@ def alignAndSort(script, r1, r2, options, output):
     pipeline = options["pipeline"]
     threads = options["cores"]
     timeout = options["watchdog"]
+    stats = options["stats"]
+    bin = options["bin"]
+    nonRepeatable = options["non-repeatable"]
 
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
@@ -205,25 +157,34 @@ def alignAndSort(script, r1, r2, options, output):
 #
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
     timeout {TIMEOUT}m bash -c \\
-        'bwa-mem2 mem -t {THREADS} \\
-            {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-            {R1} \\
-            {R2} \\
-            -Y \\
+        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+        fastp \\
+            -i {R1} \\
+            -I {R2} \\
+            --verbose \\
+            --stdout \\
+            --thread 8 \\
+            --detect_adapter_for_pe \\
+            -j {STATS}/fastp-{SAMPLE}.json \\
+            -h {STATS}/fastp-{SAMPLE}.html | \\
+        bwa-mem2 mem -t {THREADS} \\
+            -Y -M {DASHK} \\
             -v 1 \\
-            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:MJS.SEQUENCER.7\\tLB:{SAMPLE}\\tSM:{SAMPLE}" | \\
+            -R "@RG\\tID:{SAMPLE}\\tPL:unspecified\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+            {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            - | \\
         bamsort \\
             O={SORTED} \\
             SO=coordinate \\
             index=1 \\
             indexfilename={SORTED}.bai \\
-            tmpfile={PIPELINE}/bamsormadup_{NODENAME}_{PID} \\
+            tmpfile={PIPELINE}/{SAMPLE} \\
             inputformat=sam \\
             outputformat=bam \\
-            inputthreads=2 \\
-            outputthreads=2 \\
+            inputthreads={IO_THREADS} \\
+            outputthreads={IO_THREADS} \\
             sortthreads={SORT_THREADS} \\
-            verbose=0 \\
+            verbose=1 \\
             adddupmarksupport=1 \\
             fixmates=1 \\
             markduplicates=1 \\
@@ -233,9 +194,10 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
     status=$?
     if [ $status -ne 0 ]; then
         echo "Watchdog timer killed alignment process errno = $status"
-        rm -f {PIPELINE}/{SAMPLE}.aligned.sam
+        rm -f {SORTED}
+        rm -f {SORTED}.bai
         exit $status
-    fi            
+    fi
 else
     echo "{SORTED}, index, and metrics found, not aligning"
 fi
@@ -245,12 +207,14 @@ fi
             REFERENCE=reference,
             SAMPLE=sample,
             THREADS=threads,
-            SORT_THREADS=threads // 4,
+            SORT_THREADS=threads,
+            IO_THREADS=4,
             SORTED=output,
             PIPELINE=pipeline,
-            NODENAME=uname().nodename,
-            PID=getpid(),
             TIMEOUT=timeout,
+            STATS=stats,
+            BIN=bin,
+            DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * threads)),
         )
     )
 
@@ -604,7 +568,7 @@ def runQC(script, options):
     stats = options["stats"]
     threads = options["cores"]
 
-    filenames = getFileNames(options, False)
+    filenames = getFileNames(options)
 
     script.write(
         """
@@ -674,8 +638,6 @@ else
     echo "WGS metrics already run, skipping"
 fi
 """.format(
-            R1=filenames[0],
-            R2=filenames[1],
             REFERENCE=reference,
             PIPELINE=pipeline,
             SAMPLE=sample,
@@ -684,52 +646,16 @@ fi
         )
     )
 
-    if options["trim"] == True:
-        trimmed = getFileNames(options, True)
-
-        script.write(
-            """
+    script.write(
+        """
 fastqc \\
-    --threads=5 \\
     --outdir {STATS} \\
     --noextract \\
-    {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
-    {R1} \\
-    {R2} \\
-    {TRIMMED_R1} \\
-    {TRIMMED_R2} &
+    {PIPELINE}/{SAMPLE}.merged.bqsr.bam &
 """.format(
-                R1=filenames[0],
-                R2=filenames[1],
-                TRIMMED_R1=trimmed[0],
-                TRIMMED_R2=trimmed[1],
-                REFERENCE=reference,
-                PIPELINE=pipeline,
-                SAMPLE=sample,
-                STATS=stats,
-                THREADS=threads,
-            )
+            PIPELINE=pipeline, SAMPLE=sample, STATS=stats
         )
-    else:
-        script.write(
-            """
-fastqc \\
-    --threads=3 \\
-    --outdir {STATS} \\
-    --noextract \\
-    {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
-    {R1} \\
-    {R2} &
-""".format(
-                R1=filenames[0],
-                R2=filenames[1],
-                REFERENCE=reference,
-                PIPELINE=pipeline,
-                SAMPLE=sample,
-                STATS=stats,
-                THREADS=threads,
-            )
-        )
+    )
 
     script.write("\necho Waiting for QC metrics to complete\n")
     script.write("wait\n")
@@ -885,7 +811,7 @@ def writeVersions(script):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.set_defaults(doQC=False, trim=True, cleanIntermediateFiles=True)
+    parser.set_defaults(doQC=False, cleanIntermediateFiles=True)
     parser.add_argument(
         "-s",
         "--sample",
@@ -911,14 +837,6 @@ def main():
         dest="doQC",
         default=True,
         help="Skip QC process on input and output files",
-    )
-    parser.add_argument(
-        "-t",
-        "--trim",
-        action="store_true",
-        dest="trim",
-        default=False,
-        help="Run trim-galore on the input FASTQ. Use this with great caution because it can blow up the read pair matching.",
     )
     parser.add_argument(
         "-c",
@@ -982,11 +900,20 @@ def main():
     )
 
     parser.add_argument(
+        "-N",
+        "--non-repeatable",
+        action="store_true",
+        dest="non-repeatable",
+        default=False,
+        help="Force the -K option to BWA, will use 10,000,000bp per thread",
+    )
+
+    parser.add_argument(
         "-d",
         "--watchdog",
         action="store",
         dest="watchdog",
-        default=120,
+        default=150,
         help="Specify a watchdog timeout for the alignment process. Value is in minutes",
     )
 
@@ -996,7 +923,7 @@ def main():
         metavar="CHROME_SIZES",
         dest="chromosomeSizes",
         default="chromosomeSizes.json",
-        help="Name of JSON file containing chromosome sizes",
+        help="Name of JSON file containing chromosome sizes (ADVANCED)",
     )
 
     parser.add_argument(
@@ -1005,7 +932,7 @@ def main():
         metavar="SEGMENT_SIZE",
         dest="segmentSize",
         default=50_000_000,
-        help="Size of interval partition",
+        help="Size of interval partition (ADVANCED)",
     )
     parser.add_argument(
         "--factor",
@@ -1013,7 +940,7 @@ def main():
         metavar="FACTOR",
         dest="factor",
         default=0.25,
-        help="Interval remainder buffer (between 0.10 and 0.50)",
+        help="Interval remainder buffer (between 0.10 and 0.50) (ADVANCED)",
     )
 
     opts = parser.parse_args()
@@ -1044,7 +971,7 @@ def main():
     ]:
         options[opt] = expandvars(options[opt])
 
-    filenames = getFileNames(options, False)
+    filenames = getFileNames(options)
 
     if (
         exists(expandvars(filenames[0])) == False
@@ -1121,27 +1048,24 @@ export PATH=/home/ubuntu/perl5/bin:$PATH
 export PERL5LIB=/home/ubuntu/perl5/lib/perl5:$PERL5LIB
 export PERL_LOCAL_LIB_ROOT=/home/ubuntu/perl5:$PERL_LOCAL_LIB_ROOT
 
+# shared library stuff
+export LD_LIBRARY_PATH=/usr/lib64:/usr/local/lib/:$LB_LIBRARY_PATH
+
 # handy path
-export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/TrimGalore-0.6.7:{WORKING}/bin/gatk-4.2.3.0:{WORKING}/bin:$PATH\n""".format(
+export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.2.3.0:{WORKING}/bin:$PATH\n""".format(
                 WORKING=options["working"]
             )
         )
         script.write("\n")
 
         script.write("\n")
-        script.write("touch {PIPELINE}/00-started\n".format(PIPELINE=options["pipeline"]))
+        script.write(
+            "touch {PIPELINE}/00-started\n".format(PIPELINE=options["pipeline"])
+        )
         script.write("\n")
 
         updateDictionary(script, options)
-
-        # assume we're not trimming, this gets the original R1/R2
-        filenames = getFileNames(options, False)
-
-        if options["trim"] == True:
-            genTrimmer(script, filenames[0], filenames[1], options)
-
-            # trimming writes new files under different names, this will grab those
-            filenames = getFileNames(options, options["trim"])
+        filenames = getFileNames(options)
 
         alignAndSort(
             script,
@@ -1176,8 +1100,11 @@ export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/TrimGal
         )
 
         script.write("\n")
-        script.write("touch {PIPELINE}/00-completed\n".format(PIPELINE=options["pipeline"]))
+        script.write(
+            "touch {PIPELINE}/00-completed\n".format(PIPELINE=options["pipeline"])
+        )
         script.write("\n")
+
 
 if __name__ == "__main__":
     main()
