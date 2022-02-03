@@ -208,7 +208,7 @@ fi
             SAMPLE=sample,
             THREADS=threads,
             SORT_THREADS=threads,
-            IO_THREADS=4,
+            IO_THREADS=threads // 2,
             SORTED=output,
             PIPELINE=pipeline,
             TIMEOUT=timeout,
@@ -246,7 +246,6 @@ def genBQSR(script, reference, interval, bam, bqsr):
                 --known-sites {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
                 --known-sites {REFERENCE}/Homo_sapiens_assembly38.known_indels.vcf \\
                 --known-sites {REFERENCE}/Mills_and_1000G_gold_standard.indels.hg38.vcf \\
-                --MAX_RECORDS_IN_RAM 10000000 \\
                 -L {INTERVAL}
         else
             echo "BQSR table generation for {INTERVAL} skipped"
@@ -263,7 +262,6 @@ def genBQSR(script, reference, interval, bam, bqsr):
                 --static-quantized-quals 20 \\
                 --static-quantized-quals 30 \\
                 --bqsr-recal-file {BQSR}.table \\
-                --MAX_RECORDS_IN_RAM 10000000 \\
                 -L {INTERVAL}
 
             # index that file, this is our target for getting vcf
@@ -289,7 +287,6 @@ def callVariants(script, reference, interval, bqsr, vcf):
                 --dbsnp {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
                 --pairHMM FASTEST_AVAILABLE \\
                 --native-pair-hmm-threads 4 \\
-                --MAX_RECORDS_IN_RAM 10000000 \\
                 -L {INTERVAL}
         else
             echo "Variants already called for {INTERVAL}, skipping"
@@ -309,7 +306,6 @@ def filterSNPs(script, reference, vcf, interval, snps, filtered):
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -V {VCF} \\
                 -select-type SNP \\
-                --MAX_RECORDS_IN_RAM 10000000 \\
                 -O {SNPS}
         else
             echo "SNPs already selected for {INTERVAL}, skipping"
@@ -324,7 +320,6 @@ def filterSNPs(script, reference, vcf, interval, snps, filtered):
                 --filter-expression "MQ < 40.0" --filter-name "MQ_lt_40" \\
                 --filter-expression "MQRankSum < -12.5" --filter-name "MQRS_lt_n12.5" \\
                 --filter-expression "ReadPosRankSum < -8.0" --filter-name "RPRS_lt_n8" \\
-                --MAX_RECORDS_IN_RAM 10000000 \\
                 -O {FILTERED}
         else
             echo "SNPs already filtered for {INTERVAL}, skipping"
@@ -349,7 +344,6 @@ def filterINDELs(script, reference, vcf, interval, indels, filtered):
                 -V {VCF} \\
                 -select-type INDEL \\
                 -L {INTERVAL} \\
-                --MAX_RECORDS_IN_RAM 10000000 \\
                 -O {INDELS}
         else
             echo "INDELs already selected for {INTERVAL}, skipping"
@@ -363,7 +357,6 @@ def filterINDELs(script, reference, vcf, interval, indels, filtered):
                 --filter-expression "FS > 200.0" --filter-name "FS_gt_200" \\
                 --filter-expression "ReadPosRankSum < -20.0" --filter-name "RPRS_lt_n20" \\
                 -L {INTERVAL} \\
-                --MAX_RECORDS_IN_RAM 10000000 \\
                 -O {FILTERED}
         else
             echo "INDELs already filtered for {INTERVAL}, skipping"
@@ -497,7 +490,6 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.snps.final.vcf ]]; then
     /bin/ls -1 {PIPELINE}/*.snps.filtered.annotated.vcf >{PIPELINE}/merge.snps.list
 
     gatk MergeVcfs \\
-        --MAX_RECORDS_IN_RAM 10000000 \\
         -I {PIPELINE}/merge.snps.list \\
         -O {PIPELINE}/{SAMPLE}.snps.final.vcf &
 else
@@ -508,7 +500,6 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.indels.final.vcf ]]; then
     /bin/ls -1 {PIPELINE}/*.indels.filtered.annotated.vcf >{PIPELINE}/merge.indels.list
 
     gatk MergeVcfs \\
-        --MAX_RECORDS_IN_RAM 10000000 \\
         -I {PIPELINE}/merge.indels.list \\
         -O {PIPELINE}/{SAMPLE}.indels.final.vcf &
 else
@@ -535,7 +526,6 @@ def mergeFinal(script, options):
 # 
 if [[ ! -f {PIPELINE}/{SAMPLE}.final.unfiltered.vcf ]]; then
     gatk MergeVcfs \\
-        --MAX_RECORDS_IN_RAM 10000000 \\
         -I {PIPELINE}/{SAMPLE}.snps.final.vcf \\
         -I {PIPELINE}/{SAMPLE}.indels.final.vcf \\
         -O {PIPELINE}/{SAMPLE}.final.unfiltered.vcf
@@ -545,7 +535,6 @@ fi
 
 if [[ ! -f {PIPELINE}/{SAMPLE}.final.filtered.vcf ]]; then
     gatk SelectVariants \\
-        --MAX_RECORDS_IN_RAM 10000000 \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         -V {PIPELINE}/{SAMPLE}.final.unfiltered.vcf \\
         -O {PIPELINE}/{SAMPLE}.final.filtered.vcf \\
@@ -593,7 +582,6 @@ fi
 
 if [[ ! -f {STATS}/{SAMPLE}.bqsr.insert_metrics.txt || ! -f {STATS}/{SAMPLE}.bqsr.insert_metrics.pdf ]]; then
     gatk CollectInsertSizeMetrics \\
-        --MAX_RECORDS_IN_RAM 10000000 \\
         -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
         -O {STATS}/{SAMPLE}.bqsr.insert_metrics.txt \\
         -H {STATS}/{SAMPLE}.bqsr.insert_metrics.pdf \\
@@ -604,7 +592,6 @@ fi
 
 if [[ ! -f {STATS}/{SAMPLE}.bqsr.alignment_metrics.txt ]]; then
     gatk CollectAlignmentSummaryMetrics \\
-        --MAX_RECORDS_IN_RAM 10000000 \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
         -O {STATS}/{SAMPLE}.bqsr.alignment_metrics.txt &
@@ -614,7 +601,6 @@ fi
 
 if [[ ! -f {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.bqsr.gc_bias_summary.txt ]]; then
     gatk CollectGcBiasMetrics \\
-        --MAX_RECORDS_IN_RAM 10000000 \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         -I vmware \\
         -O {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.txt \\
@@ -626,7 +612,6 @@ fi
 
 if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
     gatk CollectWgsMetrics \\
-        --MAX_RECORDS_IN_RAM 10000000 \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
         -O {STATS}/{SAMPLE}.wgs_metrics.txt \\
