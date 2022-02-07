@@ -166,8 +166,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
             --stdout \\
             --thread 8 \\
             --detect_adapter_for_pe \\
-            -j {STATS}/fastp-{SAMPLE}.json \\
-            -h {STATS}/fastp-{SAMPLE}.html | \\
+            -j {STATS}/{SAMPLE}-fastp.json \\
+            -h {STATS}/{SAMPLE}-fastp.html | \\
         bwa-mem2 mem -t {THREADS} \\
             -Y -M {DASHK} \\
             -v 1 \\
@@ -583,22 +583,28 @@ def doVariantQC(script, options):
 # 
 echo "Starting Variant QC processes"
 
-if [[ ! -f {STATS}/{SAMPLE}.unfiltered.variant_calling_detail_metrics ]]; then
-    gatk CollectVariantCallingMetrics \\
+if [[ ! -f {STATS}/{SAMPLE}_unfilt.variant_calling_detail_metrics ]]; then
+    (gatk CollectVariantCallingMetrics \\
         --VERBOSITY ERROR \\
         --DBSNP {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
         -I {PIPELINE}/{SAMPLE}.final.unfiltered.vcf \\
-        -O {STATS}/{SAMPLE}.unfiltered &
+        -O {STATS}/{SAMPLE}_unfilt
+    
+     sed -i 's/^{SAMPLE}/{SAMPLE}_unfiltered/' {STATS}/{SAMPLE}_unfilt.variant_calling_detail_metrics
+     sed -i 's/^{SAMPLE}/{SAMPLE}_unfiltered/' {STATS}/{SAMPLE}_unfilt.variant_calling_summary_metrics) &
 else
     echo "Variant (unfiltered) metrics already run, skipping"
 fi
 
-if [[ ! -f {STATS}/{SAMPLE}.filtered.variant_calling_detail_metrics ]]; then
-    gatk CollectVariantCallingMetrics \\
-        --VERBOSITY ERROR \\
-        --DBSNP {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
-        -I {PIPELINE}/{SAMPLE}.final.filtered.vcf \\
-        -O {STATS}/{SAMPLE}.filtered &
+if [[ ! -f {STATS}/{SAMPLE}_filt.variant_calling_detail_metrics ]]; then
+    (gatk CollectVariantCallingMetrics \\
+         --VERBOSITY ERROR \\
+         --DBSNP {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
+         -I {PIPELINE}/{SAMPLE}.final.filtered.vcf \\
+         -O {STATS}/{SAMPLE}_filt
+
+     sed -i 's/^{SAMPLE}/{SAMPLE}_filtered/' {STATS}/{SAMPLE}_filt.variant_calling_detail_metrics
+     sed -i 's/^{SAMPLE}/{SAMPLE}_filtered/' {STATS}/{SAMPLE}_filt.variant_calling_summary_metrics) &
 else
     echo "Variant (filtered) metrics already run, skipping"
 fi
@@ -686,6 +692,7 @@ fi
 
 def runMultiQC(script, options):
     stats = options["stats"]
+    sample = options["sample"]
 
     script.write(
         """
@@ -693,14 +700,26 @@ def runMultiQC(script, options):
 # Run MultiQC across everything
 # 
 (
-    ## TODO - find out how to short-circuit this
+    ## Clean up any old stats
+    cd {STATS}
+    rm -rf *multiqc*
+
+    # Setup working space
+    rm -rf {STATS}/qc
     mkdir -p {STATS}/qc
     cd {STATS}/qc
-    multiqc -f {STATS}
+
+    # Run multiqc
+    multiqc --tag DNA --verbose -f {STATS}
+
+    # Save the output
+    mv {STATS}/qc/multiqc_data {STATS}/{SAMPLE}_multiqc_data
+    mv {STATS}/qc/multiqc_report.html {STATS}/{SAMPLE}_multiqc_report.html
+    rm -rf {STATS}/qc
 )    
 
 """.format(
-            STATS=stats
+            STATS=stats, SAMPLE=sample
         )
     )
 
