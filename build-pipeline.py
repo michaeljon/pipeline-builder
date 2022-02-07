@@ -607,6 +607,7 @@ fi
         )
     )
 
+
 def runQC(script, options, sorted):
     reference = options["reference"]
     pipeline = options["pipeline"]
@@ -638,7 +639,7 @@ else
     echo "Alignment metrics already run, skipping"
 fi
 
-if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.bqsr.gc_bias_summary.txt ]]; then
+if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then
     gatk CollectGcBiasMetrics \\
         --VERBOSITY ERROR \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
@@ -663,6 +664,15 @@ if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
 else
     echo "WGS metrics already run, skipping"
 fi
+
+if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fastqc.html ]]; then
+    fastqc \\
+        --outdir {STATS} \\
+        --noextract \\
+        {SORTED} &
+else
+    echo "FASTQC already run, skipping"
+fi
 """.format(
             REFERENCE=reference,
             PIPELINE=pipeline,
@@ -672,19 +682,6 @@ fi
             SORTED=sorted,
         )
     )
-
-    script.write(
-        """
-fastqc \\
-    --outdir {STATS} \\
-    --noextract \\
-    {SORTED} &
-""".format(
-            SORTED=sorted,
-            STATS=stats,
-        )
-    )
-
 
 
 def runMultiQC(script, options):
