@@ -602,8 +602,6 @@ if [[ ! -f {STATS}/{SAMPLE}.filtered.variant_calling_detail_metrics ]]; then
 else
     echo "Variant (filtered) metrics already run, skipping"
 fi
-
-wait
 """.format(
             REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample, STATS=stats
         )
@@ -687,8 +685,6 @@ fastqc \\
         )
     )
 
-    script.write("\necho Waiting for QC metrics to complete\n")
-    script.write("wait\n")
 
 
 def runMultiQC(script, options):
@@ -1115,6 +1111,10 @@ export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.
         if options["doQC"]:
             doVariantQC(script, options)
             runQC(script, options, sorted)
+
+            script.write("\necho Waiting for QC metrics to complete\n")
+            script.write("wait\n")
+
             runMultiQC(script, options)
 
         if options["cleanIntermediateFiles"] == True:
