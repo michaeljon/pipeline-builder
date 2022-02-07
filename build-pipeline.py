@@ -143,6 +143,7 @@ def alignAndSort(script, r1, r2, options, output):
     stats = options["stats"]
     bin = options["bin"]
     nonRepeatable = options["non-repeatable"]
+    readLimit = int(options["read-limit"])
 
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
@@ -155,13 +156,13 @@ def alignAndSort(script, r1, r2, options, output):
 #
 # align the input files
 #
-if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
+if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
         fastp \\
             -i {R1} \\
             -I {R2} \\
-            --verbose \\
+            --verbose {LIMITREADS} \\
             --stdout \\
             --thread 8 \\
             --detect_adapter_for_pe \\
@@ -170,30 +171,35 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
         bwa-mem2 mem -t {THREADS} \\
             -Y -M {DASHK} \\
             -v 1 \\
-            -R "@RG\\tID:{SAMPLE}\\tPL:unspecified\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
             {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-            - | \\
-        bamsort \\
-            O={SORTED} \\
-            SO=coordinate \\
-            index=1 \\
-            indexfilename={SORTED}.bai \\
-            tmpfile={PIPELINE}/{SAMPLE} \\
-            inputformat=sam \\
-            outputformat=bam \\
-            inputthreads={IO_THREADS} \\
-            outputthreads={IO_THREADS} \\
-            sortthreads={SORT_THREADS} \\
-            verbose=1 \\
-            adddupmarksupport=1 \\
-            fixmates=1 \\
-            markduplicates=1 \\
-            rmdup=1 \\
-            streaming=1'
+            - >{PIPELINE}/{SAMPLE}.aligned.bam'
 
     status=$?
     if [ $status -ne 0 ]; then
         echo "Watchdog timer killed alignment process errno = $status"
+        rm -f {SAMPLE}.aligned.bam
+        exit $status
+    fi
+else
+    echo "{PIPELINE}/{SAMPLE}.aligned.bam, aligned temp file found, skipping"
+fi
+
+if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
+    timeout {TIMEOUT}m bash -c \\
+        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+        bamsormadup \\
+            SO=coordinate \\
+            threads={THREADS} \\
+            level=6 \\
+            tmpfile={PIPELINE}/{SAMPLE} \\
+            inputformat=sam \\
+            indexfilename={SORTED}.bai \\
+            M={STATS}/{SAMPLE}.duplication_metrics <{PIPELINE}/{SAMPLE}.aligned.bam >{SORTED}'
+
+    status=$?
+    if [ $status -ne 0 ]; then
+        echo "Watchdog timer killed sort / dup process errno = $status"
         rm -f {SORTED}
         rm -f {SORTED}.bai
         exit $status
@@ -201,6 +207,7 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
 else
     echo "{SORTED}, index, and metrics found, not aligning"
 fi
+
 """.format(
             R1=r1,
             R2=r2,
@@ -215,6 +222,7 @@ fi
             STATS=stats,
             BIN=bin,
             DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * threads)),
+            LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
         )
     )
 
@@ -224,6 +232,7 @@ def splinter(script, bam, sorted, interval):
         """
 \n# Scatter interval {INTERVAL}        
 if [[ ! -f {BAM} || ! -f {BAM}.bai ]]; then
+    echo "Creating interval {INTERVAL}"
     (samtools view -@ 4 -bh {SORTED} {INTERVAL} >{BAM} && samtools index -@ 4 {BAM})&
 else
     echo "Splinter for {INTERVAL} has been computed, not re-splintering"
@@ -242,6 +251,7 @@ def genBQSR(script, reference, interval, bam, bqsr):
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -I {BAM} \\
                 -O {BQSR}.table \\
+                --verbosity ERROR \\
                 --preserve-qscores-less-than 6 \\
                 --known-sites {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
                 --known-sites {REFERENCE}/Homo_sapiens_assembly38.known_indels.vcf \\
@@ -257,6 +267,7 @@ def genBQSR(script, reference, interval, bam, bqsr):
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -I {BAM} \\
                 -O {BQSR} \\
+                --verbosity ERROR \\
                 --preserve-qscores-less-than 6 \\
                 --static-quantized-quals 10 \\
                 --static-quantized-quals 20 \\
@@ -284,6 +295,7 @@ def callVariants(script, reference, interval, bqsr, vcf):
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -I {BQSR} \\
                 -O {VCF} \\
+                --verbosity ERROR \\
                 --dbsnp {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
                 --pairHMM FASTEST_AVAILABLE \\
                 --native-pair-hmm-threads 4 \\
@@ -305,6 +317,7 @@ def filterSNPs(script, reference, vcf, interval, snps, filtered):
             gatk SelectVariants --java-options '-Xmx8g' \\
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -V {VCF} \\
+                --verbosity ERROR \\
                 -select-type SNP \\
                 -O {SNPS}
         else
@@ -315,6 +328,7 @@ def filterSNPs(script, reference, vcf, interval, snps, filtered):
             gatk VariantFiltration --java-options '-Xmx8g' \\
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -V {SNPS} \\
+                --verbosity ERROR \\
                 --filter-expression "QD < 2.0" --filter-name "QD_lt_2" \\
                 --filter-expression "FS > 60.0" --filter-name "FS_gt_60" \\
                 --filter-expression "MQ < 40.0" --filter-name "MQ_lt_40" \\
@@ -342,8 +356,8 @@ def filterINDELs(script, reference, vcf, interval, indels, filtered):
             gatk SelectVariants --java-options '-Xmx8g' \\
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -V {VCF} \\
+                --verbosity ERROR \\
                 -select-type INDEL \\
-                -L {INTERVAL} \\
                 -O {INDELS}
         else
             echo "INDELs already selected for {INTERVAL}, skipping"
@@ -353,10 +367,10 @@ def filterINDELs(script, reference, vcf, interval, indels, filtered):
             gatk VariantFiltration --java-options '-Xmx8g' \\
                 -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
                 -V {INDELS} \\
+                --verbosity ERROR \\
                 --filter-expression "QD < 2.0" --filter-name "QD_lt_2" \\
                 --filter-expression "FS > 200.0" --filter-name "FS_gt_200" \\
                 --filter-expression "ReadPosRankSum < -20.0" --filter-name "RPRS_lt_n20" \\
-                -L {INTERVAL} \\
                 -O {FILTERED}
         else
             echo "INDELs already filtered for {INTERVAL}, skipping"
@@ -395,6 +409,7 @@ def annotate(script, options, vep, type, interval, input, output, summary):
                 --format vcf \\
                 --vcf \\
                 --merged \\
+                --fork {FORKS} \\
                 --offline \\
                 --use_given_ref \\
                 --verbose \\
@@ -418,6 +433,7 @@ def annotate(script, options, vep, type, interval, input, output, summary):
             SUMMARY=summary,
             INTERVAL=interval,
             CHROMOSOME=chromosome,
+            FORKS=8,
         )
     )
 
@@ -490,6 +506,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.snps.final.vcf ]]; then
     /bin/ls -1 {PIPELINE}/*.snps.filtered.annotated.vcf >{PIPELINE}/merge.snps.list
 
     gatk MergeVcfs \\
+        --VERBOSITY ERROR \\
         -I {PIPELINE}/merge.snps.list \\
         -O {PIPELINE}/{SAMPLE}.snps.final.vcf &
 else
@@ -500,6 +517,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.indels.final.vcf ]]; then
     /bin/ls -1 {PIPELINE}/*.indels.filtered.annotated.vcf >{PIPELINE}/merge.indels.list
 
     gatk MergeVcfs \\
+        --VERBOSITY ERROR \\
         -I {PIPELINE}/merge.indels.list \\
         -O {PIPELINE}/{SAMPLE}.indels.final.vcf &
 else
@@ -526,6 +544,7 @@ def mergeFinal(script, options):
 # 
 if [[ ! -f {PIPELINE}/{SAMPLE}.final.unfiltered.vcf ]]; then
     gatk MergeVcfs \\
+        --VERBOSITY ERROR \\
         -I {PIPELINE}/{SAMPLE}.snps.final.vcf \\
         -I {PIPELINE}/{SAMPLE}.indels.final.vcf \\
         -O {PIPELINE}/{SAMPLE}.final.unfiltered.vcf
@@ -538,6 +557,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.final.filtered.vcf ]]; then
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         -V {PIPELINE}/{SAMPLE}.final.unfiltered.vcf \\
         -O {PIPELINE}/{SAMPLE}.final.filtered.vcf \\
+        --verbosity ERROR \\
         --exclude-filtered \\
         --exclude-non-variants \\
         --remove-unused-alternates
@@ -550,14 +570,12 @@ fi
     )
 
 
-def runQC(script, options):
+def runQC(script, options, sorted):
     reference = options["reference"]
     pipeline = options["pipeline"]
     sample = options["sample"]
     stats = options["stats"]
     threads = options["cores"]
-
-    filenames = getFileNames(options)
 
     script.write(
         """
@@ -566,54 +584,51 @@ def runQC(script, options):
 # 
 echo "Starting QC processes"
 
-if [[ ! -f {PIPELINE}/{SAMPLE}.merged.bqsr.bam || ! -f {PIPELINE}/{SAMPLE}.merged.bqsr.bam.bai ]]; then
-    samtools merge -@ {THREADS} -c -p -f -o {PIPELINE}/{SAMPLE}.merged.bqsr.bam {PIPELINE}/{SAMPLE}.chr*_bqsr.bam
-    samtools index -@ {THREADS} {PIPELINE}/{SAMPLE}.merged.bqsr.bam
-else
-    echo "Intermediate BQSR files already merged and indexed, skipping"
-fi
-
-if [[ ! -f {STATS}/{SAMPLE}.bqsr.flagstat.txt ]]; then
+if [[ ! -f {STATS}/{SAMPLE}.flagstat.txt ]]; then
     samtools flagstat \\
-        {PIPELINE}/{SAMPLE}.merged.bqsr.bam >{STATS}/{SAMPLE}.bqsr.flagstat.txt &
+        {SORTED} >{STATS}/{SAMPLE}.flagstat.txt &
 else
     echo "samtools flagstat already run, skipping"
 fi
 
-if [[ ! -f {STATS}/{SAMPLE}.bqsr.insert_metrics.txt || ! -f {STATS}/{SAMPLE}.bqsr.insert_metrics.pdf ]]; then
+if [[ ! -f {STATS}/{SAMPLE}.insert_metrics.txt || ! -f {STATS}/{SAMPLE}.insert_metrics.pdf ]]; then
     gatk CollectInsertSizeMetrics \\
-        -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
-        -O {STATS}/{SAMPLE}.bqsr.insert_metrics.txt \\
-        -H {STATS}/{SAMPLE}.bqsr.insert_metrics.pdf \\
+        --VERBOSITY ERROR \\
+        -I {SORTED} \\
+        -O {STATS}/{SAMPLE}.insert_metrics.txt \\
+        -H {STATS}/{SAMPLE}.insert_metrics.pdf \\
         -M 0.5 &
 else
     echo "Insert metrics already run, skipping"
 fi
 
-if [[ ! -f {STATS}/{SAMPLE}.bqsr.alignment_metrics.txt ]]; then
+if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then
     gatk CollectAlignmentSummaryMetrics \\
+        --VERBOSITY ERROR \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-        -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
-        -O {STATS}/{SAMPLE}.bqsr.alignment_metrics.txt &
+        -I {SORTED} \\
+        -O {STATS}/{SAMPLE}.alignment_metrics.txt &
 else
     echo "Alignment metrics already run, skipping"
 fi
 
-if [[ ! -f {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.bqsr.gc_bias_summary.txt ]]; then
+if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.bqsr.gc_bias_summary.txt ]]; then
     gatk CollectGcBiasMetrics \\
+        --VERBOSITY ERROR \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-        -I vmware \\
-        -O {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.txt \\
-        -CHART {STATS}/{SAMPLE}.bqsr.gc_bias_metrics.pdf \\
-        -S {STATS}/{SAMPLE}.bqsr.gc_bias_summary.txt &
+        -I {SORTED} \\
+        -O {STATS}/{SAMPLE}.gc_bias_metrics.txt \\
+        -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf \\
+        -S {STATS}/{SAMPLE}.gc_bias_summary.txt &
 else
     echo "GC bias metrics already run, skipping"
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
     gatk CollectWgsMetrics \\
+        --VERBOSITY ERROR \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-        -I {PIPELINE}/{SAMPLE}.merged.bqsr.bam \\
+        -I {SORTED} \\
         -O {STATS}/{SAMPLE}.wgs_metrics.txt \\
         --READ_LENGTH 151 \\
         -INTERVALS {REFERENCE}/ref_genome_autosomal.interval_list \\
@@ -628,6 +643,7 @@ fi
             SAMPLE=sample,
             STATS=stats,
             THREADS=threads,
+            SORTED=sorted,
         )
     )
 
@@ -636,9 +652,10 @@ fi
 fastqc \\
     --outdir {STATS} \\
     --noextract \\
-    {PIPELINE}/{SAMPLE}.merged.bqsr.bam &
+    {SORTED} &
 """.format(
-            PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+            SORTED=sorted,
+            STATS=stats,
         )
     )
 
@@ -724,17 +741,6 @@ rm -f {PIPELINE}/{SAMPLE}.{TYPE}.final.vcf.idx
             )
         )
 
-    script.write("\n")
-    script.write(
-        "rm -f {PIPELINE}/{SAMPLE}.merged.bqsr.bam\n".format(
-            PIPELINE=pipeline, SAMPLE=sample
-        )
-    )
-    script.write(
-        "rm -f {PIPELINE}/{SAMPLE}.merged.bqsr.bam.bai\n".format(
-            PIPELINE=pipeline, SAMPLE=sample
-        )
-    )
     script.write("\n")
 
 
@@ -894,6 +900,14 @@ def main():
     )
 
     parser.add_argument(
+        "--read-limit",
+        action="store",
+        dest="read-limit",
+        default=0,
+        help="Limit the number of reads that fastp processes, for debugging",
+    )
+
+    parser.add_argument(
         "-d",
         "--watchdog",
         action="store",
@@ -1034,7 +1048,7 @@ export PERL5LIB=/home/ubuntu/perl5/lib/perl5:$PERL5LIB
 export PERL_LOCAL_LIB_ROOT=/home/ubuntu/perl5:$PERL_LOCAL_LIB_ROOT
 
 # shared library stuff
-export LD_LIBRARY_PATH=/usr/lib64:/usr/local/lib/:$LB_LIBRARY_PATH
+export LD_LIBRARY_PATH={WORKING}/bin:/usr/lib64:/usr/local/lib/:$LB_LIBRARY_PATH
 
 # handy path
 export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.2.3.0:{WORKING}/bin:$PATH\n""".format(
@@ -1059,6 +1073,7 @@ export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.
             options,
             sorted,
         )
+
         scatter(
             script,
             options,
@@ -1070,7 +1085,7 @@ export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.
         mergeFinal(script, options)
 
         if options["doQC"]:
-            runQC(script, options)
+            runQC(script, options, sorted)
             runMultiQC(script, options)
 
         if options["cleanIntermediateFiles"] == True:
@@ -1086,7 +1101,7 @@ export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.
 
         script.write("\n")
         script.write(
-            "touch {PIPELINE}/00-completed\n".format(PIPELINE=options["pipeline"])
+            "touch {PIPELINE}/01-completed\n".format(PIPELINE=options["pipeline"])
         )
         script.write("\n")
 
