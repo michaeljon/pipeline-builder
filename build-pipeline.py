@@ -570,6 +570,45 @@ fi
     )
 
 
+def doVariantQC(script, options):
+    reference = options["reference"]
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+    stats = options["stats"]
+
+    script.write(
+        """
+#
+# RUN Variant QC process
+# 
+echo "Starting Variant QC processes"
+
+if [[ ! -f {STATS}/{SAMPLE}.unfiltered.variant_calling_detail_metrics ]]; then
+    gatk CollectVariantCallingMetrics \\
+        --VERBOSITY ERROR \\
+        --DBSNP {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
+        -I {PIPELINE}/{SAMPLE}.final.unfiltered.vcf \\
+        -O {STATS}/{SAMPLE}.unfiltered &
+else
+    echo "Variant (unfiltered) metrics already run, skipping"
+fi
+
+if [[ ! -f {STATS}/{SAMPLE}.filtered.variant_calling_detail_metrics ]]; then
+    gatk CollectVariantCallingMetrics \\
+        --VERBOSITY ERROR \\
+        --DBSNP {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
+        -I {PIPELINE}/{SAMPLE}.final.filtered.vcf \\
+        -O {STATS}/{SAMPLE}.filtered &
+else
+    echo "Variant (filtered) metrics already run, skipping"
+fi
+
+wait
+""".format(
+            REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+        )
+    )
+
 def runQC(script, options, sorted):
     reference = options["reference"]
     pipeline = options["pipeline"]
@@ -589,17 +628,6 @@ if [[ ! -f {STATS}/{SAMPLE}.flagstat.txt ]]; then
         {SORTED} >{STATS}/{SAMPLE}.flagstat.txt &
 else
     echo "samtools flagstat already run, skipping"
-fi
-
-if [[ ! -f {STATS}/{SAMPLE}.insert_metrics.txt || ! -f {STATS}/{SAMPLE}.insert_metrics.pdf ]]; then
-    gatk CollectInsertSizeMetrics \\
-        --VERBOSITY ERROR \\
-        -I {SORTED} \\
-        -O {STATS}/{SAMPLE}.insert_metrics.txt \\
-        -H {STATS}/{SAMPLE}.insert_metrics.pdf \\
-        -M 0.5 &
-else
-    echo "Insert metrics already run, skipping"
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then
@@ -1085,6 +1113,7 @@ export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.
         mergeFinal(script, options)
 
         if options["doQC"]:
+            doVariantQC(script, options)
             runQC(script, options, sorted)
             runMultiQC(script, options)
 
