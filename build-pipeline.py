@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 
+from io import TextIOWrapper
 import json
 import argparse
 import math
+
+from argparse import Namespace
+from typing import Dict, Tuple, Sequence, List, Any
 from datetime import datetime
 from math import ceil
 from os.path import exists, expandvars
@@ -14,20 +18,26 @@ from os import cpu_count
 # prevent a developer from re-running various steps in the pipeline in
 # the case that the output files are already present.
 
+ChromosomeSizeList = Dict[str, str]
+ChromosomeNames = List[str]
+ChromosomeList = List[Tuple[str, str]]
+OptionsDict = Dict[str, Any]
+FastaPair = Tuple[str, str]
 
-def loadIntervals(chromosomeSizes):
+
+def loadIntervals(chromosomeSizes: str) -> ChromosomeSizeList:
     with open(chromosomeSizes, "r") as file:
-        chromosomeSizes = json.load(file)
-        return chromosomeSizes
+        chromosomeSizesDict = json.load(file)
+        return chromosomeSizesDict
 
 
-def loadChromosomeList(chromosomeSizes):
+def loadChromosomeList(chromosomeSizes: str) -> ChromosomeNames:
     with open(chromosomeSizes, "r") as file:
-        chromosomeSizes = json.load(file)
-        return chromosomeSizes.keys()
+        chromosomeSizesDict = json.load(file)
+        return chromosomeSizesDict.keys()
 
 
-def computeIntervals(options):
+def computeIntervals(options: OptionsDict) -> ChromosomeList:
     intervals = []
 
     chromosomeSizes = options["chromosomeSizes"]
@@ -83,7 +93,7 @@ def computeIntervals(options):
     ]
 
 
-def getFileNames(options):
+def getFileNames(options: OptionsDict) -> FastaPair:
     sample = options["sample"]
     pipeline = options["pipeline"]
 
@@ -93,7 +103,7 @@ def getFileNames(options):
     )
 
 
-def updateDictionary(script, options):
+def updateDictionary(script: TextIOWrapper, options: OptionsDict):
     reference = options["reference"]
     bin = options["bin"]
 
@@ -134,7 +144,9 @@ fi
     )
 
 
-def alignAndSort(script, r1, r2, options, output):
+def alignAndSort(
+    script: TextIOWrapper, r1: str, r2: str, options: OptionsDict, output: str
+):
     reference = options["reference"]
     sample = options["sample"]
     pipeline = options["pipeline"]
@@ -142,6 +154,7 @@ def alignAndSort(script, r1, r2, options, output):
     timeout = options["watchdog"]
     stats = options["stats"]
     bin = options["bin"]
+    temp = options["temp"]
     nonRepeatable = options["non-repeatable"]
     readLimit = int(options["read-limit"])
 
@@ -156,7 +169,7 @@ def alignAndSort(script, r1, r2, options, output):
 #
 # align the input files
 #
-if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
+if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
         fastp \\
@@ -173,29 +186,30 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
             -v 1 \\
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
             {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-            - >{PIPELINE}/{SAMPLE}.aligned.bam'
+            - | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
 
     status=$?
     if [ $status -ne 0 ]; then
         echo "Watchdog timer killed alignment process errno = $status"
-        rm -f {SAMPLE}.aligned.bam
+        rm -f {SAMPLE}.aligned.sam.gz
         exit $status
     fi
 else
-    echo "{PIPELINE}/{SAMPLE}.aligned.bam, aligned temp file found, skipping"
+    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, skipping"
 fi
 
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+        unpigz --stdout {PIPELINE}/{SAMPLE}.aligned.sam.gz |
         bamsormadup \\
             SO=coordinate \\
             threads={THREADS} \\
             level=6 \\
-            tmpfile={PIPELINE}/{SAMPLE} \\
+            tmpfile={TEMP}/{SAMPLE} \\
             inputformat=sam \\
             indexfilename={SORTED}.bai \\
-            M={STATS}/{SAMPLE}.duplication_metrics <{PIPELINE}/{SAMPLE}.aligned.bam >{SORTED}'
+            M={STATS}/{SAMPLE}.duplication_metrics >{SORTED}'
 
     status=$?
     if [ $status -ne 0 ]; then
@@ -204,10 +218,12 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
         rm -f {SORTED}.bai
         exit $status
     fi
+
+    # force the index to look "newer" than its source
+    touch {SORTED}.bai
 else
     echo "{SORTED}, index, and metrics found, not aligning"
 fi
-
 """.format(
             R1=r1,
             R2=r2,
@@ -221,13 +237,14 @@ fi
             TIMEOUT=timeout,
             STATS=stats,
             BIN=bin,
+            TEMP=temp,
             DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * threads)),
             LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
         )
     )
 
 
-def splinter(script, bam, sorted, interval):
+def splinter(script: TextIOWrapper, bam: str, sorted: str, interval: str):
     script.write(
         """
 \n# Scatter interval {INTERVAL}        
@@ -242,7 +259,7 @@ fi""".format(
     )
 
 
-def genBQSR(script, reference, interval, bam, bqsr):
+def genBQSR(script: TextIOWrapper, reference: str, interval: str, bam: str, bqsr: str):
     script.write(
         """
         # run base quality score recalibration - build the bqsr table
@@ -286,7 +303,9 @@ def genBQSR(script, reference, interval, bam, bqsr):
     )
 
 
-def callVariants(script, reference, interval, bqsr, vcf):
+def callVariants(
+    script: TextIOWrapper, reference: str, interval: str, bqsr: str, vcf: str
+):
     script.write(
         """
         # call variants
@@ -309,7 +328,14 @@ def callVariants(script, reference, interval, bqsr, vcf):
     )
 
 
-def filterSNPs(script, reference, vcf, interval, snps, filtered):
+def filterSNPs(
+    script: TextIOWrapper,
+    reference: str,
+    vcf: str,
+    interval: str,
+    snps: str,
+    filtered: str,
+):
     script.write(
         """
         # pull snps out of out called variants and annotate them
@@ -348,7 +374,14 @@ def filterSNPs(script, reference, vcf, interval, snps, filtered):
     )
 
 
-def filterINDELs(script, reference, vcf, interval, indels, filtered):
+def filterINDELs(
+    script: TextIOWrapper,
+    reference: str,
+    vcf: str,
+    interval: str,
+    indels: str,
+    filtered: str,
+):
     script.write(
         """
         # pull indels out of out called variants and annotate them
@@ -385,7 +418,7 @@ def filterINDELs(script, reference, vcf, interval, indels, filtered):
     )
 
 
-def filterVariants(script, reference, interval, vcf):
+def filterVariants(script: TextIOWrapper, reference: str, interval: str, vcf: str):
     snps = vcf.replace(".vcf", ".snps.vcf")
     filtered = vcf.replace(".vcf", ".snps.filtered.vcf")
     filterSNPs(script, reference, vcf, interval, snps, filtered)
@@ -395,7 +428,16 @@ def filterVariants(script, reference, interval, vcf):
     filterINDELs(script, reference, vcf, interval, indels, filtered)
 
 
-def annotate(script, options, vep, type, interval, input, output, summary):
+def annotate(
+    script: TextIOWrapper,
+    options: OptionsDict,
+    vep: str,
+    type: str,
+    interval: str,
+    input: str,
+    output: str,
+    summary: str,
+):
     reference = options["reference"]
     chromosome = interval.split(":")[0]
 
@@ -438,7 +480,9 @@ def annotate(script, options, vep, type, interval, input, output, summary):
     )
 
 
-def annotateVariants(script, options, vcf, interval):
+def annotateVariants(
+    script: TextIOWrapper, options: OptionsDict, vcf: str, interval: str
+):
     working = options["working"]
 
     vep = "{WORKING}/vep_data".format(WORKING=working)
@@ -454,7 +498,7 @@ def annotateVariants(script, options, vcf, interval):
     annotate(script, options, vep, "SNP", interval, filtered, annotated, summary)
 
 
-def scatter(script, options, prefix, sorted):
+def scatter(script: TextIOWrapper, options: OptionsDict, prefix: str, sorted: str):
     intervals = computeIntervals(options)
 
     for interval in intervals:
@@ -465,7 +509,7 @@ def scatter(script, options, prefix, sorted):
     script.write("wait\n")
 
 
-def runIntervals(script, options, prefix):
+def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
     intervals = computeIntervals(options)
 
     for interval in intervals:
@@ -493,7 +537,7 @@ def runIntervals(script, options, prefix):
     script.write("wait\n")
 
 
-def gather(script, options):
+def gather(script: TextIOWrapper, options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -532,7 +576,7 @@ wait
     )
 
 
-def mergeFinal(script, options):
+def mergeFinal(script: TextIOWrapper, options: OptionsDict):
     reference = options["reference"]
     pipeline = options["pipeline"]
     sample = options["sample"]
@@ -570,7 +614,7 @@ fi
     )
 
 
-def doVariantQC(script, options):
+def doVariantQC(script: TextIOWrapper, options: OptionsDict):
     reference = options["reference"]
     pipeline = options["pipeline"]
     sample = options["sample"]
@@ -614,7 +658,7 @@ fi
     )
 
 
-def runQC(script, options, sorted):
+def runQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
     reference = options["reference"]
     pipeline = options["pipeline"]
     sample = options["sample"]
@@ -671,6 +715,21 @@ else
     echo "WGS metrics already run, skipping"
 fi
 
+if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
+    samtools stats -@ 68 \\
+        -r reference/Homo_sapiens_assembly38.fasta \\
+        {SORTED} >{STATS}/{SAMPLE}.samstats
+else
+    echo "santools stats already run, skipping"
+fi
+
+if [[ ! -f {STATS}/{SAMPLE}.samidx ]]; then
+    samtools idxstats -@ 68 \\
+        {SORTED} >{STATS}/{SAMPLE}.samidx
+else
+    echo "santools idxstats already run, skipping"
+fi
+
 if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fastqc.html ]]; then
     fastqc \\
         --outdir {STATS} \\
@@ -690,7 +749,7 @@ fi
     )
 
 
-def runMultiQC(script, options):
+def runMultiQC(script: TextIOWrapper, options: OptionsDict):
     stats = options["stats"]
     sample = options["sample"]
 
@@ -724,7 +783,7 @@ def runMultiQC(script, options):
     )
 
 
-def cleanup(script, prefix, options):
+def cleanup(script: TextIOWrapper, prefix: str, options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -784,7 +843,7 @@ rm -f {PIPELINE}/{SAMPLE}.{TYPE}.final.vcf.idx
     script.write("\n")
 
 
-def writeHeader(script, options, filenames):
+def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastaPair):
     script.write("#\n")
     script.write(
         "# generated at {TIME}\n".format(
@@ -834,13 +893,33 @@ def writeHeader(script, options, filenames):
     )
 
 
-def writeVersions(script):
+def writeVersions(script: TextIOWrapper):
     script.write("#\n")
     script.write("# This will write version numbers of tools here...\n")
     script.write("#\n")
 
 
-def main():
+def writeEnvironment(script: TextIOWrapper,  options: OptionsDict):
+        script.write("#\n")
+        script.write(
+            """
+# perl stuff
+export PATH=/home/ubuntu/perl5/bin:$PATH
+export PERL5LIB=/home/ubuntu/perl5/lib/perl5:$PERL5LIB
+export PERL_LOCAL_LIB_ROOT=/home/ubuntu/perl5:$PERL_LOCAL_LIB_ROOT
+
+# shared library stuff
+export LD_LIBRARY_PATH={WORKING}/bin:/usr/lib64:/usr/local/lib/:$LB_LIBRARY_PATH
+export LD_PRELOAD={WORKING}/bin/libz.so.1.2.11.zlib-ng
+
+# handy path
+export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.2.3.0:{WORKING}/bin:$PATH\n""".format(
+                WORKING=options["working"]
+            )
+        )
+        script.write("\n")
+
+def defineArguments() -> Namespace:
     parser = argparse.ArgumentParser()
     parser.set_defaults(doQC=False, cleanIntermediateFiles=True)
     parser.add_argument(
@@ -895,6 +974,14 @@ def main():
         help="Location of R1 and R2 files",
     )
     parser.add_argument(
+        "-t",
+        "--temp-dir",
+        action="store",
+        metavar="TEMP_DIR",
+        dest="temp",
+        help="Temporary storage for alignment",
+    )
+    parser.add_argument(
         "-o",
         "--stats-dir",
         action="store",
@@ -926,6 +1013,7 @@ def main():
         "--cores",
         action="store",
         dest="cores",
+        metavar="CPU_COUNT",
         default=cpu_count(),
         help="Specify the number of available CPU",
     )
@@ -943,6 +1031,7 @@ def main():
         "--read-limit",
         action="store",
         dest="read-limit",
+        metavar="READ_LIMIT",
         default=0,
         help="Limit the number of reads that fastp processes, for debugging",
     )
@@ -951,6 +1040,7 @@ def main():
         "-d",
         "--watchdog",
         action="store",
+        metavar="WATCHDOG_TIMEOUT",
         dest="watchdog",
         default=150,
         help="Specify a watchdog timeout for the alignment process. Value is in minutes",
@@ -982,8 +1072,10 @@ def main():
         help="Interval remainder buffer (between 0.10 and 0.50) (ADVANCED)",
     )
 
-    opts = parser.parse_args()
+    return parser.parse_args()
 
+
+def fixupPathOptions(opts: Namespace) -> OptionsDict:
     options = vars(opts)
 
     if options["working"] == None:
@@ -994,22 +1086,29 @@ def main():
         options["pipeline"] = "{WORKING}/pipeline".format(WORKING=options["working"])
     if options["stats"] == None:
         options["stats"] = "{WORKING}/stats".format(WORKING=options["working"])
+    if options["temp"] == None:
+        options["temp"] = "{WORKING}/pipeline".format(WORKING=options["working"])
 
     if options["sample"] == None:
         print("--sample is a required option")
-        return
+        quit(1)
 
     for opt in [
         "working",
         "reference",
         "pipeline",
         "stats",
+        "temp",
         "bin",
         "script",
         "chromosomeSizes",
     ]:
         options[opt] = expandvars(options[opt])
 
+    return options
+
+
+def verifyOptions(options: OptionsDict):
     filenames = getFileNames(options)
 
     if (
@@ -1023,7 +1122,7 @@ def main():
             )
         )
         print("Check your --sample and --work-dir parameters")
-        return
+        quit(1)
 
     if exists(options["bin"]) == False:
         print(
@@ -1031,7 +1130,7 @@ def main():
                 PATH=options["bin"]
             )
         )
-        return
+        quit(1)
 
     if exists(options["working"]) == False:
         print(
@@ -1039,7 +1138,15 @@ def main():
                 PATH=options["working"]
             )
         )
-        return
+        quit(1)
+
+    if exists(options["temp"]) == False:
+        print(
+            "Unable to find your --temp-dir directory at {PATH}".format(
+                PATH=options["temp"]
+            )
+        )
+        quit(1)
 
     if exists(options["reference"]) == False:
         print(
@@ -1047,7 +1154,7 @@ def main():
                 PATH=options["reference"]
             )
         )
-        return
+        quit(1)
 
     if exists(options["pipeline"]) == False:
         print(
@@ -1055,7 +1162,7 @@ def main():
                 PATH=options["pipeline"]
             )
         )
-        return
+        quit(1)
 
     if exists(options["stats"]) == False:
         print(
@@ -1063,8 +1170,15 @@ def main():
                 PATH=options["stats"]
             )
         )
-        return
+        quit(1)
 
+
+def main():
+    opts = defineArguments()
+    options = fixupPathOptions(opts)
+    verifyOptions(options)
+
+    filenames = getFileNames(options)
     sorted = "{PIPELINE}/{SAMPLE}.sorted.bam".format(
         PIPELINE=options["pipeline"], SAMPLE=options["sample"]
     )
@@ -1078,26 +1192,8 @@ def main():
         script.write("#!/usr/bin/env bash\n")
         writeHeader(script, options, filenames)
         writeVersions(script)
-
-        script.write("#\n")
-        script.write(
-            """
-# perl stuff
-export PATH=/home/ubuntu/perl5/bin:$PATH
-export PERL5LIB=/home/ubuntu/perl5/lib/perl5:$PERL5LIB
-export PERL_LOCAL_LIB_ROOT=/home/ubuntu/perl5:$PERL_LOCAL_LIB_ROOT
-
-# shared library stuff
-export LD_LIBRARY_PATH={WORKING}/bin:/usr/lib64:/usr/local/lib/:$LB_LIBRARY_PATH
-export LD_PRELOAD={WORKING}/bin/libz.so.1.2.11.zlib-ng
-
-# handy path
-export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.2.3.0:{WORKING}/bin:$PATH\n""".format(
-                WORKING=options["working"]
-            )
-        )
-        script.write("\n")
-
+        writeEnvironment(script, options)
+        
         script.write("\n")
         script.write(
             "touch {PIPELINE}/00-started\n".format(PIPELINE=options["pipeline"])
