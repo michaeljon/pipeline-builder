@@ -157,15 +157,15 @@ def alignAndSort(
     temp = options["temp"]
     nonRepeatable = options["non-repeatable"]
     readLimit = int(options["read-limit"])
+    skipPreprocess = options["skipPreprocess"]
 
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
     script.write("#\n")
 
-    # this is one of the more time-consuming operations, so, if we've already
-    # done the alignment operation for this sample, we'll skip this
-    script.write(
-        """
+    if skipPreprocess == False:
+        script.write(
+            """
 #
 # align the input files
 #
@@ -197,7 +197,68 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
 else
     echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, skipping"
 fi
+""".format(
+            R1=r1,
+            R2=r2,
+            REFERENCE=reference,
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            TIMEOUT=timeout,
+            STATS=stats,
+            BIN=bin,
+            TEMP=temp,
+            DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * threads)),
+            LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
+        )
+    )
+    else:
+        script.write(
+            """
+#
+# align the input files
+#
+if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
+    timeout {TIMEOUT}m bash -c \\
+        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+        bwa-mem2 mem -t {THREADS} \\
+            -Y -M {DASHK} \\
+            -v 1 \\
+            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+            {R1} \\
+            {R2} \\
+            {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
 
+    status=$?
+    if [ $status -ne 0 ]; then
+        echo "Watchdog timer killed alignment process errno = $status"
+        rm -f {SAMPLE}.aligned.sam.gz
+        exit $status
+    fi
+else
+    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, skipping"
+fi
+""".format(
+            R1=r1,
+            R2=r2,
+            REFERENCE=reference,
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            TIMEOUT=timeout,
+            BIN=bin,
+            DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * threads)),
+        )
+    )
+
+    # this is one of the more time-consuming operations, so, if we've already
+    # done the alignment operation for this sample, we'll skip this
+    script.write(
+        """
+#
+# sort and mark duplicates
+#
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
@@ -225,21 +286,14 @@ else
     echo "{SORTED}, index, and metrics found, not aligning"
 fi
 """.format(
-            R1=r1,
-            R2=r2,
-            REFERENCE=reference,
             SAMPLE=sample,
             THREADS=threads,
-            SORT_THREADS=threads,
-            IO_THREADS=threads // 2,
             SORTED=output,
             PIPELINE=pipeline,
             TIMEOUT=timeout,
             STATS=stats,
             BIN=bin,
             TEMP=temp,
-            DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * threads)),
-            LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
         )
     )
 
@@ -718,16 +772,16 @@ fi
 if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
     samtools stats -@ 68 \\
         -r reference/Homo_sapiens_assembly38.fasta \\
-        {SORTED} >{STATS}/{SAMPLE}.samstats
+        {SORTED} >{STATS}/{SAMPLE}.samstats &
 else
-    echo "santools stats already run, skipping"
+    echo "samtools stats already run, skipping"
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.samidx ]]; then
     samtools idxstats -@ 68 \\
-        {SORTED} >{STATS}/{SAMPLE}.samidx
+        {SORTED} >{STATS}/{SAMPLE}.samidx &
 else
-    echo "santools idxstats already run, skipping"
+    echo "samtools idxstats already run, skipping"
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fastqc.html ]]; then
@@ -899,10 +953,13 @@ def writeVersions(script: TextIOWrapper):
     script.write("#\n")
 
 
-def writeEnvironment(script: TextIOWrapper,  options: OptionsDict):
-        script.write("#\n")
-        script.write(
-            """
+def writeEnvironment(script: TextIOWrapper, options: OptionsDict):
+    script.write("#\n")
+    script.write(
+        """
+# deal with really large fastq files
+ulimit -n 8192
+
 # perl stuff
 export PATH=/home/ubuntu/perl5/bin:$PATH
 export PERL5LIB=/home/ubuntu/perl5/lib/perl5:$PERL5LIB
@@ -914,10 +971,11 @@ export LD_PRELOAD={WORKING}/bin/libz.so.1.2.11.zlib-ng
 
 # handy path
 export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.2.3.0:{WORKING}/bin:$PATH\n""".format(
-                WORKING=options["working"]
-            )
+            WORKING=options["working"]
         )
-        script.write("\n")
+    )
+    script.write("\n")
+
 
 def defineArguments() -> Namespace:
     parser = argparse.ArgumentParser()
@@ -947,6 +1005,14 @@ def defineArguments() -> Namespace:
         dest="doQC",
         default=True,
         help="Skip QC process on input and output files",
+    )
+    parser.add_argument(
+        "-P",
+        "--skip-fastp",
+        action="store_true",
+        dest="skipPreprocess",
+        default=False,
+        help="Skip running fastp on input file(s)",
     )
     parser.add_argument(
         "-c",
@@ -1193,7 +1259,7 @@ def main():
         writeHeader(script, options, filenames)
         writeVersions(script)
         writeEnvironment(script, options)
-        
+
         script.write("\n")
         script.write(
             "touch {PIPELINE}/00-started\n".format(PIPELINE=options["pipeline"])
