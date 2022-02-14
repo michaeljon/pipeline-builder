@@ -18,6 +18,22 @@ from os import cpu_count
 # prevent a developer from re-running various steps in the pipeline in
 # the case that the output files are already present.
 
+# a good example of how to run this might be:
+# python ./build-pipeline.py \
+#   --sample S119813_no_sonication \
+#   --work-dir $WORKING \
+#   --temp-dir $WORKING/stats/temp \
+#   --script ../pipeline-runner \
+#   --watchdog 240 \
+#   --skip-fastp \
+#   --align-only
+#
+# which sets the working and temp dir (important for large sequences)
+# specifies the target script
+# sets the watchdog timer
+# skips fastp processing
+# only runs the alignment steps
+
 ChromosomeSizeList = Dict[str, str]
 ChromosomeNames = List[str]
 ChromosomeList = List[Tuple[str, str]]
@@ -158,6 +174,7 @@ def alignAndSort(
     nonRepeatable = options["non-repeatable"]
     readLimit = int(options["read-limit"])
     skipPreprocess = options["skipPreprocess"]
+    alignOnly = options["alignOnly"]
 
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
@@ -198,20 +215,24 @@ else
     echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, skipping"
 fi
 """.format(
-            R1=r1,
-            R2=r2,
-            REFERENCE=reference,
-            SAMPLE=sample,
-            THREADS=threads,
-            PIPELINE=pipeline,
-            TIMEOUT=timeout,
-            STATS=stats,
-            BIN=bin,
-            TEMP=temp,
-            DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * threads)),
-            LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
+                R1=r1,
+                R2=r2,
+                REFERENCE=reference,
+                SAMPLE=sample,
+                THREADS=threads,
+                PIPELINE=pipeline,
+                TIMEOUT=timeout,
+                STATS=stats,
+                BIN=bin,
+                TEMP=temp,
+                DASHK=""
+                if nonRepeatable == True
+                else "-K " + str((10_000_000 * threads)),
+                LIMITREADS="--reads_to_process " + str(readLimit)
+                if readLimit > 0
+                else "",
+            )
         )
-    )
     else:
         script.write(
             """
@@ -225,9 +246,9 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             -Y -M {DASHK} \\
             -v 1 \\
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+            {REFERENCE}/Homo_sapiens_assembly38.fasta \\
             {R1} \\
             {R2} \\
-            {REFERENCE}/Homo_sapiens_assembly38.fasta \\
             | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
 
     status=$?
@@ -239,18 +260,21 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
 else
     echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, skipping"
 fi
+
 """.format(
-            R1=r1,
-            R2=r2,
-            REFERENCE=reference,
-            SAMPLE=sample,
-            THREADS=threads,
-            PIPELINE=pipeline,
-            TIMEOUT=timeout,
-            BIN=bin,
-            DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * threads)),
+                R1=r1,
+                R2=r2,
+                REFERENCE=reference,
+                SAMPLE=sample,
+                THREADS=threads,
+                PIPELINE=pipeline,
+                TIMEOUT=timeout,
+                BIN=bin,
+                DASHK=""
+                if nonRepeatable == True
+                else "-K " + str((10_000_000 * threads)),
+            )
         )
-    )
 
     # this is one of the more time-consuming operations, so, if we've already
     # done the alignment operation for this sample, we'll skip this
@@ -285,6 +309,7 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
 else
     echo "{SORTED}, index, and metrics found, not aligning"
 fi
+{EXIT_IF_ALIGN_ONLY}
 """.format(
             SAMPLE=sample,
             THREADS=threads,
@@ -294,6 +319,7 @@ fi
             STATS=stats,
             BIN=bin,
             TEMP=temp,
+            EXIT_IF_ALIGN_ONLY="exit" if alignOnly == True else "",
         )
     )
 
@@ -712,7 +738,7 @@ fi
     )
 
 
-def runQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
+def runAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
     reference = options["reference"]
     pipeline = options["pipeline"]
     sample = options["sample"]
@@ -734,7 +760,7 @@ else
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then
-    gatk CollectAlignmentSummaryMetrics \\
+    gatk CollectAlignmentSummaryMetrics --java-options '-Xmx8g' \\
         --VERBOSITY ERROR \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         -I {SORTED} \\
@@ -744,7 +770,7 @@ else
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then
-    gatk CollectGcBiasMetrics \\
+    gatk CollectGcBiasMetrics --java-options '-Xmx8g' \\
         --VERBOSITY ERROR \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         -I {SORTED} \\
@@ -756,7 +782,7 @@ else
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
-    gatk CollectWgsMetrics \\
+    gatk CollectWgsMetrics --java-options '-Xmx8g' \\
         --VERBOSITY ERROR \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         -I {SORTED} \\
@@ -770,7 +796,7 @@ else
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
-    samtools stats -@ 68 \\
+    samtools stats -@ 8 \\
         -r reference/Homo_sapiens_assembly38.fasta \\
         {SORTED} >{STATS}/{SAMPLE}.samstats &
 else
@@ -778,7 +804,7 @@ else
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.samidx ]]; then
-    samtools idxstats -@ 68 \\
+    samtools idxstats -@ 8 \\
         {SORTED} >{STATS}/{SAMPLE}.samidx &
 else
     echo "samtools idxstats already run, skipping"
@@ -812,24 +838,23 @@ def runMultiQC(script: TextIOWrapper, options: OptionsDict):
 #
 # Run MultiQC across everything
 # 
-(
-    ## Clean up any old stats
-    cd {STATS}
-    rm -rf *multiqc*
 
-    # Setup working space
-    rm -rf {STATS}/qc
-    mkdir -p {STATS}/qc
-    cd {STATS}/qc
+## Clean up any old stats
+cd {STATS}
+rm -rf *multiqc*
 
-    # Run multiqc
-    multiqc --tag DNA --verbose -f {STATS}
+# Setup working space
+rm -rf {STATS}/qc
+mkdir -p {STATS}/qc
+cd {STATS}/qc
 
-    # Save the output
-    mv {STATS}/qc/multiqc_data {STATS}/{SAMPLE}_multiqc_data
-    mv {STATS}/qc/multiqc_report.html {STATS}/{SAMPLE}_multiqc_report.html
-    rm -rf {STATS}/qc
-)    
+# Run multiqc
+multiqc --tag DNA --verbose -f {STATS}
+
+# Save the output
+mv {STATS}/qc/multiqc_data {STATS}/{SAMPLE}_multiqc_data
+mv {STATS}/qc/multiqc_report.html {STATS}/{SAMPLE}_multiqc_report.html
+rm -rf {STATS}/qc
 
 """.format(
             STATS=stats, SAMPLE=sample
@@ -1021,6 +1046,15 @@ def defineArguments() -> Namespace:
         dest="cleanIntermediateFiles",
         default=False,
         help="Clean up the mess we make",
+    )
+
+    parser.add_argument(
+        "-a",
+        "--align-only",
+        action="store_true",
+        dest="alignOnly",
+        default=False,
+        help="Only run alignment and sorting processes",
     )
 
     parser.add_argument(
@@ -1277,19 +1311,44 @@ def main():
             sorted,
         )
 
+        # the order of the next two operations is important in this script
+        # because scatter does its job but waits on all the background
+        # operations to complete. this doesn't take long, so waiting is
+        # ok.
+        #
+        # however, if we were to start the alignment qc process, which runs
+        # in the background, we would start them and then block until they
+        # completed while we're waiting to scatter intervals around
+        #
+        # this makes scatter a standalone process for now
         scatter(
             script,
             options,
             prefix,
             sorted,
         )
+
+        # if we've been asked to run qc at all we can actually start
+        # the alignment qc processes very early (right after we've
+        # completed alignment and sorting). so, we start them here. there's
+        # an overall impact on the interval runs while these qc processes
+        # are running, but we're will to deal with that since the overall
+        # qc process takes a long time
+        #
+        # in particular it's the fastqc process itself which chews up
+        # so much time. it's a single-threaded limited-memory (250mb)
+        # process so we're not too worried about it's impact on the rest of
+        # the variant calling processes
+        if options["doQC"]:
+            script.write("\necho 'Starting alignment QC process(es)'\n")
+            runAlignmentQC(script, options, sorted)
+
         runIntervals(script, options, prefix)
         gather(script, options)
         mergeFinal(script, options)
 
         if options["doQC"]:
             doVariantQC(script, options)
-            runQC(script, options, sorted)
 
             script.write("\necho Waiting for QC metrics to complete\n")
             script.write("wait\n")
@@ -1300,7 +1359,10 @@ def main():
             cleanup(script, prefix, options)
 
         script.write(
-            """\necho -e "Done processing {SAMPLE}\\n\\tstats in {STATS}\\n\\tVCFs in {PIPELINE}"\n""".format(
+            """
+\necho Waiting for any outstanding processes to complete, this might return immediately, it might not.
+wait
+\necho -e "Done processing {SAMPLE}\\n\\tstats in {STATS}\\n\\tVCFs in {PIPELINE}"\n""".format(
                 SAMPLE=options["sample"],
                 STATS=options["stats"],
                 PIPELINE=options["pipeline"],
