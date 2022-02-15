@@ -417,12 +417,14 @@ def callVariants2(
     if [[ ! -f {VCF} ]]; then
         bcftools mpileup \\
             --annotate AD,DP,QS,SCR,SP \\
+            --max-depth 250 \\
             --output-type u \\
             --fasta-ref {REFERENCE}/Homo_sapiens_assembly38.fasta \\
             {BAM} | \\
         bcftools call \\
             --annotate GQ,GP,PV4 \\
             --multiallelic-caller \\
+            --ploidy GRCh38 \
             --variants-only \\
             --output-type v  \\
             --output {VCF}
@@ -535,15 +537,27 @@ def filterVariants(script: TextIOWrapper, reference: str, interval: str, vcf: st
     filterINDELs(script, reference, vcf, interval, indels, filtered)
 
 
-def filterVariants2(script: TextIOWrapper, vcf: str):
+def filterVariants2(script: TextIOWrapper, interval: str, vcf: str):
     script.write(
         """
     # for now we're just going to "filter" out input by copying
     # but, eventually we'll end up running more of the bcftools
     # processes against the data
-    cp {VCF} {FILTERED}
+    if [[ ! -f {FILTERED} ]]; then
+        cp {VCF} {FILTERED}
+    else
+        echo "COMPLETE variants for {INTERVAL} already filtered, skipping"
+    fi
+
+    if [[ ! -f {FILTERED}.idx ]]; then
+        gatk IndexFeatureFile \\
+            --verbosity ERROR \\
+            -I {FILTERED}
+    else
+        echo "COMPLETE variants for {INTERVAL} already indexed, skipping"
+    fi
     """.format(
-            VCF=vcf, FILTERED=vcf.replace(".vcf", ".filtered.vcf")
+            VCF=vcf, FILTERED=vcf.replace(".vcf", ".filtered.vcf"), INTERVAL=interval
         )
     )
 
@@ -669,7 +683,7 @@ def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
             annotateVariants(script, options, vcf, interval[0])
         else:
             callVariants2(script, options["reference"], interval[0], bam, vcf)
-            filterVariants2(script, vcf)
+            filterVariants2(script, interval[0], vcf)
             annotateVariants2(script, options, vcf, interval[0])
 
         script.write(") &\n")
@@ -733,9 +747,13 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.final.unfiltered.vcf ]]; then
     gatk MergeVcfs \\
         --VERBOSITY ERROR \\
         -I {PIPELINE}/merge.list \\
-        -O {PIPELINE}/{SAMPLE}.final.unfiltered.vcf &
+        -O {PIPELINE}/{SAMPLE}.final.unfiltered.vcf
+
+    gatk IndexFeatureFile \\
+        --verbosity ERROR \\
+        -I {PIPELINE}/{SAMPLE}.final.unfiltered.vcf
 else
-    echo "VCFs already merged, skipping"
+    echo "VCFs already merged and index created, skipping"
 fi
 
 echo Waiting for COMPLETE VCF merge to complete
@@ -803,6 +821,10 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.final.filtered.vcf ]]; then
         --exclude-filtered \\
         --exclude-non-variants \\
         --remove-unused-alternates
+
+    gatk IndexFeatureFile \\
+        --verbosity ERROR \\
+        -I {PIPELINE}/{SAMPLE}.final.filtered.vcf
 else
     echo "Filtered COMPLETE VCFs already merged, skipping"
 fi
@@ -826,27 +848,31 @@ def doVariantQC(script: TextIOWrapper, options: OptionsDict):
 echo "Starting Variant QC processes"
 
 if [[ ! -f {STATS}/{SAMPLE}_unfilt.variant_calling_detail_metrics ]]; then
-    (gatk CollectVariantCallingMetrics \\
-        --VERBOSITY ERROR \\
-        --DBSNP {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
-        -I {PIPELINE}/{SAMPLE}.final.unfiltered.vcf \\
-        -O {STATS}/{SAMPLE}_unfilt
+    (
+        gatk CollectVariantCallingMetrics \\
+            --VERBOSITY ERROR \\
+            --DBSNP {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
+            -I {PIPELINE}/{SAMPLE}.final.unfiltered.vcf \\
+            -O {STATS}/{SAMPLE}_unfilt
     
-     sed -i 's/^{SAMPLE}/{SAMPLE}_unfiltered/' {STATS}/{SAMPLE}_unfilt.variant_calling_detail_metrics
-     sed -i 's/^{SAMPLE}/{SAMPLE}_unfiltered/' {STATS}/{SAMPLE}_unfilt.variant_calling_summary_metrics) &
+        sed -i 's/^{SAMPLE}/{SAMPLE}_unfiltered/' {STATS}/{SAMPLE}_unfilt.variant_calling_detail_metrics
+        sed -i 's/^{SAMPLE}/{SAMPLE}_unfiltered/' {STATS}/{SAMPLE}_unfilt.variant_calling_summary_metrics
+     ) &
 else
     echo "Variant (unfiltered) metrics already run, skipping"
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}_filt.variant_calling_detail_metrics ]]; then
-    (gatk CollectVariantCallingMetrics \\
-         --VERBOSITY ERROR \\
-         --DBSNP {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
-         -I {PIPELINE}/{SAMPLE}.final.filtered.vcf \\
-         -O {STATS}/{SAMPLE}_filt
+    (
+        gatk CollectVariantCallingMetrics \\
+            --VERBOSITY ERROR \\
+            --DBSNP {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
+            -I {PIPELINE}/{SAMPLE}.final.filtered.vcf \\
+            -O {STATS}/{SAMPLE}_filt
 
-     sed -i 's/^{SAMPLE}/{SAMPLE}_filtered/' {STATS}/{SAMPLE}_filt.variant_calling_detail_metrics
-     sed -i 's/^{SAMPLE}/{SAMPLE}_filtered/' {STATS}/{SAMPLE}_filt.variant_calling_summary_metrics) &
+        sed -i 's/^{SAMPLE}/{SAMPLE}_filtered/' {STATS}/{SAMPLE}_filt.variant_calling_detail_metrics
+        sed -i 's/^{SAMPLE}/{SAMPLE}_filtered/' {STATS}/{SAMPLE}_filt.variant_calling_summary_metrics
+    ) &
 else
     echo "Variant (filtered) metrics already run, skipping"
 fi
