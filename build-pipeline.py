@@ -9,7 +9,7 @@ from argparse import Namespace
 from typing import Dict, Tuple, Sequence, List, Any
 from datetime import datetime
 from math import ceil
-from os.path import exists, expandvars
+from os.path import exists, expandvars, basename
 from os import cpu_count
 
 # This script generates an Illumina paired-read VCF annotation pipeline.
@@ -388,22 +388,49 @@ def callVariants(
 ):
     script.write(
         """
-        # call variants
-        if [[ ! -f {VCF} ]]; then
-            gatk HaplotypeCaller --java-options '-Xmx8g' \\
-                -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-                -I {BQSR} \\
-                -O {VCF} \\
-                --verbosity ERROR \\
-                --dbsnp {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
-                --pairHMM FASTEST_AVAILABLE \\
-                --native-pair-hmm-threads 4 \\
-                -L {INTERVAL}
-        else
-            echo "Variants already called for {INTERVAL}, skipping"
-        fi
+    # call variants
+    if [[ ! -f {VCF} ]]; then
+        gatk HaplotypeCaller --java-options '-Xmx8g' \\
+            -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            -I {BQSR} \\
+            -O {VCF} \\
+            --verbosity ERROR \\
+            --dbsnp {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
+            --pairHMM FASTEST_AVAILABLE \\
+            --native-pair-hmm-threads 4 \\
+            -L {INTERVAL}
+    else
+        echo "Variants already called for {INTERVAL}, skipping"
+    fi
 """.format(
             REFERENCE=reference, INTERVAL=interval, BQSR=bqsr, VCF=vcf
+        )
+    )
+
+
+def callVariants2(
+    script: TextIOWrapper, reference: str, interval: str, bam: str, vcf: str
+):
+    script.write(
+        """
+    # call variants
+    if [[ ! -f {VCF} ]]; then
+        bcftools mpileup \\
+            --annotate AD,DP,QS,SCR,SP \\
+            --output-type u \\
+            --fasta-ref {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            {BAM} | \\
+        bcftools call \\
+            --annotate GQ,GP,PV4 \\
+            --multiallelic-caller \\
+            --variants-only \\
+            --output-type v  \\
+            --output {VCF}
+    else
+        echo "Variants already called for {INTERVAL}, skipping"
+    fi
+""".format(
+            REFERENCE=reference, INTERVAL=interval, BAM=bam, VCF=vcf
         )
     )
 
@@ -418,32 +445,32 @@ def filterSNPs(
 ):
     script.write(
         """
-        # pull snps out of out called variants and annotate them
-        if [[ ! -f {SNPS} ]]; then
-            gatk SelectVariants --java-options '-Xmx8g' \\
-                -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-                -V {VCF} \\
-                --verbosity ERROR \\
-                -select-type SNP \\
-                -O {SNPS}
-        else
-            echo "SNPs already selected for {INTERVAL}, skipping"
-        fi
+    # pull snps out of out called variants and annotate them
+    if [[ ! -f {SNPS} ]]; then
+        gatk SelectVariants --java-options '-Xmx8g' \\
+            -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            -V {VCF} \\
+            --verbosity ERROR \\
+            -select-type SNP \\
+            -O {SNPS}
+    else
+        echo "SNPs already selected for {INTERVAL}, skipping"
+    fi
 
-        if [[ ! -f {FILTERED} ]]; then
-            gatk VariantFiltration --java-options '-Xmx8g' \\
-                -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-                -V {SNPS} \\
-                --verbosity ERROR \\
-                --filter-expression "QD < 2.0" --filter-name "QD_lt_2" \\
-                --filter-expression "FS > 60.0" --filter-name "FS_gt_60" \\
-                --filter-expression "MQ < 40.0" --filter-name "MQ_lt_40" \\
-                --filter-expression "MQRankSum < -12.5" --filter-name "MQRS_lt_n12.5" \\
-                --filter-expression "ReadPosRankSum < -8.0" --filter-name "RPRS_lt_n8" \\
-                -O {FILTERED}
-        else
-            echo "SNPs already filtered for {INTERVAL}, skipping"
-        fi
+    if [[ ! -f {FILTERED} ]]; then
+        gatk VariantFiltration --java-options '-Xmx8g' \\
+            -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            -V {SNPS} \\
+            --verbosity ERROR \\
+            --filter-expression "QD < 2.0" --filter-name "QD_lt_2" \\
+            --filter-expression "FS > 60.0" --filter-name "FS_gt_60" \\
+            --filter-expression "MQ < 40.0" --filter-name "MQ_lt_40" \\
+            --filter-expression "MQRankSum < -12.5" --filter-name "MQRS_lt_n12.5" \\
+            --filter-expression "ReadPosRankSum < -8.0" --filter-name "RPRS_lt_n8" \\
+            -O {FILTERED}
+    else
+        echo "SNPs already filtered for {INTERVAL}, skipping"
+    fi
 """.format(
             REFERENCE=reference,
             VCF=vcf,
@@ -464,30 +491,30 @@ def filterINDELs(
 ):
     script.write(
         """
-        # pull indels out of out called variants and annotate them
-        if [[ ! -f {INDELS} ]]; then
-            gatk SelectVariants --java-options '-Xmx8g' \\
-                -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-                -V {VCF} \\
-                --verbosity ERROR \\
-                -select-type INDEL \\
-                -O {INDELS}
-        else
-            echo "INDELs already selected for {INTERVAL}, skipping"
-        fi
+    # pull indels out of out called variants and annotate them
+    if [[ ! -f {INDELS} ]]; then
+        gatk SelectVariants --java-options '-Xmx8g' \\
+            -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            -V {VCF} \\
+            --verbosity ERROR \\
+            -select-type INDEL \\
+            -O {INDELS}
+    else
+        echo "INDELs already selected for {INTERVAL}, skipping"
+    fi
 
-        if [[ ! -f {FILTERED} ]]; then
-            gatk VariantFiltration --java-options '-Xmx8g' \\
-                -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-                -V {INDELS} \\
-                --verbosity ERROR \\
-                --filter-expression "QD < 2.0" --filter-name "QD_lt_2" \\
-                --filter-expression "FS > 200.0" --filter-name "FS_gt_200" \\
-                --filter-expression "ReadPosRankSum < -20.0" --filter-name "RPRS_lt_n20" \\
-                -O {FILTERED}
-        else
-            echo "INDELs already filtered for {INTERVAL}, skipping"
-        fi
+    if [[ ! -f {FILTERED} ]]; then
+        gatk VariantFiltration --java-options '-Xmx8g' \\
+            -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            -V {INDELS} \\
+            --verbosity ERROR \\
+            --filter-expression "QD < 2.0" --filter-name "QD_lt_2" \\
+            --filter-expression "FS > 200.0" --filter-name "FS_gt_200" \\
+            --filter-expression "ReadPosRankSum < -20.0" --filter-name "RPRS_lt_n20" \\
+            -O {FILTERED}
+    else
+        echo "INDELs already filtered for {INTERVAL}, skipping"
+    fi
 """.format(
             REFERENCE=reference,
             VCF=vcf,
@@ -508,6 +535,19 @@ def filterVariants(script: TextIOWrapper, reference: str, interval: str, vcf: st
     filterINDELs(script, reference, vcf, interval, indels, filtered)
 
 
+def filterVariants2(script: TextIOWrapper, vcf: str):
+    script.write(
+        """
+    # for now we're just going to "filter" out input by copying
+    # but, eventually we'll end up running more of the bcftools
+    # processes against the data
+    cp {VCF} {FILTERED}
+    """.format(
+            VCF=vcf, FILTERED=vcf.replace(".vcf", ".filtered.vcf")
+        )
+    )
+
+
 def annotate(
     script: TextIOWrapper,
     options: OptionsDict,
@@ -519,33 +559,34 @@ def annotate(
     summary: str,
 ):
     reference = options["reference"]
+    stats = options["stats"]
     chromosome = interval.split(":")[0]
 
     script.write(
         """
-        if [[ ! -f {INPUT} || ! -f {SUMMARY} ]]; then
-            echo Starting {TYPE} annotation for {INTERVAL}
-            
-            vep --dir {VEP} \\
-                --cache \\
-                --format vcf \\
-                --vcf \\
-                --merged \\
-                --fork {FORKS} \\
-                --offline \\
-                --use_given_ref \\
-                --verbose \\
-                --force_overwrite \\
-                --chr {CHROMOSOME} \\
-                --fasta {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-                --input_file {INPUT} \\
-                --output_file {OUTPUT} \\
-                --stats_file {SUMMARY}
+    if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
+        echo Starting {TYPE} annotation for {INTERVAL}
+        
+        vep --dir {VEP} \\
+            --cache \\
+            --format vcf \\
+            --vcf \\
+            --merged \\
+            --fork {FORKS} \\
+            --offline \\
+            --use_given_ref \\
+            --verbose \\
+            --force_overwrite \\
+            --chr {CHROMOSOME} \\
+            --fasta {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            --input_file {INPUT} \\
+            --output_file {OUTPUT} \\
+            --stats_file {STATS}/{SUMMARY}
 
-            echo Completed {TYPE} annotation for {INTERVAL}
-        else
-            echo "{TYPE} annotations for {INTERVAL} already completed, skipping"
-        fi
+        echo Completed {TYPE} annotation for {INTERVAL}
+    else
+        echo "{TYPE} annotations for {INTERVAL} already completed, skipping"
+    fi
 """.format(
             VEP=vep,
             REFERENCE=reference,
@@ -555,6 +596,7 @@ def annotate(
             SUMMARY=summary,
             INTERVAL=interval,
             CHROMOSOME=chromosome,
+            STATS=stats,
             FORKS=8,
         )
     )
@@ -569,13 +611,26 @@ def annotateVariants(
 
     filtered = vcf.replace(".vcf", ".indels.filtered.vcf")
     annotated = vcf.replace(".vcf", ".indels.filtered.annotated.vcf")
-    summary = vcf.replace(".vcf", ".indels.filtered.annotated.vcf_summary.html")
+    summary = basename(vcf.replace(".vcf", ".indels.filtered.annotated.vcf_summary.html"))
     annotate(script, options, vep, "INDEL", interval, filtered, annotated, summary)
 
     filtered = vcf.replace(".vcf", ".snps.filtered.vcf")
     annotated = vcf.replace(".vcf", ".snps.filtered.annotated.vcf")
-    summary = vcf.replace(".vcf", ".snps.filtered.annotated.vcf_summary.html")
+    summary = basename(vcf.replace(".vcf", ".snps.filtered.annotated.vcf_summary.html"))
     annotate(script, options, vep, "SNP", interval, filtered, annotated, summary)
+
+
+def annotateVariants2(
+    script: TextIOWrapper, options: OptionsDict, vcf: str, interval: str
+):
+    working = options["working"]
+
+    vep = "{WORKING}/vep_data".format(WORKING=working)
+
+    filtered = vcf.replace(".vcf", ".filtered.vcf")
+    annotated = vcf.replace(".vcf", ".filtered.annotated.vcf")
+    summary = basename(vcf.replace(".vcf", ".filtered.annotated.vcf_summary.html"))
+    annotate(script, options, vep, "COMPLETE", interval, filtered, annotated, summary)
 
 
 def scatter(script: TextIOWrapper, options: OptionsDict, prefix: str, sorted: str):
@@ -590,6 +645,8 @@ def scatter(script: TextIOWrapper, options: OptionsDict, prefix: str, sorted: st
 
 
 def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
+    useAlternateCaller = options["alternateCaller"]
+
     intervals = computeIntervals(options)
 
     for interval in intervals:
@@ -600,17 +657,22 @@ def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
         vcf = """{PREFIX}.{INTERVAL}.vcf""".format(PREFIX=prefix, INTERVAL=interval[1])
 
         script.write("\n")
-        script.write("    #\n")
-        script.write("    # Run interval {INTERVAL}\n".format(INTERVAL=interval[0]))
-        script.write("    #\n")
-        script.write("    (\n")
+        script.write("#\n")
+        script.write("# Run interval {INTERVAL}\n".format(INTERVAL=interval[0]))
+        script.write("#\n")
+        script.write("(")
 
-        genBQSR(script, options["reference"], interval[0], bam, bqsr)
-        callVariants(script, options["reference"], interval[0], bqsr, vcf)
-        filterVariants(script, options["reference"], interval[0], vcf)
-        annotateVariants(script, options, vcf, interval[0])
+        if useAlternateCaller == False:
+            genBQSR(script, options["reference"], interval[0], bam, bqsr)
+            callVariants(script, options["reference"], interval[0], bqsr, vcf)
+            filterVariants(script, options["reference"], interval[0], vcf)
+            annotateVariants(script, options, vcf, interval[0])
+        else:
+            callVariants2(script, options["reference"], interval[0], bam, vcf)
+            filterVariants2(script, vcf)
+            annotateVariants2(script, options, vcf, interval[0])
 
-        script.write("    ) &\n")
+        script.write(") &\n")
         script.write("\n")
 
     script.write("echo Waiting for intervals to complete\n")
@@ -650,7 +712,35 @@ fi
 
 echo Waiting for SNP and INDEL merge to complete
 wait
-""".format(
+    """.format(
+            PIPELINE=pipeline, SAMPLE=sample
+        )
+    )
+
+
+def gather2(script: TextIOWrapper, options: OptionsDict):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
+    script.write(
+        """
+#
+# Gather interval data and recombine(s)
+# 
+if [[ ! -f {PIPELINE}/{SAMPLE}.final.unfiltered.vcf ]]; then
+    /bin/ls -1 {PIPELINE}/*.filtered.annotated.vcf >{PIPELINE}/merge.list
+
+    gatk MergeVcfs \\
+        --VERBOSITY ERROR \\
+        -I {PIPELINE}/merge.list \\
+        -O {PIPELINE}/{SAMPLE}.final.unfiltered.vcf &
+else
+    echo "VCFs already merged, skipping"
+fi
+
+echo Waiting for COMPLETE VCF merge to complete
+wait
+    """.format(
             PIPELINE=pipeline, SAMPLE=sample
         )
     )
@@ -687,6 +777,34 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.final.filtered.vcf ]]; then
         --remove-unused-alternates
 else
     echo "Filtered INDEL and SNP VCFs already merged, skipping"
+fi
+""".format(
+            REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample
+        )
+    )
+
+
+def mergeFinal2(script: TextIOWrapper, options: OptionsDict):
+    reference = options["reference"]
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
+    script.write(
+        """
+#
+# Create final VCF file(s)
+# 
+if [[ ! -f {PIPELINE}/{SAMPLE}.final.filtered.vcf ]]; then
+    gatk SelectVariants \\
+        -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+        -V {PIPELINE}/{SAMPLE}.final.unfiltered.vcf \\
+        -O {PIPELINE}/{SAMPLE}.final.filtered.vcf \\
+        --verbosity ERROR \\
+        --exclude-filtered \\
+        --exclude-non-variants \\
+        --remove-unused-alternates
+else
+    echo "Filtered COMPLETE VCFs already merged, skipping"
 fi
 """.format(
             REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample
@@ -1058,6 +1176,15 @@ def defineArguments() -> Namespace:
     )
 
     parser.add_argument(
+        "-A",
+        "--alternate-caller",
+        action="store_true",
+        dest="alternateCaller",
+        default=False,
+        help="Use alternate caller bcftools",
+    )
+
+    parser.add_argument(
         "-r",
         "--reference-dir",
         action="store",
@@ -1344,8 +1471,18 @@ def main():
             runAlignmentQC(script, options, sorted)
 
         runIntervals(script, options, prefix)
-        gather(script, options)
-        mergeFinal(script, options)
+
+        # if we're running the alternate caller then we're not going to
+        # generate individual SNP and INDEL intermediate files. instead, 
+        # we'll generate a single, combined VCF per region above, and we'll
+        # then short-circuit the "unfiltered" stage because we'll already
+        # be in an unfiltered mode
+        if options["alternateCaller"] == False:
+            gather(script, options)
+            mergeFinal(script, options)
+        else:
+            gather2(script, options)
+            mergeFinal2(script, options)
 
         if options["doQC"]:
             doVariantQC(script, options)
