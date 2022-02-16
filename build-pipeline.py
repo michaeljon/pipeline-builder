@@ -416,6 +416,8 @@ def callVariants2(
         """
     # call variants
     if [[ ! -f {VCF} ]]; then
+        echo Starting variant calling for {INTERVAL}
+
         bcftools mpileup \\
             --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \\
             --max-depth 250 \\
@@ -423,7 +425,7 @@ def callVariants2(
             --threads 4 \\
             --output-type u \\
             --fasta-ref {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-            {BQSR} | \\
+            {BQSR} 2>/dev/null | \\
         bcftools call \\
             --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \\
             --variants-only \\
@@ -431,7 +433,9 @@ def callVariants2(
             --ploidy GRCh38 \\
             --threads 4 \\
             --output-type v  \\
-            --output {VCF}
+            --output {VCF} 2>/dev/null
+
+        echo Completed variant calling for {INTERVAL}
     else
         echo "Variants already called for {INTERVAL}, ${{green}}skipping${{reset}}"
     fi
@@ -570,7 +574,7 @@ def gather(script: TextIOWrapper, options: OptionsDict):
 # Gather interval data and recombine(s)
 # 
 if [[ ! -f {PIPELINE}/{SAMPLE}.final.vcf ]]; then
-    /bin/ls -1 {PIPELINE}/*.annotated.vcf >{PIPELINE}/merge.list
+    /bin/ls -1 {PIPELINE}/*.annotated.vcf | sort -k1,1V >{PIPELINE}/merge.list
 
     gatk MergeVcfs \\
         --VERBOSITY ERROR \\
