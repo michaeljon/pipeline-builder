@@ -38,20 +38,20 @@ FastqSet = Tuple[str, str, str, str]
 
 def getFileNames(options: OptionsDict) -> FastqSet:
     sample = options["sample"]
-    pipeline = options["pipeline"]
+    fastq_dir = options["fastq_dir"]
 
     return (
-        "{PIPELINE}/{SAMPLE}_L001_R1_001.fastq.gz".format(
-            PIPELINE=pipeline, SAMPLE=sample
+        "{FASTQ_DIR}/{SAMPLE}_L001_R1_001.fastq.gz".format(
+            FASTQ_DIR=fastq_dir, SAMPLE=sample
         ),
-        "{PIPELINE}/{SAMPLE}_L002_R1_001.fastq.gz".format(
-            PIPELINE=pipeline, SAMPLE=sample
+        "{FASTQ_DIR}/{SAMPLE}_L002_R1_001.fastq.gz".format(
+            FASTQ_DIR=fastq_dir, SAMPLE=sample
         ),
-        "{PIPELINE}/{SAMPLE}_L003_R1_001.fastq.gz".format(
-            PIPELINE=pipeline, SAMPLE=sample
+        "{FASTQ_DIR}/{SAMPLE}_L003_R1_001.fastq.gz".format(
+            FASTQ_DIR=fastq_dir, SAMPLE=sample
         ),
-        "{PIPELINE}/{SAMPLE}_L004_R1_001.fastq.gz".format(
-            PIPELINE=pipeline, SAMPLE=sample
+        "{FASTQ_DIR}/{SAMPLE}_L004_R1_001.fastq.gz".format(
+            FASTQ_DIR=fastq_dir, SAMPLE=sample
         ),
     )
 
@@ -142,11 +142,11 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
         fastp \\
+            --report_title "fastp report for sample {SAMPLE}" \\
             --in1 {PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz \\
             --verbose {LIMITREADS} \\
             --stdout \\
             --thread 8 \\
-            --detect_adapter_for_pe \\
             -j {STATS}/{SAMPLE}-fastp.json \\
             -h {STATS}/{SAMPLE}-fastp.html | \\
         bwa-mem2 mem -t {THREADS} \\
@@ -176,7 +176,7 @@ fi
                 TEMP=temp,
                 DASHK=""
                 if nonRepeatable == True
-                else "-K " + str((10_000_000 * threads)),
+                else "-K " + str((10_000_000 * int(threads))),
                 LIMITREADS="--reads_to_process " + str(readLimit)
                 if readLimit > 0
                 else "",
@@ -218,7 +218,7 @@ fi
                 BIN=bin,
                 DASHK=""
                 if nonRepeatable == True
-                else "-K " + str((10_000_000 * threads)),
+                else "-K " + str((10_000_000 * int(threads))),
             )
         )
 
@@ -270,161 +270,69 @@ fi
     )
 
 
-def genBQSR(script: TextIOWrapper, reference: str, bam: str, bqsr: str):
-    script.write(
-        """
-    # run base quality score recalibration - build the bqsr table
-    if [[ ! -f {BQSR}.table ]]; then
-        gatk BaseRecalibrator --java-options '-Xmx8g' \\
-            -R {REFERENCE}/covid_reference.fasta \\
-            -I {BAM} \\
-            -O {BQSR}.table \\
-            --verbosity ERROR \\
-            --preserve-qscores-less-than 6
-    else
-        echo "BQSR table generation for {BAM} ${{green}}skipped${{reset}}"
-    fi
-
-    # run base quality score recalibration - apply the bqsr table
-    if [[ ! -f {BQSR} || ! -f {BQSR}.bai ]]; then
-        gatk ApplyBQSR --java-options '-Xmx8g' \\
-            -R {REFERENCE}/covid_reference.fasta \\
-            -I {BAM} \\
-            -O {BQSR} \\
-            --verbosity ERROR \\
-            --emit-original-quals true \\
-            --preserve-qscores-less-than 6 \\
-            --static-quantized-quals 10 \\
-            --static-quantized-quals 20 \\
-            --static-quantized-quals 30 \\
-            --bqsr-recal-file {BQSR}.table
-
-        # index that file, this is our target for getting vcf
-        samtools index -@ 4 {BQSR}
-    else
-        echo "BQSR application for {BAM} ${{green}}already completed${{reset}}"
-    fi
-""".format(
-            REFERENCE=reference, BAM=bam, BQSR=bqsr
-        )
-    )
-
-
-def callVariants(script: TextIOWrapper, reference: str, bqsr: str, vcf: str):
+def callVariants(script: TextIOWrapper, reference: str, bam: str, vcf: str):
     script.write(
         """
     # call variants
     if [[ ! -f {VCF} ]]; then
         gatk HaplotypeCaller --java-options '-Xmx8g' \\
             -R {REFERENCE}/covid_reference.fasta \\
-            -I {BQSR} \\
+            -I {BAM} \\
             -O {VCF} \\
             --verbosity ERROR \\
             --pairHMM FASTEST_AVAILABLE \\
             --native-pair-hmm-threads 4
     else
-        echo "Variants already called for {BQSR}, ${{green}}skipping${{reset}}"
+        echo "Variants already called for {BAM}, ${{green}}skipping${{reset}}"
     fi
 """.format(
-            REFERENCE=reference, BQSR=bqsr, VCF=vcf
+            REFERENCE=reference, BAM=bam, VCF=vcf
         )
     )
 
 
-def callVariants2(script: TextIOWrapper, reference: str, bqsr: str, vcf: str):
+def callVariants2(script: TextIOWrapper, reference: str, bam: str, vcf: str, ploidy: str):
     script.write(
         """
     # call variants
     if [[ ! -f {VCF} ]]; then
-        echo Starting variant calling for {BQSR}
+        echo Starting variant calling for {BAM}
 
+        echo '* * * * 1' >{PLOIDY} 
         bcftools mpileup \\
             --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \\
-            --max-depth 250 \\
-            --no-BAQ \\
+            --max-idepth 1000000 \\
+            --max-depth 1000000 \\
+            --full-BAQ \\
+            --redo-BAQ \\
             --threads 4 \\
             --output-type u \\
             --fasta-ref {REFERENCE}/covid_reference.fasta \\
-            {BQSR} 2>/dev/null | \\
+            {BAM} 2>/dev/null | \\
         bcftools call \\
             --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \\
             --variants-only \\
+            --keep-alts \\
             --multiallelic-caller \\
-            --ploidy GRCh38 \\
+            --ploidy-file call-ploidy \\
             --threads 4 \\
             --output-type v  \\
-            --output {VCF} 2>/dev/null
+            --output {VCF} 2>/dev/null &
 
-        echo Completed variant calling for {BQSR}
+        echo Completed variant calling for {BAM}
     else
-        echo "Variants already called for {BQSR}, ${{green}}skipping${{reset}}"
+        echo "Variants already called for {BAM}, ${{green}}skipping${{reset}}"
     fi
 """.format(
-            REFERENCE=reference, BQSR=bqsr, VCF=vcf
-        )
-    )
-
-
-def annotate(
-    script: TextIOWrapper,
-    options: OptionsDict,
-    vep: str,
-    input: str,
-    output: str,
-    summary: str,
-):
-    reference = options["reference"]
-    stats = options["stats"]
-
-    script.write(
-        """
-    if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
-        echo Starting annotation for {INPUT}
-        
-        vep --dir {VEP} \\
-            --cache \\
-            --format vcf \\
-            --vcf \\
-            --merged \\
-            --fork {FORKS} \\
-            --offline \\
-            --use_given_ref \\
-            --verbose \\
-            --force_overwrite \\
-            --exclude_null_alleles \\
-            --symbol \\
-            --coding_only \\
-            --fasta {REFERENCE}/covid_reference.fasta \\
-            --input_file {INPUT} \\
-            --output_file {OUTPUT} \\
-            --stats_file {STATS}/{SUMMARY}
-
-        gatk IndexFeatureFile \\
-            --verbosity ERROR \\
-            -I {OUTPUT}
-
-        echo Completed annotation for {INPUT}
-    else
-        echo "Annotations for {INPUT} already completed, ${{green}}skipping${{reset}}"
-    fi
-""".format(
-            VEP=vep,
-            REFERENCE=reference,
-            INPUT=input,
-            OUTPUT=output,
-            SUMMARY=summary,
-            STATS=stats,
-            FORKS=8,
+            REFERENCE=reference, BAM=bam, VCF=vcf, PLOIDY=ploidy
         )
     )
 
 
 def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
-    working = options["working"]
     useAlternateCaller = options["alternateCaller"]
 
-    bam = """{PREFIX}.bam""".format(PREFIX=prefix)
-    bqsr = """{PREFIX}.bqsr.bam""".format(PREFIX=prefix)
+    bam = """{PREFIX}.sorted.bam""".format(PREFIX=prefix)
     vcf = """{PREFIX}.vcf""".format(PREFIX=prefix)
 
     script.write("\n")
@@ -433,33 +341,14 @@ def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
     script.write("#\n")
     script.write("(")
 
-    genBQSR(script, options["reference"], bam, bqsr)
-
     if useAlternateCaller == False:
-        callVariants(script, options["reference"], bqsr, vcf)
+        callVariants(script, options["reference"], bam, vcf)
     else:
-        callVariants2(script, options["reference"], bqsr, vcf)
-
-    annotate(
-        script,
-        options,
-        "{WORKING}/vep_data".format(WORKING=working),
-        vcf,
-        vcf.replace(".vcf", ".annotated.vcf"),
-        basename(vcf.replace(".vcf", ".annotated.vcf_summary.html")),
-    )
+        ploidy = """{PREFIX}.ploidy""".format(PREFIX=prefix)
+        callVariants2(script, options["reference"], bam, vcf, ploidy)
 
     script.write(") &\n")
     script.write("\n")
-
-    script.write(
-        """
-echo ${yellow}Waiting for pipeline to complete${reset}
-wait
-echo ${green}Pipeline processed${reset}
-        """
-    )
-
 
 def doVariantQC(script: TextIOWrapper, options: OptionsDict):
     reference = options["reference"]
@@ -474,31 +363,25 @@ def doVariantQC(script: TextIOWrapper, options: OptionsDict):
 # 
 echo "Starting Variant QC processes"
 
-if [[ ! -f {STATS}/{SAMPLE}.variant_calling_detail_metrics ]]; then
-    (
-        gatk CollectVariantCallingMetrics \\
-            --VERBOSITY ERROR \\
-            -I {PIPELINE}/{SAMPLE}.final.vcf \\
-            -O {STATS}/{SAMPLE}
-     ) &
-else
-    echo "Variant metrics already run, ${{green}}skipping${{reset}}"
-fi
+# if [[ ! -f {STATS}/{SAMPLE}.variant_calling_detail_metrics ]]; then
+#    gatk CollectVariantCallingMetrics \\
+#        --VERBOSITY ERROR \\
+#        -I {PIPELINE}/{SAMPLE}.vcf \\
+#        -O {STATS}/{SAMPLE} &
+# else
+#     echo "Variant metrics already run, ${{green}}skipping${{reset}}"
+# fi
 
 #
 # we need to quiet vcftools here because it's stupid chatty and doesn't have an option to quiet
 #
-vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --freq2 --out {STATS}/{SAMPLE} --max-alleles 2 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --depth --out {STATS}/{SAMPLE} 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --site-mean-depth --out {STATS}/{SAMPLE} 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --site-quality --out {STATS}/{SAMPLE} 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --missing-indv --out {STATS}/{SAMPLE} 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --missing-site --out {STATS}/{SAMPLE} 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --het --out {STATS}/{SAMPLE} 2>/dev/null &
-
-echo ${{yellow}}Waiting for variant QC metrics to complete${{reset}}
-wait
-echo ${{green}}Variant QC metrics completed${{reset}}
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --freq2 --out {STATS}/{SAMPLE} --max-alleles 2 2>/dev/null &
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --depth --out {STATS}/{SAMPLE} 2>/dev/null &
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --site-mean-depth --out {STATS}/{SAMPLE} 2>/dev/null &
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --site-quality --out {STATS}/{SAMPLE} 2>/dev/null &
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --missing-indv --out {STATS}/{SAMPLE} 2>/dev/null &
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --missing-site --out {STATS}/{SAMPLE} 2>/dev/null &
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --het --out {STATS}/{SAMPLE} 2>/dev/null &
 """.format(
             REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample, STATS=stats
         )
@@ -615,7 +498,7 @@ mkdir -p {STATS}/qc
 cd {STATS}/qc
 
 # Run multiqc
-multiqc --tag DNA --verbose -f {STATS}
+multiqc --tag DNA -f {STATS}
 
 # Save the output
 mv {STATS}/qc/multiqc_data {STATS}/{SAMPLE}_multiqc_data
@@ -630,7 +513,6 @@ rm -rf {STATS}/qc
 
 def cleanup(script: TextIOWrapper, prefix: str, options: OptionsDict):
     pipeline = options["pipeline"]
-    sample = options["sample"]
 
     script.write("\n")
     script.write("#\n")
@@ -788,7 +670,15 @@ def defineArguments() -> Namespace:
         action="store",
         metavar="PIPELINE_DIR",
         dest="pipeline",
-        help="Location of R1 and R2 files",
+        help="Output directory for processing",
+    )
+    parser.add_argument(
+        "-F",
+        "--fastq-dir",
+        action="store",
+        metavar="FASTQ_DIR",
+        dest="fastq_dir",
+        help="Location of L00[1234] files",
     )
     parser.add_argument(
         "-t",
@@ -875,6 +765,8 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
         options["reference"] = "{WORKING}/reference".format(WORKING=options["working"])
     if options["pipeline"] == None:
         options["pipeline"] = "{WORKING}/pipeline".format(WORKING=options["working"])
+    if options["fastq_dir"] == None:
+        options["fastq_dir"] = "{WORKING}/pipeline".format(WORKING=options["working"])
     if options["stats"] == None:
         options["stats"] = "{WORKING}/stats".format(WORKING=options["working"])
     if options["temp"] == None:
@@ -1010,11 +902,16 @@ def main():
         runPipeline(script, options, prefix)
 
         if options["doQC"]:
+            script.write(
+                """
+echo ${yellow}Waiting for variant calling pipeline to complete before starting variant qc and multiqc${reset}
+wait
+echo ${green}Pipeline processed${reset}
+                """
+            )
+
             doVariantQC(script, options)
             runMultiQC(script, options)
-
-        if options["cleanIntermediateFiles"] == True:
-            cleanup(script, prefix, options)
 
         script.write(
             """
@@ -1026,6 +923,9 @@ wait
                 PIPELINE=options["pipeline"],
             )
         )
+
+        if options["cleanIntermediateFiles"] == True:
+            cleanup(script, prefix, options)
 
         script.write("\n")
         script.write(

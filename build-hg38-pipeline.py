@@ -111,11 +111,11 @@ def computeIntervals(options: OptionsDict) -> ChromosomeList:
 
 def getFileNames(options: OptionsDict) -> FastaPair:
     sample = options["sample"]
-    pipeline = options["pipeline"]
+    fastq_dir = options["fastq_dir"]
 
     return (
-        "{PIPELINE}/{SAMPLE}_R1.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
-        "{PIPELINE}/{SAMPLE}_R2.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
+        "{FASTQ_DIR}/{SAMPLE}_R1.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        "{FASTQ_DIR}/{SAMPLE}_R2.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
     )
 
 
@@ -142,16 +142,16 @@ else
     echo "Reference dictionary {REFERENCE}/Homo_sapiens_assembly38.dict ${{green}}already present${{reset}}"
 fi
 
-if [[ ! -f {REFERENCE}/ref_genome_autosomal.interval_list ]]; then
+if [[ ! -f {REFERENCE}/hg38_ref_genome_autosomal.interval_list ]]; then
     # build the interval list, this is only done in the case where we're
     # processing a partial set of chromosomes. in the typical case this would
     # be a WGS collection.
 
     egrep '({REGEX})\\s' {REFERENCE}/Homo_sapiens_assembly38.fasta.fai |
         awk '{{print $1"\\t1\\t"$2"\\t+\\t"$1}}' |
-        cat {REFERENCE}/Homo_sapiens_assembly38.dict - >{REFERENCE}/ref_genome_autosomal.interval_list
+        cat {REFERENCE}/Homo_sapiens_assembly38.dict - >{REFERENCE}/hg38_ref_genome_autosomal.interval_list
 else
-    echo "Interval list {REFERENCE}/ref_genome_autosomal.interval_list ${{green}}already present${{reset}}"
+    echo "Interval list {REFERENCE}/hg38_ref_genome_autosomal.interval_list ${{green}}already present${{reset}}"
 fi
 
 """.format(
@@ -227,7 +227,7 @@ fi
                 TEMP=temp,
                 DASHK=""
                 if nonRepeatable == True
-                else "-K " + str((10_000_000 * threads)),
+                else "-K " + str((10_000_000 * int(threads))),
                 LIMITREADS="--reads_to_process " + str(readLimit)
                 if readLimit > 0
                 else "",
@@ -272,7 +272,7 @@ fi
                 BIN=bin,
                 DASHK=""
                 if nonRepeatable == True
-                else "-K " + str((10_000_000 * threads)),
+                else "-K " + str((10_000_000 * int(threads))),
             )
         )
 
@@ -692,7 +692,7 @@ if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
         -I {SORTED} \\
         -O {STATS}/{SAMPLE}.wgs_metrics.txt \\
         --READ_LENGTH 151 \\
-        -INTERVALS {REFERENCE}/ref_genome_autosomal.interval_list \\
+        -INTERVALS {REFERENCE}/hg38_ref_genome_autosomal.interval_list \\
         --USE_FAST_ALGORITHM \\
         --INCLUDE_BQ_HISTOGRAM &
 else
@@ -949,6 +949,14 @@ def defineArguments() -> Namespace:
         help="Skip running fastp on input file(s)",
     )
     parser.add_argument(
+        "-F",
+        "--fastq-dir",
+        action="store",
+        metavar="FASTQ_DIR",
+        dest="fastq_dir",
+        help="Location of L00[1234] files",
+    )
+    parser.add_argument(
         "-c",
         "--clean",
         action="store_true",
@@ -1102,6 +1110,8 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
         options["reference"] = "{WORKING}/reference".format(WORKING=options["working"])
     if options["pipeline"] == None:
         options["pipeline"] = "{WORKING}/pipeline".format(WORKING=options["working"])
+    if options["fastq_dir"] == None:
+        options["fastq_dir"] = "{WORKING}/pipeline".format(WORKING=options["working"])
     if options["stats"] == None:
         options["stats"] = "{WORKING}/stats".format(WORKING=options["working"])
     if options["temp"] == None:
