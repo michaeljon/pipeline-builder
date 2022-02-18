@@ -138,7 +138,7 @@ fi
 #
 # align the input files
 #
-if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
+if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam ]]; then
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
         fastp \\
@@ -154,16 +154,16 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             -v 1 \\
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
             {REFERENCE}/covid_reference.fasta \\
-            - | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
+            - >{PIPELINE}/{SAMPLE}.aligned.sam'
 
     status=$?
     if [ $status -ne 0 ]; then
         echo "Watchdog timer killed alignment process errno = $status"
-        rm -f {SAMPLE}.aligned.sam.gz
+        rm -f {SAMPLE}.aligned.sam
         exit $status
     fi
 else
-    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
+    echo "{PIPELINE}/{SAMPLE}.aligned.sam, aligned temp file found, ${{green}}skipping${{reset}}"
 fi
 """.format(
                 REFERENCE=reference,
@@ -188,7 +188,7 @@ fi
 #
 # align the input files
 #
-if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
+if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam ]]; then
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
         bwa-mem2 mem -t {THREADS} \\
@@ -197,16 +197,16 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
             {REFERENCE}/covid_reference.fasta \\
             {PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz \\
-            | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
+            >{PIPELINE}/{SAMPLE}.aligned.sam'
 
     status=$?
     if [ $status -ne 0 ]; then
         echo "Watchdog timer killed alignment process errno = $status"
-        rm -f {SAMPLE}.aligned.sam.gz
+        rm -f {SAMPLE}.aligned.sam
         exit $status
     fi
 else
-    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
+    echo "{PIPELINE}/{SAMPLE}.aligned.sam, aligned temp file found, ${{green}}skipping${{reset}}"
 fi
 
 """.format(
@@ -231,16 +231,14 @@ fi
 #
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
     timeout {TIMEOUT}m bash -c \\
-        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-        unpigz --stdout {PIPELINE}/{SAMPLE}.aligned.sam.gz |
-        bamsormadup \\
+        'bamsormadup \\
             SO=coordinate \\
             threads={THREADS} \\
             level=6 \\
             tmpfile={TEMP}/{SAMPLE} \\
             inputformat=sam \\
             indexfilename={SORTED}.bai \\
-            M={STATS}/{SAMPLE}.duplication_metrics >{SORTED}'
+            M={STATS}/{SAMPLE}.duplication_metrics < {PIPELINE}/{SAMPLE}.aligned.sam >{SORTED}'
 
     status=$?
     if [ $status -ne 0 ]; then
@@ -388,7 +386,7 @@ vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --het --out {STATS}/{SAMPLE} 2>/dev/null 
     )
 
 
-def runAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
+def runAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str, aligned: str):
     reference = options["reference"]
     pipeline = options["pipeline"]
     sample = options["sample"]
@@ -459,11 +457,27 @@ else
     echo "samtools idxstats already run, ${{green}}skipping${{reset}}"
 fi
 
+if [[ ! -f {STATS}/{SAMPLE}.coverage ]]; then
+    bedtools genomecov -d -ibam \\
+        {SORTED} >{STATS}/{SAMPLE}.coverage &
+else
+    echo "bedtools genomecov already run, ${{green}}skipping${{reset}}"
+fi
+
 if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fastqc.html ]]; then
     fastqc \\
         --outdir {STATS} \\
         --noextract \\
         {SORTED} &
+else
+    echo "FASTQC already run, ${{green}}skipping${{reset}}"
+fi
+
+if [[ ! -f {STATS}/{SAMPLE}.aligned_fastqc.zip || ! -f {STATS}/{SAMPLE}.aligned_fastqc.html ]]; then
+    fastqc \\
+        --outdir {STATS} \\
+        --noextract \\
+        {ALIGNED} &
 else
     echo "FASTQC already run, ${{green}}skipping${{reset}}"
 fi
@@ -474,6 +488,7 @@ fi
             STATS=stats,
             THREADS=threads,
             SORTED=sorted,
+            ALIGNED=aligned
         )
     )
 
@@ -871,6 +886,9 @@ def main():
     prefix = "{PIPELINE}/{SAMPLE}".format(
         PIPELINE=options["pipeline"], SAMPLE=options["sample"]
     )
+    aligned = "{PIPELINE}/{SAMPLE}.aligned.sam".format(
+        PIPELINE=options["pipeline"], SAMPLE=options["sample"]
+    )
 
     with open(options["script"], "w+") as script:
         script.truncate(0)
@@ -897,7 +915,7 @@ def main():
         )
 
         if options["doQC"]:
-            runAlignmentQC(script, options, sorted)
+            runAlignmentQC(script, options, sorted, aligned)
 
         runPipeline(script, options, prefix)
 
