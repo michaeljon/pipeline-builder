@@ -138,7 +138,7 @@ fi
 #
 # align the input files
 #
-if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam ]]; then
+if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
         fastp \\
@@ -154,16 +154,16 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam ]]; then
             -v 1 \\
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
             {REFERENCE}/covid_reference.fasta \\
-            - >{PIPELINE}/{SAMPLE}.aligned.sam'
+            - | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
 
     status=$?
     if [ $status -ne 0 ]; then
         echo "Watchdog timer killed alignment process errno = $status"
-        rm -f {SAMPLE}.aligned.sam
+        rm -f {SAMPLE}.aligned.sam.gz
         exit $status
     fi
 else
-    echo "{PIPELINE}/{SAMPLE}.aligned.sam, aligned temp file found, ${{green}}skipping${{reset}}"
+    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
 fi
 """.format(
                 REFERENCE=reference,
@@ -188,7 +188,7 @@ fi
 #
 # align the input files
 #
-if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam ]]; then
+if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
         bwa-mem2 mem -t {THREADS} \\
@@ -197,16 +197,16 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam ]]; then
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
             {REFERENCE}/covid_reference.fasta \\
             {PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz \\
-            >{PIPELINE}/{SAMPLE}.aligned.sam'
+            | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
 
     status=$?
     if [ $status -ne 0 ]; then
         echo "Watchdog timer killed alignment process errno = $status"
-        rm -f {SAMPLE}.aligned.sam
+        rm -f {SAMPLE}.aligned.sam.gz
         exit $status
     fi
 else
-    echo "{PIPELINE}/{SAMPLE}.aligned.sam, aligned temp file found, ${{green}}skipping${{reset}}"
+    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
 fi
 
 """.format(
@@ -231,14 +231,16 @@ fi
 #
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
     timeout {TIMEOUT}m bash -c \\
-        'bamsormadup \\
+        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+        unpigz --stdout {PIPELINE}/{SAMPLE}.aligned.sam.gz |
+        bamsormadup \\
             SO=coordinate \\
             threads={THREADS} \\
             level=6 \\
             tmpfile={TEMP}/{SAMPLE} \\
             inputformat=sam \\
             indexfilename={SORTED}.bai \\
-            M={STATS}/{SAMPLE}.duplication_metrics < {PIPELINE}/{SAMPLE}.aligned.sam >{SORTED}'
+            M={STATS}/{SAMPLE}.duplication_metrics >{SORTED}'
 
     status=$?
     if [ $status -ne 0 ]; then
@@ -268,7 +270,7 @@ fi
     )
 
 
-def callVariants(script: TextIOWrapper, reference: str, bam: str, vcf: str):
+def callVariants(script: TextIOWrapper, reference: str, sample: str, consensus: str, bam: str, vcf: str):
     script.write(
         """
     # call variants
@@ -280,16 +282,25 @@ def callVariants(script: TextIOWrapper, reference: str, bam: str, vcf: str):
             --verbosity ERROR \\
             --pairHMM FASTEST_AVAILABLE \\
             --native-pair-hmm-threads 4
+
+        bcftools view --output-type z <{VCF} >{VCF}.gz
+        bcftools index {VCF}.gz
+        bcftools consensus \\
+            --fasta-ref {REFERENCE}/covid_reference.fasta \\
+            {VCF}.gz \\
+        | sed '/>/ s/$/ | {SAMPLE}/' >{CONSENSUS}
     else
         echo "Variants already called for {BAM}, ${{green}}skipping${{reset}}"
     fi
 """.format(
-            REFERENCE=reference, BAM=bam, VCF=vcf
+            REFERENCE=reference, BAM=bam, VCF=vcf, CONSENSUS=consensus, SAMPLE=sample
         )
     )
 
 
-def callVariants2(script: TextIOWrapper, reference: str, bam: str, vcf: str, ploidy: str):
+def callVariants2(
+    script: TextIOWrapper, reference: str, sample: str, consensus: str, bam: str, vcf: str, ploidy: str
+):
     script.write(
         """
     # call variants
@@ -312,26 +323,34 @@ def callVariants2(script: TextIOWrapper, reference: str, bam: str, vcf: str, plo
             --variants-only \\
             --keep-alts \\
             --multiallelic-caller \\
-            --ploidy-file call-ploidy \\
+            --ploidy-file {PLOIDY} \\
             --threads 4 \\
             --output-type v  \\
-            --output {VCF} 2>/dev/null &
+            --output {VCF} 2>/dev/null
+
+        bcftools view --output-type z <{VCF} >{VCF}.gz
+        bcftools index {VCF}.gz
+        bcftools consensus \\
+            --fasta-ref {REFERENCE}/covid_reference.fasta \\
+            {VCF}.gz \\
+        | sed '/>/ s/$/ | {SAMPLE}/' >{CONSENSUS}
 
         echo Completed variant calling for {BAM}
     else
         echo "Variants already called for {BAM}, ${{green}}skipping${{reset}}"
     fi
 """.format(
-            REFERENCE=reference, BAM=bam, VCF=vcf, PLOIDY=ploidy
+            REFERENCE=reference, BAM=bam, VCF=vcf, PLOIDY=ploidy, CONSENSUS=consensus, SAMPLE=sample
         )
     )
 
-
 def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
     useAlternateCaller = options["alternateCaller"]
+    sample = options["sample"]
 
     bam = """{PREFIX}.sorted.bam""".format(PREFIX=prefix)
     vcf = """{PREFIX}.vcf""".format(PREFIX=prefix)
+    consensus = """{PREFIX}.consensus.fa""".format(PREFIX=prefix)
 
     script.write("\n")
     script.write("#\n")
@@ -340,13 +359,14 @@ def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
     script.write("(")
 
     if useAlternateCaller == False:
-        callVariants(script, options["reference"], bam, vcf)
+        callVariants(script, options["reference"], sample, consensus, bam, vcf)
     else:
         ploidy = """{PREFIX}.ploidy""".format(PREFIX=prefix)
-        callVariants2(script, options["reference"], bam, vcf, ploidy)
+        callVariants2(script, options["reference"], sample, consensus, bam, vcf, ploidy)
 
     script.write(") &\n")
     script.write("\n")
+
 
 def doVariantQC(script: TextIOWrapper, options: OptionsDict):
     reference = options["reference"]
@@ -386,7 +406,9 @@ vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --het --out {STATS}/{SAMPLE} 2>/dev/null 
     )
 
 
-def runAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str, aligned: str):
+def runAlignmentQC(
+    script: TextIOWrapper, options: OptionsDict, sorted: str, aligned: str
+):
     reference = options["reference"]
     pipeline = options["pipeline"]
     sample = options["sample"]
@@ -472,15 +494,6 @@ if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fa
 else
     echo "FASTQC already run, ${{green}}skipping${{reset}}"
 fi
-
-if [[ ! -f {STATS}/{SAMPLE}.aligned_fastqc.zip || ! -f {STATS}/{SAMPLE}.aligned_fastqc.html ]]; then
-    fastqc \\
-        --outdir {STATS} \\
-        --noextract \\
-        {ALIGNED} &
-else
-    echo "FASTQC already run, ${{green}}skipping${{reset}}"
-fi
 """.format(
             REFERENCE=reference,
             PIPELINE=pipeline,
@@ -488,7 +501,7 @@ fi
             STATS=stats,
             THREADS=threads,
             SORTED=sorted,
-            ALIGNED=aligned
+            ALIGNED=aligned,
         )
     )
 
@@ -886,7 +899,7 @@ def main():
     prefix = "{PIPELINE}/{SAMPLE}".format(
         PIPELINE=options["pipeline"], SAMPLE=options["sample"]
     )
-    aligned = "{PIPELINE}/{SAMPLE}.aligned.sam".format(
+    aligned = "{PIPELINE}/{SAMPLE}.aligned.sam.gz".format(
         PIPELINE=options["pipeline"], SAMPLE=options["sample"]
     )
 
