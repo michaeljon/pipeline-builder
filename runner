@@ -4,7 +4,7 @@ SAMPLE=$1
 
 echo ${SAMPLE}
 
-if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
+if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
     # give us a place to work
     mkdir -p ${HOME}/pipeline/${SAMPLE}
 
@@ -25,10 +25,11 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
 
     # pack up the stuff and clean house
     rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.combined_lanes.fastq.gz
+    rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.aligned.sam
 
     cd ${HOME}/pipeline/
-    tar -cvf ${HOME}/pipeline/${SAMPLE}.tgz ./${SAMPLE}
-    rm -rf ${HOME}/pipeline/${SAMPLE}
+    tar -cvf ${HOME}/pipeline/${SAMPLE}.tar ./${SAMPLE}
+    # rm -rf ${HOME}/pipeline/${SAMPLE}
 else
     echo "We have already processed sample ${SAMPLE}"
 fi
