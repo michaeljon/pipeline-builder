@@ -92,25 +92,9 @@ fi
     )
 
 
-def alignAndSort(
-    script: TextIOWrapper, files: FastqSet, options: OptionsDict, output: str
-):
-    reference = options["reference"]
+def combineLaneData(script: TextIOWrapper, files: FastqSet, options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
-    threads = options["cores"]
-    timeout = options["watchdog"]
-    stats = options["stats"]
-    bin = options["bin"]
-    temp = options["temp"]
-    nonRepeatable = options["non-repeatable"]
-    readLimit = int(options["read-limit"])
-    skipPreprocess = options["skipPreprocess"]
-    alignOnly = options["alignOnly"]
-
-    script.write("#\n")
-    script.write("# Align, sort, and mark duplicates\n")
-    script.write("#\n")
 
     script.write(
         """
@@ -132,9 +116,23 @@ fi
         )
     )
 
-    if skipPreprocess == False:
-        script.write(
-            """
+
+def alignWithFastpAndBWA(
+    script: TextIOWrapper,
+    options: OptionsDict,
+):
+    reference = options["reference"]
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    threads = options["cores"]
+    timeout = options["watchdog"]
+    stats = options["stats"]
+    bin = options["bin"]
+    nonRepeatable = options["non-repeatable"]
+    readLimit = int(options["read-limit"])
+
+    script.write(
+        """
 #
 # align the input files
 #
@@ -145,6 +143,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             --report_title "fastp report for sample {SAMPLE}" \\
             --in1 {PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz \\
             --verbose {LIMITREADS} \\
+            --adapter_sequence CTGTCTCTTATACACATCT \\
             --stdout \\
             --thread 8 \\
             -j {STATS}/{SAMPLE}-fastp.json \\
@@ -166,25 +165,84 @@ else
     echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
 fi
 """.format(
-                REFERENCE=reference,
-                SAMPLE=sample,
-                THREADS=threads,
-                PIPELINE=pipeline,
-                TIMEOUT=timeout,
-                STATS=stats,
-                BIN=bin,
-                TEMP=temp,
-                DASHK=""
-                if nonRepeatable == True
-                else "-K " + str((10_000_000 * int(threads))),
-                LIMITREADS="--reads_to_process " + str(readLimit)
-                if readLimit > 0
-                else "",
-            )
+            REFERENCE=reference,
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            TIMEOUT=timeout,
+            STATS=stats,
+            BIN=bin,
+            DASHK=""
+            if nonRepeatable == True
+            else "-K " + str((10_000_000 * int(threads))),
+            LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
         )
-    else:
-        script.write(
-            """
+    )
+
+
+def alignWithFastpAndMinimap(script: TextIOWrapper, options: OptionsDict):
+    reference = options["reference"]
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    threads = options["cores"]
+    timeout = options["watchdog"]
+    stats = options["stats"]
+    bin = options["bin"]
+    readLimit = int(options["read-limit"])
+
+    script.write(
+        """
+#
+# align the input files
+#
+if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
+    timeout {TIMEOUT}m bash -c \\
+        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+        fastp \\
+            --report_title "fastp report for sample {SAMPLE}" \\
+            --in1 {PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz \\
+            --verbose {LIMITREADS} \\
+            --adapter_sequence CTGTCTCTTATACACATCT \\
+            --stdout \\
+            --thread 8 \\
+            -j {STATS}/{SAMPLE}-fastp.json \\
+            -h {STATS}/{SAMPLE}-fastp.html | \\
+        minimap2 -a -x sr -t {THREADS} {REFERENCE}/covid_reference.mmi  \\
+            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+            - | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
+
+    status=$?
+    if [ $status -ne 0 ]; then
+        echo "Watchdog timer killed alignment process errno = $status"
+        rm -f {SAMPLE}.aligned.sam.gz
+        exit $status
+    fi
+else
+    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            REFERENCE=reference,
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            TIMEOUT=timeout,
+            STATS=stats,
+            BIN=bin,
+            LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
+        )
+    )
+
+
+def alignWithoutFastpUsingBWA(script: TextIOWrapper, options: OptionsDict):
+    reference = options["reference"]
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    threads = options["cores"]
+    timeout = options["watchdog"]
+    bin = options["bin"]
+
+    script.write(
+        """
 #
 # align the input files
 #
@@ -210,17 +268,67 @@ else
 fi
 
 """.format(
-                REFERENCE=reference,
-                SAMPLE=sample,
-                THREADS=threads,
-                PIPELINE=pipeline,
-                TIMEOUT=timeout,
-                BIN=bin,
-                DASHK=""
-                if nonRepeatable == True
-                else "-K " + str((10_000_000 * int(threads))),
-            )
+            REFERENCE=reference,
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            TIMEOUT=timeout,
+            BIN=bin,
         )
+    )
+
+
+def alignWithoutFastpUsingMinmap(script: TextIOWrapper, options: OptionsDict):
+    reference = options["reference"]
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    threads = options["cores"]
+    timeout = options["watchdog"]
+    bin = options["bin"]
+
+    script.write(
+        """
+#
+# align the input files
+#
+if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
+    timeout {TIMEOUT}m bash -c \\
+        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+         minimap2 -a -x sr -t {THREADS} {REFERENCE}/covid_reference.mmi  \\
+            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+            - | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
+
+    status=$?
+    if [ $status -ne 0 ]; then
+        echo "Watchdog timer killed alignment process errno = $status"
+        rm -f {SAMPLE}.aligned.sam.gz
+        exit $status
+    fi
+else
+    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
+fi
+
+""".format(
+            REFERENCE=reference,
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            TIMEOUT=timeout,
+            BIN=bin,
+        )
+    )
+
+
+def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output: str):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    threads = options["cores"]
+    timeout = options["watchdog"]
+    stats = options["stats"]
+    bin = options["bin"]
+    temp = options["temp"]
+
+    alignOnly = options["alignOnly"]
 
     # this is one of the more time-consuming operations, so, if we've already
     # done the alignment operation for this sample, we'll skip this
@@ -270,7 +378,40 @@ fi
     )
 
 
-def callVariants(script: TextIOWrapper, reference: str, sample: str, consensus: str, bam: str, vcf: str):
+def alignAndSort(
+    script: TextIOWrapper, files: FastqSet, options: OptionsDict, output: str
+):
+    skipFastp = options["skipPreprocess"]
+    useAlternateAligner = options["alternateAligner"]
+
+    script.write("#\n")
+    script.write("# Align, sort, and mark duplicates\n")
+    script.write("#\n")
+
+    combineLaneData(script, files, options)
+
+    if skipFastp == False:
+        if useAlternateAligner == False:
+            alignWithFastpAndBWA(script, options)
+        else:
+            alignWithFastpAndMinimap(script, options)
+    else:
+        if useAlternateAligner == False:
+            alignWithoutFastpUsingBWA(script, options)
+        else:
+            alignWithoutFastpUsingMinmap(script, options)
+
+    sortAlignedAndMappedData(script, options, output)
+
+
+def callVariants(
+    script: TextIOWrapper,
+    reference: str,
+    sample: str,
+    consensus: str,
+    bam: str,
+    vcf: str,
+):
     script.write(
         """
     # call variants
@@ -299,7 +440,13 @@ def callVariants(script: TextIOWrapper, reference: str, sample: str, consensus: 
 
 
 def callVariants2(
-    script: TextIOWrapper, reference: str, sample: str, consensus: str, bam: str, vcf: str, ploidy: str
+    script: TextIOWrapper,
+    reference: str,
+    sample: str,
+    consensus: str,
+    bam: str,
+    vcf: str,
+    ploidy: str,
 ):
     script.write(
         """
@@ -340,9 +487,15 @@ def callVariants2(
         echo "Variants already called for {BAM}, ${{green}}skipping${{reset}}"
     fi
 """.format(
-            REFERENCE=reference, BAM=bam, VCF=vcf, PLOIDY=ploidy, CONSENSUS=consensus, SAMPLE=sample
+            REFERENCE=reference,
+            BAM=bam,
+            VCF=vcf,
+            PLOIDY=ploidy,
+            CONSENSUS=consensus,
+            SAMPLE=sample,
         )
     )
+
 
 def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
     useAlternateCaller = options["alternateCaller"]
@@ -432,6 +585,7 @@ fi
 if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then
     gatk CollectAlignmentSummaryMetrics --java-options '-Xmx8g' \\
         --VERBOSITY ERROR \\
+        --ADAPTER_SEQUENCE CTGTCTCTTATACACATCT \\
         -R {REFERENCE}/covid_reference.fasta \\
         -I {SORTED} \\
         -O {STATS}/{SAMPLE}.alignment_metrics.txt &
@@ -682,6 +836,15 @@ def defineArguments() -> Namespace:
         dest="alternateCaller",
         default=False,
         help="Use alternate caller bcftools",
+    )
+
+    parser.add_argument(
+        "-C",
+        "--alternate-aligner",
+        action="store_true",
+        dest="alternateAligner",
+        default=False,
+        help="Use minimap2 as the alignment tool",
     )
 
     parser.add_argument(
