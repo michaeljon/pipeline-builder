@@ -102,7 +102,12 @@ def combineLaneData(script: TextIOWrapper, files: FastqSet, options: OptionsDict
 # align the input files
 #
 if [[ ! -f {PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz ]]; then
-    zcat {L1} {L2} {L3} {L4} | pigz >{PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz
+    echo "Combining lane data files"
+    
+    zcat {L1} \\
+         {L2} \\
+         {L3} \\
+         {L4} | pigz >{PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz
 else
     echo "{PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz found, ${{green}}not combining${{reset}}"
 fi
@@ -207,7 +212,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             --thread 8 \\
             -j {STATS}/{SAMPLE}-fastp.json \\
             -h {STATS}/{SAMPLE}-fastp.html | \\
-        minimap2 -a -x sr -t {THREADS} {REFERENCE}/covid_reference.mmi  \\
+        minimap2 -a -t {THREADS} {REFERENCE}/covid_reference.mmi  \\
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
             - | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
 
@@ -239,6 +244,7 @@ def alignWithoutFastpUsingBWA(script: TextIOWrapper, options: OptionsDict):
     pipeline = options["pipeline"]
     threads = options["cores"]
     timeout = options["watchdog"]
+    nonRepeatable = options["non-repeatable"]
     bin = options["bin"]
 
     script.write(
@@ -273,12 +279,15 @@ fi
             THREADS=threads,
             PIPELINE=pipeline,
             TIMEOUT=timeout,
+            DASHK=""
+            if nonRepeatable == True
+            else "-K " + str((10_000_000 * int(threads))),
             BIN=bin,
         )
     )
 
 
-def alignWithoutFastpUsingMinmap(script: TextIOWrapper, options: OptionsDict):
+def alignWithoutFastpUsingMinimap(script: TextIOWrapper, options: OptionsDict):
     reference = options["reference"]
     sample = options["sample"]
     pipeline = options["pipeline"]
@@ -294,9 +303,9 @@ def alignWithoutFastpUsingMinmap(script: TextIOWrapper, options: OptionsDict):
 if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-         minimap2 -a -x sr -t {THREADS} {REFERENCE}/covid_reference.mmi  \\
+         minimap2 -a -t {THREADS} {REFERENCE}/covid_reference.mmi  \\
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
-            - | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
+            {PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
 
     status=$?
     if [ $status -ne 0 ]; then
@@ -399,7 +408,7 @@ def alignAndSort(
         if useAlternateAligner == False:
             alignWithoutFastpUsingBWA(script, options)
         else:
-            alignWithoutFastpUsingMinmap(script, options)
+            alignWithoutFastpUsingMinimap(script, options)
 
     sortAlignedAndMappedData(script, options, output)
 
