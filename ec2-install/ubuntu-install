@@ -14,6 +14,7 @@ sudo apt install -y pkg-config
 sudo apt install -y python-is-python3
 sudo apt install -y python3-pip
 sudo apt install -y awscli
+sudo apt install -y nasm
 
 sudo apt install -y jq
 sudo apt install -y r-base
@@ -67,26 +68,37 @@ tar xvzf pigz.tar.gz && rm pigz.tar.gz
 cd pigz-2.6 && make && mv pigz unpigz ${WORKING}/bin
 
 curl https://github.com/samtools/samtools/releases/download/1.14/samtools-1.14.tar.bz2 --location -O
+curl https://github.com/samtools/bcftools/releases/download/1.14/bcftools-1.14.tar.bz2 --location -O
+curl https://github.com/samtools/htslib/releases/download/1.14/htslib-1.14.tar.bz2 --location -O
+
 curl https://github.com/lh3/bwa/releases/download/v0.7.17/bwa-0.7.17.tar.bz2 --location -O
 curl https://github.com/broadinstitute/picard/releases/download/2.26.6/picard.jar --location -O
 curl https://github.com/broadinstitute/gatk/releases/download/4.2.3.0/gatk-4.2.3.0.zip --location -O
 curl https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.9.zip --location -O
 
 curl https://github.com/bwa-mem2/bwa-mem2/releases/download/v2.2.1/bwa-mem2-2.2.1_x64-linux.tar.bz2 --location -O
-curl https://gitlab.com/german.tischler/libmaus2/-/archive/2.0.807-release-20211122112933/libmaus2-2.0.807-release-20211122112933.tar.gz --location -O
+
+curl https://gitlab.com/german.tischler/libmaus2/-/archive/2.0.809-release-20220118100555/libmaus2-2.0.809-release-20220118100555.tar.gz --location -O
 curl https://gitlab.com/german.tischler/biobambam2/-/archive/2.0.183-release-20210802180148/biobambam2-2.0.183-release-20210802180148.tar.gz --location -O
 
 curl https://github.com/FelixKrueger/TrimGalore/archive/refs/tags/0.6.7.tar.gz --location -o trim_galore.tgz
 
+curl https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.0.6.tar.gz --location -o zlib-ng-2.0.6.tar.gz
+
 bzip2 -d samtools-1.14.tar.bz2 && tar xvf samtools-1.14.tar && rm samtools-1.14.tar
+bzip2 -d bcftools-1.14.tar.bz2 && tar xvf bcftools-1.14.tar && rm bcftools-1.14.tar
+bzip2 -d htslib-1.14.tar.bz2 && tar xvf htslib-1.14.tar && rm htslib-1.14.tar
+
+
 bzip2 -d bwa-0.7.17.tar.bz2 && tar xvf bwa-0.7.17.tar && rm bwa-0.7.17.tar
 unzip gatk-4.2.3.0.zip && rm gatk-4.2.3.0.zip
 unzip fastqc_v0.11.9.zip && rm fastqc_v0.11.9.zip
 bzip2 -d bwa-mem2-2.2.1_x64-linux.tar.bz2 && tar xvf bwa-mem2-2.2.1_x64-linux.tar && rm bwa-mem2-2.2.1_x64-linux.tar
-tar xvzf libmaus2-2.0.807-release-20211122112933.tar.gz
+tar xvzf libmaus2-2.0.809-release-20220118100555.tar.gz
 tar xvzf biobambam2-2.0.183-release-20210802180148.tar.gz
 
 tar xvzf trim_galore.tgz && rm trim_galore.tgz
+tar xvzf zlib-ng-2.0.6.tar.gz && rm zlib-ng-2.0.6.tar.gz
 
 # TODO: build and / or install all the components
 mv ${WORKING}/src/picard.jar ${WORKING}/bin
@@ -95,9 +107,37 @@ mv ${WORKING}/src/gatk-4.2.3.0 ${WORKING}/bin
 mv ${WORKING}/src/bwa-mem2-2.2.1_x64-linux/bam* ${WORKING}/bin
 mv TrimGalore-0.6.7 ${WORKING}/bin
 
-cd ${WORKING}/src/samtools-1.14 && make
+cd ${WORKING}/src/samtools-1.14 --prefix=$WORKING/bin && make && sudo make install
+cd ${WORKING}/src/bcftools-1.14 --prefix=$WORKING/bin && make && sudo make install
+cd ${WORKING}/src/htslib-1.14 --prefix=$WORKING/bin && make && sudo make install
+
 cd ${WORKING}/src/bwa-0.7.17 && make
-cd ${WORKING}/src/libmaus2-2.0.807-release-20211122112933 && ./configure && make
-cd ${WORKING}/src/biobambam2-2.0.183-release-20210802180148 && ./configure --with-libmaus=${WORKING}/src/libmaus2-2.0.807-release-20211122112933 && make
+cd ${WORKING}/src/libmaus2-2.0.809-release-20220118100555 && ./configure && make
+cd ${WORKING}/src/biobambam2-2.0.183-release-20210802180148 && ./configure && make
 
 export PATH=$HOME/bin/FastQC:$HOME/bin/TrimGalore-0.6.7:$HOME/bin/gatk-4.2.3.0:$HOME/bin:$PATH
+
+git clone https://github.com/zlib-ng/zlib-ng.git
+cd zlib-ng
+./configure --zlib-compat
+make
+
+# todo, copy the resulting .so files to $HOME/bin
+# todo, setuid `chmod u+s` on those files
+
+git clone https://github.com/intel/isa-l.git
+cd isa-l
+./autogen.sh
+./configure --prefix=/usr --libdir=/usr/lib64
+make
+sudo make install
+
+git clone https://github.com/ebiggers/libdeflate.git
+cd libdeflate
+make
+sudo make install
+
+git clone https://github.com/OpenGene/fastp.git
+cd fastp
+make
+sudo make install
