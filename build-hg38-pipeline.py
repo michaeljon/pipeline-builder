@@ -10,7 +10,7 @@ from typing import Dict, Tuple, Sequence, List, Any
 from datetime import datetime
 from math import ceil
 from os.path import exists, expandvars, basename
-from os import cpu_count
+from os import cpu_count, system
 
 # This script generates an Illumina paired-read VCF annotation pipeline.
 # There are some short-circuit options generated as part of this script,
@@ -472,8 +472,7 @@ def annotate(
             --offline \\
             --use_given_ref \\
             --verbose \\
-            --force_overwrite \\
-            --chr {CHROMOSOME} \\
+            --force_overwrite {CHROMOSOME} \\
             --exclude_null_alleles \\
             --symbol \\
             --coding_only \\
@@ -493,9 +492,9 @@ def annotate(
             OUTPUT=output,
             SUMMARY=summary,
             INTERVAL=interval,
-            CHROMOSOME=chromosome,
+            CHROMOSOME="--chr " + chromosome if interval != "FINAL" else "",
             STATS=stats,
-            FORKS=8,
+            FORKS=8 if interval != "FINAL" else 64,
         )
     )
 
@@ -563,6 +562,34 @@ echo ${green}Intervals processed${reset}
         """
     )
 
+def generateConsensus(script: TextIOWrapper, options: OptionsDict):
+    reference = options["reference"]
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
+    script.write(
+        """
+if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fasta ]]; then
+    echo "${{yellow}}Compressing {PIPELINE}/{SAMPLE}.final.vcf${{reset}}"
+    bcftools view --output-type z <{PIPELINE}/{SAMPLE}.final.vcf >{PIPELINE}/{SAMPLE}.final.vcf.gz
+
+    echo "${{yellow}}Indexing {PIPELINE}/{SAMPLE}.final.vcf${{reset}}"
+    bcftools index {PIPELINE}/{SAMPLE}.final.vcf.gz
+
+    echo "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.final.vcf${{reset}}"
+    bcftools consensus \\
+        --fasta-ref {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+        {PIPELINE}/{SAMPLE}.final.vcf.gz \\
+    | sed '/>/ s/$/ | {SAMPLE}/' >{PIPELINE}/{SAMPLE}.consensus.fasta
+else
+    echo "Consensus fasta already generated for {PIPELINE}/{SAMPLE}.consensus.fasta, ${{green}}skipping${{reset}}"
+fi
+        """.format(
+            REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample
+        )
+    )
+
+    pass
 
 def gather(script: TextIOWrapper, options: OptionsDict):
     pipeline = options["pipeline"]
@@ -574,11 +601,11 @@ def gather(script: TextIOWrapper, options: OptionsDict):
 # Gather interval data and recombine(s)
 # 
 if [[ ! -f {PIPELINE}/{SAMPLE}.final.vcf ]]; then
-    /bin/ls -1 {PIPELINE}/*.annotated.vcf | sort -k1,1V >{PIPELINE}/merge.list
+    /bin/ls -1 {PIPELINE}/*.annotated.vcf | sort -k1,1V >{PIPELINE}/{SAMPLE}.merge.list
 
     gatk MergeVcfs \\
         --VERBOSITY ERROR \\
-        -I {PIPELINE}/merge.list \\
+        -I {PIPELINE}/{SAMPLE}.merge.list \\
         -O {PIPELINE}/{SAMPLE}.final.vcf
 
     gatk IndexFeatureFile \\
@@ -625,13 +652,33 @@ fi
 #
 # we need to quiet vcftools here because it's stupid chatty and doesn't have an option to quiet
 #
-vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --freq2 --out {STATS}/{SAMPLE} --max-alleles 2 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --depth --out {STATS}/{SAMPLE} 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --site-mean-depth --out {STATS}/{SAMPLE} 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --site-quality --out {STATS}/{SAMPLE} 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --missing-indv --out {STATS}/{SAMPLE} 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --missing-site --out {STATS}/{SAMPLE} 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --het --out {STATS}/{SAMPLE} 2>/dev/null &
+if [[ ! -f {STATS}/{SAMPLE}.frq ]]; then
+    vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --freq2 --out {STATS}/{SAMPLE} --max-alleles 2 2>/dev/null &
+fi
+
+if [[ ! -f {STATS}/{SAMPLE}.idepth ]]; then
+    vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --depth --out {STATS}/{SAMPLE} 2>/dev/null &
+fi
+
+if [[ ! -f {STATS}/{SAMPLE}.ldepth.mean ]]; then
+    vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --site-mean-depth --out {STATS}/{SAMPLE} 2>/dev/null &
+fi
+
+if [[ ! -f {STATS}/{SAMPLE}.lqual ]]; then
+    vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --site-quality --out {STATS}/{SAMPLE} 2>/dev/null &
+fi
+
+if [[ ! -f {STATS}/{SAMPLE}.imiss ]]; then
+    vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --missing-indv --out {STATS}/{SAMPLE} 2>/dev/null &
+fi
+
+if [[ ! -f {STATS}/{SAMPLE}.lmiss ]]; then
+    vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --missing-site --out {STATS}/{SAMPLE} 2>/dev/null &
+fi
+
+if [[ ! -f {STATS}/{SAMPLE}.het ]]; then
+    vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --het --out {STATS}/{SAMPLE} 2>/dev/null &
+fi
 
 echo ${{yellow}}Waiting for variant QC metrics to complete${{reset}}
 wait
@@ -701,7 +748,7 @@ fi
 
 if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
     samtools stats -@ 8 \\
-        -r reference/Homo_sapiens_assembly38.fasta \\
+        -r {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         {SORTED} >{STATS}/{SAMPLE}.samstats &
 else
     echo "samtools stats already run, ${{green}}skipping${{reset}}"
@@ -1204,6 +1251,7 @@ def verifyOptions(options: OptionsDict):
 def main():
     opts = defineArguments()
     options = fixupPathOptions(opts)
+
     verifyOptions(options)
 
     filenames = getFileNames(options)
@@ -1273,6 +1321,18 @@ def main():
         runIntervals(script, options, prefix)
         gather(script, options)
 
+        annotate(
+            script, 
+            options, 
+            "{WORKING}/vep_data".format(WORKING=options["working"]),
+            "FINAL",
+            "{PIPELINE}/{SAMPLE}.final.vcf".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
+            "{PIPELINE}/{SAMPLE}.annotated.final.vcf".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
+            "{SAMPLE}.annotated.final.vcf_summary.html".format(SAMPLE=options["sample"])
+        )
+
+        # generateConsensus(script, options)
+
         if options["doQC"]:
             doVariantQC(script, options)
             runMultiQC(script, options)
@@ -1297,6 +1357,7 @@ wait
         )
         script.write("\n")
 
+    system("chmod +x {SCRIPT}".format(SCRIPT=options["script"]))
 
 if __name__ == "__main__":
     main()
