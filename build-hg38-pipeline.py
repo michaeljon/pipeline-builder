@@ -1001,7 +1001,7 @@ def defineArguments() -> Namespace:
         action="store",
         metavar="FASTQ_DIR",
         dest="fastq_dir",
-        help="Location of L00[1234] files",
+        help="Location of R1 and R2 files",
     )
     parser.add_argument(
         "-c",
