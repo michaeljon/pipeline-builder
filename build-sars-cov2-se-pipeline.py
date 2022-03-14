@@ -547,12 +547,7 @@ def producePileup(
     )
 
 
-def annotate(
-    script: TextIOWrapper,
-    options: OptionsDict,
-    vcf: str,
-    annotated: str
-):
+def annotate(script: TextIOWrapper, options: OptionsDict, vcf: str, annotated: str):
     sample = options["sample"]
     pipeline = options["pipeline"]
     bin = options["bin"]
@@ -594,6 +589,43 @@ def annotate(
     )
 
 
+def assignClade(
+    script: TextIOWrapper, options: OptionsDict, reference: str, consensus: str
+):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+
+    script.write(
+        """
+    # assign clade
+    if [[ ! -f {PIPELINE}/{SAMPLE}.nextclade.csv ]]; then
+        nextclade \\
+            --in-order \\
+            --input-fasta {REFERENCE}/nextclade-data/sars-cov-2/sequences.fasta \\
+            --input-dataset {REFERENCE}/nextclade-data/sars-cov-2 \\
+            --input-root-seq {REFERENCE}/nextclade-data/sars-cov-2/reference.fasta \\
+            --genes E,M,N,ORF1a,ORF1b,ORF3a,ORF6,ORF7a,ORF7b,ORF8,ORF9b,S \\
+            --input-gene-map {REFERENCE}/nextclade-data/sars-cov-2/genemap.gff \\
+            --input-tree {REFERENCE}/nextclade-data/sars-cov-2/tree.json \\
+            --input-qc-config {REFERENCE}/nextclade-data/sars-cov-2/qc.json \\
+            --input-pcr-primers {REFERENCE}/nextclade-data/sars-cov-2/primers.csv \\
+            --output-json {PIPELINE}/{SAMPLE}.nextclade.json \\
+            --output-csv {PIPELINE}/{SAMPLE}.nextclade.csv \\
+            --output-tsv {PIPELINE}/{SAMPLE}.nextclade.tsv \\
+            --output-tree {PIPELINE}/{SAMPLE}.nextclade.auspice.json \\
+            --output-dir {PIPELINE}/ \\
+            --output-basename {SAMPLE}.nextclade
+
+        echo "Clade assignment complete for {SAMPLE}, skipping"
+    else
+        echo "Clade assignment already complete for {SAMPLE}, ${{green}}skipping${{reset}}"
+    fi
+    """.format(
+            REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample
+        )
+    )
+
+
 def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
     useAlternateCaller = options["alternateCaller"]
     sample = options["sample"]
@@ -617,8 +649,8 @@ def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
         callVariants2(script, options["reference"], sample, consensus, bam, vcf, pileup)
 
     producePileup(script, options["reference"], bam, pileup, ploidy)
-    annotated = """{PREFIX}.annotated.vcf""".format(PREFIX=prefix)
     annotate(script, options, vcf, annotated)
+    assignClade(script, options, options["reference"], consensus)
 
     script.write(") &\n")
     script.write("\n")
