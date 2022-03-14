@@ -84,7 +84,8 @@ fi
 
 def alignWithFastpAndBWA(
     script: TextIOWrapper,
-    r1: str, r2: str, 
+    r1: str,
+    r2: str,
     options: OptionsDict,
 ):
     reference = options["reference"]
@@ -132,8 +133,8 @@ else
     echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
 fi
 """.format(
-                R1=r1,
-                R2=r2,
+            R1=r1,
+            R2=r2,
             REFERENCE=reference,
             SAMPLE=sample,
             THREADS=threads,
@@ -149,11 +150,8 @@ fi
     )
 
 
-
 def alignWithoutFastpUsingBWA(
-    script: TextIOWrapper, 
-    r1: str, r2: str, 
-    options: OptionsDict
+    script: TextIOWrapper, r1: str, r2: str, options: OptionsDict
 ):
     reference = options["reference"]
     sample = options["sample"]
@@ -191,8 +189,8 @@ else
 fi
 
 """.format(
-                R1=r1,
-                R2=r2,
+            R1=r1,
+            R2=r2,
             REFERENCE=reference,
             SAMPLE=sample,
             THREADS=threads,
@@ -204,7 +202,6 @@ fi
             BIN=bin,
         )
     )
-
 
 
 def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output: str):
@@ -377,13 +374,88 @@ def callVariants2(
     )
 
 
+def producePileup(
+    script: TextIOWrapper,
+    reference: str,
+    bam: str,
+    pileup: str,
+    ploidy: str,
+):
+    script.write(
+        """
+    # create pileup
+    if [[ ! -f {PILEUP} ]]; then
+        echo Generate pileup for {BAM}
+
+        if [[ ! -f {PLOIDY} ]]; then
+            echo '* * * * 1' >{PLOIDY}
+        fi
+
+        samtools mpileup \\
+            --max-depth 1000000 \\
+            --count-orphans \\
+            --redo-BAQ \\
+            --fasta-ref {REFERENCE}/covid_reference.fasta \\
+            {BAM} | gzip >{PILEUP} 2>/dev/null
+
+        echo Pileup completed for {BAM}
+    else
+        echo "Pileup already finished for {BAM}, ${{green}}skipping${{reset}}"
+    fi
+""".format(
+            REFERENCE=reference,
+            BAM=bam,
+            PILEUP=pileup,
+            PLOIDY=ploidy,
+        )
+    )
+
+
+def annotate(
+    script: TextIOWrapper,
+    options: OptionsDict,
+    vcf: str,
+):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    bin = options["bin"]
+
+    script.write(
+        """
+    # annotate
+    if [[ ! -f {PIPELINE}/{SAMPLE}.nirvana.json.gz || ! -f {PIPELINE}/{SAMPLE}.nirvana.json.gz.jsi ]]; then
+        echo Start nirvana annotation for {VCF}
+
+        dotnet {BIN}/nirvana/Nirvana.dll \\
+            -c {BIN}/nirvana/Data/Cache/SARS-CoV-2/SARS-CoV-2 \\
+            -sd {BIN}/nirvana/Data/SupplementaryAnnotation/SARS-CoV-2 \\
+            --enable-dq \\
+            -r {BIN}/nirvana/Data/References/SARS-CoV-2.ASM985889v3.dat \\
+            -i {VCF} \\
+            -o {SAMPLE}.nirvana
+
+        mv {SAMPLE}.nirvana.json.gz {PIPELINE}
+        mv {SAMPLE}.nirvana.json.gz.jsi {PIPELINE}
+
+        echo Annotion complete for {VCF}
+    else
+        echo "Annotations already for {VCF}, ${{green}}skipping${{reset}}"
+    fi
+""".format(
+            VCF=vcf, SAMPLE=sample, BIN=bin, PIPELINE=pipeline
+        )
+    )
+
+
 def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
     useAlternateCaller = options["alternateCaller"]
     sample = options["sample"]
 
     bam = """{PREFIX}.sorted.bam""".format(PREFIX=prefix)
     vcf = """{PREFIX}.vcf""".format(PREFIX=prefix)
+    pileup = """{PREFIX}.pileup.gz""".format(PREFIX=prefix)
     consensus = """{PREFIX}.consensus.fa""".format(PREFIX=prefix)
+    ploidy = """{PREFIX}.ploidy""".format(PREFIX=prefix)
 
     script.write("\n")
     script.write("#\n")
@@ -394,8 +466,10 @@ def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
     if useAlternateCaller == False:
         callVariants(script, options["reference"], sample, consensus, bam, vcf)
     else:
-        ploidy = """{PREFIX}.ploidy""".format(PREFIX=prefix)
         callVariants2(script, options["reference"], sample, consensus, bam, vcf, ploidy)
+
+    producePileup(script, options["reference"], bam, pileup, ploidy)
+    annotate(script, options, vcf)
 
     script.write(") &\n")
     script.write("\n")
@@ -485,19 +559,6 @@ else
     echo "GC bias metrics already run, ${{green}}skipping${{reset}}"
 fi
 
-if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
-    gatk CollectWgsMetrics --java-options '-Xmx8g' \\
-        --VERBOSITY ERROR \\
-        -R {REFERENCE}/covid_reference.fasta \\
-        -I {SORTED} \\
-        -O {STATS}/{SAMPLE}.wgs_metrics.txt \\
-        -INTERVALS {REFERENCE}/sars_cov2_ref_genome_autosomal.interval_list \\
-        --USE_FAST_ALGORITHM \\
-        --INCLUDE_BQ_HISTOGRAM &
-else
-    echo "WGS metrics already run, ${{green}}skipping${{reset}}"
-fi
-
 if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
     samtools stats -@ 8 \\
         -r reference/covid_reference.fasta \\
@@ -560,7 +621,7 @@ mkdir -p {STATS}/qc
 cd {STATS}/qc
 
 # Run multiqc
-multiqc --tag DNA -f {STATS}
+multiqc --tag RNA -f {STATS}
 
 # Save the output
 mv {STATS}/qc/multiqc_data {STATS}/{SAMPLE}_multiqc_data
