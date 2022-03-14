@@ -551,6 +551,7 @@ def annotate(
     script: TextIOWrapper,
     options: OptionsDict,
     vcf: str,
+    annotated: str
 ):
     sample = options["sample"]
     pipeline = options["pipeline"]
@@ -577,8 +578,18 @@ def annotate(
     else
         echo "Annotations already for {VCF}, ${{green}}skipping${{reset}}"
     fi
+
+    if [[ ! -f {PIPELINE}/{SAMPLE}.annotated.vcf ]]; then
+        echo Start snpEff annotation for {VCF}
+
+        java -jar ~/bin/snpEff/snpEff.jar NC_045512.2 {VCF} >{ANNOTATED}
+
+        echo snpEff annotion complete for {VCF}
+    else
+        echo "snpEff annotations already for {VCF}, ${{green}}skipping${{reset}}"
+    fi
 """.format(
-            VCF=vcf, SAMPLE=sample, BIN=bin, PIPELINE=pipeline
+            VCF=vcf, SAMPLE=sample, BIN=bin, PIPELINE=pipeline, ANNOTATED=annotated
         )
     )
 
@@ -589,6 +600,7 @@ def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
 
     bam = """{PREFIX}.sorted.bam""".format(PREFIX=prefix)
     vcf = """{PREFIX}.vcf""".format(PREFIX=prefix)
+    annotated = """{PREFIX}.annotated.vcf""".format(PREFIX=prefix)
     pileup = """{PREFIX}.pileup.gz""".format(PREFIX=prefix)
     consensus = """{PREFIX}.consensus.fa""".format(PREFIX=prefix)
     ploidy = """{PREFIX}.ploidy""".format(PREFIX=prefix)
@@ -605,7 +617,8 @@ def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
         callVariants2(script, options["reference"], sample, consensus, bam, vcf, pileup)
 
     producePileup(script, options["reference"], bam, pileup, ploidy)
-    annotate(script, options, vcf)
+    annotated = """{PREFIX}.annotated.vcf""".format(PREFIX=prefix)
+    annotate(script, options, vcf, annotated)
 
     script.write(") &\n")
     script.write("\n")
