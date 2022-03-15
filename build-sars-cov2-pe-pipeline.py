@@ -110,8 +110,9 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             --report_title "fastp report for sample {SAMPLE}" \\
             -i {R1} \\
             -I {R2} \\
+            --detect_adapter_for_pe \\
+            --merge \\
             --verbose {LIMITREADS} \\
-            --adapter_sequence CTGTCTCTTATACACATCT \\
             --stdout \\
             --thread 8 \\
             -j {STATS}/{SAMPLE}-fastp.json \\
@@ -520,12 +521,7 @@ def assignClade(
             --in-order \\
             --input-fasta {CONSENSUS} \\
             --input-dataset {REFERENCE}/nextclade-data/sars-cov-2 \\
-            --input-root-seq {REFERENCE}/nextclade-data/sars-cov-2/reference.fasta \\
             --genes E,M,N,ORF1a,ORF1b,ORF3a,ORF6,ORF7a,ORF7b,ORF8,ORF9b,S \\
-            --input-gene-map {REFERENCE}/nextclade-data/sars-cov-2/genemap.gff \\
-            --input-tree {REFERENCE}/nextclade-data/sars-cov-2/tree.json \\
-            --input-qc-config {REFERENCE}/nextclade-data/sars-cov-2/qc.json \\
-            --input-pcr-primers {REFERENCE}/nextclade-data/sars-cov-2/primers.csv \\
             --output-json {PIPELINE}/{SAMPLE}.nextclade.json \\
             --output-tsv {PIPELINE}/{SAMPLE}.nextclade.tsv \\
             --output-tree {PIPELINE}/{SAMPLE}.nextclade.auspice.json \\
@@ -645,7 +641,6 @@ fi
 if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then
     gatk CollectAlignmentSummaryMetrics --java-options '-Xmx8g' \\
         --VERBOSITY ERROR \\
-        --ADAPTER_SEQUENCE CTGTCTCTTATACACATCT \\
         -R {REFERENCE}/covid_reference.fasta \\
         -I {SORTED} \\
         -O {STATS}/{SAMPLE}.alignment_metrics.txt &
@@ -667,7 +662,7 @@ fi
 
 if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
     samtools stats -@ 8 \\
-        -r reference/covid_reference.fasta \\
+        -r {REFERENCE}/covid_reference.fasta \\
         {SORTED} >{STATS}/{SAMPLE}.samstats &
 else
     echo "samtools stats already run, ${{green}}skipping${{reset}}"
