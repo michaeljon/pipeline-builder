@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+
+SAMPLE=$1
+
+echo ${SAMPLE}
+
+if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
+    # give us a place to work
+    mkdir -p ${HOME}/pipeline/${SAMPLE}
+
+    # build the pipeline
+    python ${HOME}/pipeline-builder/build-sars-cov2-pipeline.py \
+        --cores 8 \
+        --sample ${SAMPLE} \
+        --work-dir ${HOME} \
+        --pipeline-dir ${HOME}/pipeline/${SAMPLE} \
+        --stats-dir ${HOME}/pipeline/${SAMPLE} \
+        --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
+        --temp-dir ${HOME}/stats/temp \
+        --fastq-dir ${HOME}/pipeline/FASTQ \
+        --alternate-caller \
+        --alternate-consensus
+
+    # run the pipeline
+    bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner
+
+    # pack up the stuff and clean house
+    rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.combined_lanes.fastq.gz
+    rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.aligned.sam
+
+    cd ${HOME}/pipeline/
+    tar -cf ${HOME}/pipeline/${SAMPLE}.tar ./${SAMPLE}
+    # rm -rf ${HOME}/pipeline/${SAMPLE}
+else
+    echo "We have already processed sample ${SAMPLE}"
+fi

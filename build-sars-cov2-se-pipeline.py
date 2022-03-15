@@ -417,7 +417,6 @@ def callVariants(
     script: TextIOWrapper,
     reference: str,
     sample: str,
-    consensus: str,
     bam: str,
     vcf: str,
 ):
@@ -432,18 +431,11 @@ def callVariants(
             --verbosity ERROR \\
             --pairHMM FASTEST_AVAILABLE \\
             --native-pair-hmm-threads 4
-
-        bcftools view --output-type z <{VCF} >{VCF}.gz
-        bcftools index {VCF}.gz
-        bcftools consensus \\
-            --fasta-ref {REFERENCE}/covid_reference.fasta \\
-            {VCF}.gz \\
-        | sed '/>/ s/$/ | {SAMPLE}/' >{CONSENSUS}
     else
         echo "Variants already called for {BAM}, ${{green}}skipping${{reset}}"
     fi
 """.format(
-            REFERENCE=reference, BAM=bam, VCF=vcf, CONSENSUS=consensus, SAMPLE=sample
+            REFERENCE=reference, BAM=bam, VCF=vcf, SAMPLE=sample
         )
     )
 
@@ -451,8 +443,6 @@ def callVariants(
 def callVariants2(
     script: TextIOWrapper,
     reference: str,
-    sample: str,
-    consensus: str,
     bam: str,
     vcf: str,
     ploidy: str,
@@ -471,7 +461,6 @@ def callVariants2(
             --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \\
             --max-idepth 1000000 \\
             --max-depth 1000000 \\
-            --count-orphans \\
             --full-BAQ \\
             --redo-BAQ \\
             --threads 4 \\
@@ -484,16 +473,10 @@ def callVariants2(
             --keep-alts \\
             --multiallelic-caller \\
             --ploidy-file {PLOIDY} \\
+            --prior 0.05 \\
             --threads 4 \\
             --output-type v  \\
             --output {VCF} 2>/dev/null
-
-        bcftools view --output-type z <{VCF} >{VCF}.gz
-        bcftools index {VCF}.gz
-        bcftools consensus \\
-            --fasta-ref {REFERENCE}/covid_reference.fasta \\
-            {VCF}.gz \\
-        | sed '/>/ s/$/ | {SAMPLE}/' >{CONSENSUS}
 
         echo Completed variant calling for {BAM}
     else
@@ -504,6 +487,72 @@ def callVariants2(
             BAM=bam,
             VCF=vcf,
             PLOIDY=ploidy,
+        )
+    )
+
+
+def produceConsensusUsingBcftools(
+    script: TextIOWrapper,
+    reference: str,
+    sample: str,
+    consensus: str,
+    vcf: str,
+):
+    script.write(
+        """
+    # call variants
+    if [[ ! -f {CONSENSUS} ]]; then
+        echo Creating consensus for {VCF}
+
+        bcftools view --output-type z <{VCF} >{VCF}.gz
+        bcftools index {VCF}.gz
+        bcftools consensus \\
+            --fasta-ref {REFERENCE}/covid_reference.fasta \\
+            {VCF}.gz \\
+        | sed '/>/ s/$/ | {SAMPLE}/' >{CONSENSUS}
+
+        echo Completed consensus generation for {VCF}
+    else
+        echo "Consensus generation already complete for {VCF}, ${{green}}skipping${{reset}}"
+    fi
+""".format(
+            REFERENCE=reference,
+            VCF=vcf,
+            CONSENSUS=consensus,
+            SAMPLE=sample,
+        )
+    )
+
+
+def produceConsensusUsingIvar(
+    script: TextIOWrapper,
+    reference: str,
+    sample: str,
+    consensus: str,
+    bam: str,
+):
+    script.write(
+        """
+    # call variants
+    if [[ ! -f {CONSENSUS} ]]; then
+        echo Creating consensus for {BAM}
+
+        samtools mpileup \\
+            -aa \\
+            -A \\
+            --max-depth 0 \\
+            --count-orphans \\
+            --min-BQ 0 \\
+            {BAM} | \\
+        ivar consensus -t 0 -m 3 -p {CONSENSUS}
+
+        echo Completed consensus generation for {BAM}
+    else
+        echo "Consensus generation already complete for {BAM}, ${{green}}skipping${{reset}}"
+    fi
+""".format(
+            REFERENCE=reference,
+            BAM=bam,
             CONSENSUS=consensus,
             SAMPLE=sample,
         )
@@ -577,7 +626,7 @@ def annotate(script: TextIOWrapper, options: OptionsDict, vcf: str, annotated: s
     if [[ ! -f {PIPELINE}/{SAMPLE}.annotated.vcf ]]; then
         echo Start snpEff annotation for {VCF}
 
-        java -jar ~/bin/snpEff/snpEff.jar NC_045512.2 {VCF} >{ANNOTATED}
+        java -jar ~/bin/snpEff/snpEff.jar -htmlStats {PIPELINE}/{SAMPLE}.html NC_045512.2 {VCF} >{ANNOTATED}
 
         echo snpEff annotion complete for {VCF}
     else
@@ -598,10 +647,10 @@ def assignClade(
     script.write(
         """
     # assign clade
-    if [[ ! -f {PIPELINE}/{SAMPLE}.nextclade.csv ]]; then
+    if [[ ! -f {PIPELINE}/{SAMPLE}.nextclade.tsv ]]; then
         nextclade \\
             --in-order \\
-            --input-fasta {REFERENCE}/nextclade-data/sars-cov-2/sequences.fasta \\
+            --input-fasta {CONSENSUS} \\
             --input-dataset {REFERENCE}/nextclade-data/sars-cov-2 \\
             --input-root-seq {REFERENCE}/nextclade-data/sars-cov-2/reference.fasta \\
             --genes E,M,N,ORF1a,ORF1b,ORF3a,ORF6,ORF7a,ORF7b,ORF8,ORF9b,S \\
@@ -610,7 +659,6 @@ def assignClade(
             --input-qc-config {REFERENCE}/nextclade-data/sars-cov-2/qc.json \\
             --input-pcr-primers {REFERENCE}/nextclade-data/sars-cov-2/primers.csv \\
             --output-json {PIPELINE}/{SAMPLE}.nextclade.json \\
-            --output-csv {PIPELINE}/{SAMPLE}.nextclade.csv \\
             --output-tsv {PIPELINE}/{SAMPLE}.nextclade.tsv \\
             --output-tree {PIPELINE}/{SAMPLE}.nextclade.auspice.json \\
             --output-dir {PIPELINE}/ \\
@@ -621,13 +669,14 @@ def assignClade(
         echo "Clade assignment already complete for {SAMPLE}, ${{green}}skipping${{reset}}"
     fi
     """.format(
-            REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample
+            REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample, CONSENSUS=consensus
         )
     )
 
 
 def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
     useAlternateCaller = options["alternateCaller"]
+    useAlternateConsensus = options["alternateConsensus"]
     sample = options["sample"]
 
     bam = """{PREFIX}.sorted.bam""".format(PREFIX=prefix)
@@ -644,12 +693,20 @@ def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
     script.write("(")
 
     if useAlternateCaller == False:
-        callVariants(script, options["reference"], sample, consensus, bam, vcf)
+        callVariants(script, options["reference"], sample, bam, vcf)
     else:
-        callVariants2(script, options["reference"], sample, consensus, bam, vcf, pileup)
+        callVariants2(script, options["reference"], consensus, vcf, ploidy)
 
     producePileup(script, options["reference"], bam, pileup, ploidy)
     annotate(script, options, vcf, annotated)
+
+    if useAlternateConsensus == False:
+        produceConsensusUsingBcftools(
+            script, options["reference"], sample, consensus, vcf
+        )
+    else:
+        produceConsensusUsingIvar(script, options["reference"], sample, consensus, bam)
+
     assignClade(script, options, options["reference"], consensus)
 
     script.write(") &\n")
@@ -962,6 +1019,15 @@ def defineArguments() -> Namespace:
         dest="alternateCaller",
         default=False,
         help="Use alternate caller bcftools",
+    )
+
+    parser.add_argument(
+        "-I",
+        "--alternate-consensus",
+        action="store_true",
+        dest="alternateConsensus",
+        default=False,
+        help="Use alternate consensus generation process",
     )
 
     parser.add_argument(

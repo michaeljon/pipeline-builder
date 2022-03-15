@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+tail -n +2 $1 | 
+    grep -v '^>' | 
+    tr -d '\n' | 
+    sed 's/\(.\)/\1 /g' | 
+    tr ' ' '\n' > $HOME/tmp/file_1.fasta
+
+tail -n +2 $2 |
+    grep -v '^>' | 
+    tr -d '\n' | 
+    sed 's/\(.\)/\1 /g' | 
+    tr ' ' '\n' > $HOME/tmp/file_2.fasta
+
+dwdiff -L8 -s -3 $HOME/tmp/file_1.fasta $HOME/tmp/file_2.fasta
