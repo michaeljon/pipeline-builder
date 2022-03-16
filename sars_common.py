@@ -119,6 +119,8 @@ def callVariants(
             --verbosity ERROR \\
             --pairHMM FASTEST_AVAILABLE \\
             --native-pair-hmm-threads 4
+
+        echo Completed variant calling for {BAM}
     else
         echo "Variants already called for {BAM}, ${{green}}skipping${{reset}}"
     fi
@@ -304,6 +306,9 @@ def annotate(script: TextIOWrapper, options: OptionsDict, vcf: str, annotated: s
             -i {VCF} \\
             -o {SAMPLE}.nirvana
 
+        mv {SAMPLE}.nirvana.json.gz {PIPELINE}
+        mv {SAMPLE}.nirvana.json.gz.jsi {PIPELINE}
+
         echo Annotion complete for {VCF}
     else
         echo "Annotations already for {VCF}, ${{green}}skipping${{reset}}"
@@ -345,7 +350,7 @@ def assignClade(
             --output-dir {PIPELINE}/ \\
             --output-basename {SAMPLE}.nextclade
 
-        echo "Clade assignment complete for {SAMPLE}, skipping"
+        echo "Clade assignment complete for {SAMPLE}"
     else
         echo "Clade assignment already complete for {SAMPLE}, ${{green}}skipping${{reset}}"
     fi
