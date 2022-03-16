@@ -4,7 +4,8 @@ SAMPLE=$1
 
 echo ${SAMPLE}
 
-nextclade dataset get --name 'sars-cov-2' --output-dir $HOME/reference/nextclade-data/sars-cov-2
+# download the reference data
+nextclade dataset get --name='sars-cov-2' --output-dir=$HOME/reference/nextclade-data/sars-cov-2
 
 if [[ ! -f $HOME/tmp/covid_reference.fasta ]]; then
     tail -n +2 $HOME/reference/covid_reference.fasta | 
