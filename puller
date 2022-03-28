@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-FASTQLIST=$(tail -n +2 Rawdata_links.tsv | awk '{printf("%s\n%s\n", $7, $8)}')
+FASTQLIST=$(tail -n +2 $1 | awk '{printf("%s\n%s\n", $7, $8)}')
 
 pushd ~/pipeline/FASTQ
 

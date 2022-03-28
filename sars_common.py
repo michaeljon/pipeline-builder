@@ -51,57 +51,98 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output
     bin = options["bin"]
     temp = options["temp"]
 
+    sorter = options["sorter"]
     alignOnly = options["alignOnly"]
 
     # this is one of the more time-consuming operations, so, if we've already
     # done the alignment operation for this sample, we'll skip this
-    script.write(
-        """
-#
-# sort and mark duplicates
-#
-if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
-    timeout {TIMEOUT}m bash -c \\
-        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-        unpigz --stdout {PIPELINE}/{SAMPLE}.aligned.sam.gz |
-        bamsormadup \\
-            SO=coordinate \\
-            threads={THREADS} \\
-            level=6 \\
-            tmpfile={TEMP}/{SAMPLE} \\
-            inputformat=sam \\
-            indexfilename={SORTED}.bai \\
-            M={STATS}/{SAMPLE}.duplication_metrics >{SORTED}'
 
-    status=$?
-    if [ $status -ne 0 ]; then
-        echo "Watchdog timer killed sort / dup process errno = $status"
-        rm -f {SORTED}
-        rm -f {SORTED}.bai
-        exit $status
+    if sorter == "biobambam":
+        script.write(
+            """
+    #
+    # sort and mark duplicates
+    #
+    if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
+        timeout {TIMEOUT}m bash -c \\
+            'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+            unpigz --stdout {PIPELINE}/{SAMPLE}.aligned.sam.gz |
+            bamsormadup \\
+                SO=coordinate \\
+                threads={THREADS} \\
+                level=6 \\
+                tmpfile={TEMP}/{SAMPLE} \\
+                inputformat=sam \\
+                indexfilename={SORTED}.bai \\
+                M={STATS}/{SAMPLE}.duplication_metrics >{SORTED}'
+
+        status=$?
+        if [ $status -ne 0 ]; then
+            echo "Watchdog timer killed sort / dup process errno = $status"
+            rm -f {SORTED}
+            rm -f {SORTED}.bai
+            exit $status
+        fi
+
+        # force the index to look "newer" than its source
+        touch {SORTED}.bai
+    else
+        echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
     fi
-
-    # force the index to look "newer" than its source
-    touch {SORTED}.bai
-else
-    echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
-fi
-{EXIT_IF_ALIGN_ONLY}
-""".format(
-            SAMPLE=sample,
-            THREADS=threads,
-            SORTED=output,
-            PIPELINE=pipeline,
-            TIMEOUT=timeout,
-            STATS=stats,
-            BIN=bin,
-            TEMP=temp,
-            EXIT_IF_ALIGN_ONLY="exit" if alignOnly == True else "",
+    {EXIT_IF_ALIGN_ONLY}
+    """.format(
+                SAMPLE=sample,
+                THREADS=threads,
+                SORTED=output,
+                PIPELINE=pipeline,
+                TIMEOUT=timeout,
+                STATS=stats,
+                BIN=bin,
+                TEMP=temp,
+                EXIT_IF_ALIGN_ONLY="exit" if alignOnly == True else "",
+            )
         )
-    )
+    else:
+        script.write(
+            """
+    #
+    # sort and mark duplicates
+    #
+    if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
+        timeout {TIMEOUT}m bash -c \\
+            'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+            unpigz --stdout {PIPELINE}/{SAMPLE}.aligned.sam.gz |
+            samtools view -Sb - | \\
+            samtools sort - >{SORTED}'
+
+        status=$?
+        if [ $status -ne 0 ]; then
+            echo "Watchdog timer killed sort / dup process errno = $status"
+            rm -f {SORTED}
+            exit $status
+        fi
+
+        # force the index to look "newer" than its source
+        samtools index -b {SORTED} {SORTED}.bai
+    else
+        echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
+    fi
+    {EXIT_IF_ALIGN_ONLY}
+    """.format(
+                SAMPLE=sample,
+                THREADS=threads,
+                SORTED=output,
+                PIPELINE=pipeline,
+                TIMEOUT=timeout,
+                STATS=stats,
+                BIN=bin,
+                TEMP=temp,
+                EXIT_IF_ALIGN_ONLY="exit" if alignOnly == True else "",
+            )
+        )
 
 
-def callVariants(
+def callVariantsUsingGatk(
     script: TextIOWrapper,
     reference: str,
     sample: str,
@@ -130,12 +171,8 @@ def callVariants(
     )
 
 
-def callVariants2(
-    script: TextIOWrapper,
-    reference: str,
-    bam: str,
-    vcf: str,
-    ploidy: str,
+def callVariantsUsingBcftools(
+    script: TextIOWrapper, reference: str, bam: str, vcf: str, gvcf: str, ploidy: str
 ):
     script.write(
         """
@@ -149,7 +186,8 @@ def callVariants2(
 
         bcftools mpileup \\
             --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \\
-            --max-depth 10000 \\
+            --max-depth 1000000 \\
+            --max-idepth 1000000 \\
             --threads 4 \\
             --output-type u \\
             --fasta-ref {REFERENCE}/covid_reference.fasta \\
@@ -159,20 +197,41 @@ def callVariants2(
             --variants-only \\
             --keep-alts \\
             --multiallelic-caller \\
+            --ploidy-file {PLOIDY} \\
             --prior 0.05 \\
             --threads 4 \\
             --output-type v  \\
             --output {VCF} 2>/dev/null
-
-        echo Completed variant calling for {BAM}
     else
         echo "Variants already called for {BAM}, ${{green}}skipping${{reset}}"
     fi
+
+    if [[ ! -f {GVCF} ]]; then
+        echo Starting gvcf generation for {BAM}
+        bcftools mpileup \\
+            --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \\
+            --max-depth 1000000 \\
+            --max-idepth 1000000 \\
+            --threads 4 \\
+            --output-type u \\
+            --fasta-ref {REFERENCE}/covid_reference.fasta \\
+            {BAM} 2>/dev/null | \\
+        bcftools call \\
+            --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \\
+            --keep-alts \\
+            --multiallelic-caller \\
+            --prior 0.05 \\
+            --threads 4 \\
+            --ploidy-file {PLOIDY} \\
+            --output-type v  \\
+            --output {GVCF} 2>/dev/null
+
+        echo Completed gvcf generation for {BAM}
+    else
+        echo "gVCF already generated for {BAM}, ${{green}}skipping${{reset}}"
+    fi
 """.format(
-            REFERENCE=reference,
-            BAM=bam,
-            VCF=vcf,
-            PLOIDY=ploidy,
+            REFERENCE=reference, BAM=bam, VCF=vcf, GVCF=gvcf, PLOIDY=ploidy
         )
     )
 
@@ -227,6 +286,7 @@ def produceConsensusUsingIvar(
             -aa \\
             -A \\
             --max-depth 0 \\
+            --max-idepth 0 \\
             --count-orphans \\
             --min-BQ 0 \\
             --fasta-ref {REFERENCE}/covid_reference.fasta \\
@@ -269,6 +329,7 @@ def producePileup(
             -aa \\
             -A \\
             --max-depth 0 \\
+            --max-idepth 0 \\
             --count-orphans \\
             --min-BQ 0 \\
             --fasta-ref {REFERENCE}/covid_reference.fasta \\
@@ -361,12 +422,13 @@ def assignClade(
 
 
 def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
-    useAlternateCaller = options["alternateCaller"]
+    caller = options["caller"]
     useAlternateConsensus = options["alternateConsensus"]
     sample = options["sample"]
 
     bam = """{PREFIX}.sorted.bam""".format(PREFIX=prefix)
     vcf = """{PREFIX}.vcf""".format(PREFIX=prefix)
+    gvcf = """{PREFIX}.gvcf""".format(PREFIX=prefix)
     annotated = """{PREFIX}.annotated.vcf""".format(PREFIX=prefix)
     pileup = """{PREFIX}.pileup.gz""".format(PREFIX=prefix)
     consensus = """{PREFIX}.consensus.fa""".format(PREFIX=prefix)
@@ -378,10 +440,10 @@ def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
     script.write("#\n")
     script.write("(")
 
-    if useAlternateCaller == False:
-        callVariants(script, options["reference"], sample, bam, vcf)
+    if caller == "gatk":
+        callVariantsUsingGatk(script, options["reference"], sample, bam, vcf)
     else:
-        callVariants2(script, options["reference"], bam, vcf, ploidy)
+        callVariantsUsingBcftools(script, options["reference"], bam, vcf, gvcf, ploidy)
 
     producePileup(script, options["reference"], bam, pileup, ploidy)
     annotate(script, options, vcf, annotated)
@@ -676,4 +738,16 @@ def verifyOptions(options: OptionsDict):
                 PATH=options["stats"]
             )
         )
+        quit(1)
+
+    if options["aligner"] != "hisat" and options["aligner"] != "bwa":
+        print("Only `hisat` and `bwa` are supported as aligners")
+        quit(1)
+
+    if options["sorter"] != "biobambam" and options["sorter"] != "samtools":
+        print("Only `biobambam` and `samtools` are supported as aligners")
+        quit(1)
+
+    if options["caller"] != "bcftools" and options["caller"] != "gatk":
+        print("Only `bcftools` and `gatk` are supported as callers")
         quit(1)

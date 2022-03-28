@@ -138,7 +138,7 @@ fi
     )
 
 
-def alignWithFastpAndMinimap(script: TextIOWrapper, options: OptionsDict):
+def alignWithFastpAndHisat(script: TextIOWrapper, options: OptionsDict):
     reference = options["reference"]
     sample = options["sample"]
     pipeline = options["pipeline"]
@@ -163,10 +163,18 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             --stdout \\
             --thread 8 \\
             -j {STATS}/{SAMPLE}-fastp.json \\
-            -h {STATS}/{SAMPLE}-fastp.html | \\
-        minimap2 -a -t {THREADS} {REFERENCE}/covid_reference.mmi  \\
-            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
-            - | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
+            -h {STATS}/{SAMPLE}-fastp.html |
+        hisat2 \\
+            -U- \\
+            -x {REFERENCE}/covid_reference \\
+            --rg-id "ID:{SAMPLE}" \\
+            --rg "PL:ILLUMINA" \\
+            --rg "PU:unspecified" \\
+            --rg "LB:{SAMPLE}" \\
+            --rg "SM:{SAMPLE}" \\
+            --no-spliced-alignment \\
+            --no-unal \\
+            --threads 8 | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
 
     status=$?
     if [ $status -ne 0 ]; then
@@ -239,7 +247,7 @@ fi
     )
 
 
-def alignWithoutFastpUsingMinimap(script: TextIOWrapper, options: OptionsDict):
+def alignWithoutFastpAndHisat(script: TextIOWrapper, options: OptionsDict):
     reference = options["reference"]
     sample = options["sample"]
     pipeline = options["pipeline"]
@@ -255,9 +263,17 @@ def alignWithoutFastpUsingMinimap(script: TextIOWrapper, options: OptionsDict):
 if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-         minimap2 -a -t {THREADS} {REFERENCE}/covid_reference.mmi  \\
-            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
-            {PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
+        hisat2 \\
+            -x {REFERENCE}/covid_reference \\
+            -U {PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz \\
+            --rg-id "ID:{SAMPLE}" \\
+            --rg "PL:ILLUMINA" \\
+            --rg "PU:unspecified" \\
+            --rg "LB:{SAMPLE}" \\
+            --rg "SM:{SAMPLE}" \\
+            --no-spliced-alignment \\
+            --no-unal \\
+            --threads 8 | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
 
     status=$?
     if [ $status -ne 0 ]; then
@@ -284,7 +300,7 @@ def alignAndSort(
     script: TextIOWrapper, files: FastqSet, options: OptionsDict, output: str
 ):
     skipFastp = options["skipPreprocess"]
-    useAlternateAligner = options["alternateAligner"]
+    aligner = options["aligner"]
 
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
@@ -293,15 +309,15 @@ def alignAndSort(
     combineLaneData(script, files, options)
 
     if skipFastp == False:
-        if useAlternateAligner == False:
+        if aligner == "bwa":
             alignWithFastpAndBWA(script, options)
         else:
-            alignWithFastpAndMinimap(script, options)
+            alignWithFastpAndHisat(script, options)
     else:
-        if useAlternateAligner == False:
+        if aligner == "bwa":
             alignWithoutFastpUsingBWA(script, options)
         else:
-            alignWithoutFastpUsingMinimap(script, options)
+            alignWithoutFastpAndHisat(script, options)
 
     sortAlignedAndMappedData(script, options, output)
 
@@ -376,12 +392,12 @@ def defineArguments() -> Namespace:
     )
 
     parser.add_argument(
-        "-A",
-        "--alternate-caller",
-        action="store_true",
-        dest="alternateCaller",
-        default=False,
-        help="Use alternate caller bcftools",
+        "-V",
+        "--caller",
+        action="store",
+        dest="caller",
+        default="bcftools",
+        help="Use `bcftools` or `gatk` as the variant caller",
     )
 
     parser.add_argument(
@@ -394,12 +410,21 @@ def defineArguments() -> Namespace:
     )
 
     parser.add_argument(
-        "-C",
-        "--alternate-aligner",
-        action="store_true",
-        dest="alternateAligner",
-        default=False,
-        help="Use minimap2 as the alignment tool",
+        "-A",
+        "--aligner",
+        action="store",
+        dest="aligner",
+        default="bwa",
+        help="Use 'bwa' or 'hisat2' as the aligner.",
+    )
+
+    parser.add_argument(
+        "-S",
+        "--sorter",
+        action="store",
+        dest="sorter",
+        default="biobambam",
+        help="Use 'biobambam' or 'samtools' as the sorter.",
     )
 
     parser.add_argument(

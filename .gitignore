@@ -1,5 +1,9 @@
+__pycache__/
+
 bamsormadup*
 *.save
 foo.sh
 try-me
 pipeline-runner
+coverage.tsv
+*_links.tsv

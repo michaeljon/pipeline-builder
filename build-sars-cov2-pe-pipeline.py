@@ -62,8 +62,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
         fastp \\
             --report_title "fastp report for sample {SAMPLE}" \\
-            -i {R1} \\
-            -I {R2} \\
+            --in1 {R1} \\
+            --in2 {R2} \\
             --detect_adapter_for_pe \\
             --merge \\
             --verbose {LIMITREADS} \\
@@ -104,6 +104,73 @@ fi
         )
     )
 
+def alignWithFastpAndHisat(
+    script: TextIOWrapper, 
+    r1: str,
+    r2: str,
+    options: OptionsDict
+):
+    reference = options["reference"]
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    threads = options["cores"]
+    timeout = options["watchdog"]
+    stats = options["stats"]
+    bin = options["bin"]
+    readLimit = int(options["read-limit"])
+
+    script.write(
+        """
+#
+# align the input files
+#
+if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
+    timeout {TIMEOUT}m bash -c \\
+        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+        fastp \\
+            --report_title "fastp report for sample {SAMPLE}" \\
+            --in1 {R1} \\
+            --in2 {R2} \\
+            --merge \\
+            --verbose {LIMITREADS} \\
+            --stdout \\
+            --thread 8 \\
+            -j {STATS}/{SAMPLE}-fastp.json \\
+            -h {STATS}/{SAMPLE}-fastp.html |
+        hisat2 \\
+            -x {REFERENCE}/covid_reference \\
+            --rg-id "ID:{SAMPLE}" \\
+            --rg "PL:ILLUMINA" \\
+            --rg "PU:unspecified" \\
+            --rg "LB:{SAMPLE}" \\
+            --rg "SM:{SAMPLE}" \\
+            -U- \\
+            --no-spliced-alignment \\
+            --no-unal \\
+            --threads {THREADS} | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
+
+    status=$?
+    if [ $status -ne 0 ]; then
+        echo "Watchdog timer killed alignment process errno = $status"
+        rm -f {SAMPLE}.aligned.sam.gz
+        exit $status
+    fi
+else
+    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            R1=r1,
+            R2=r2,
+            REFERENCE=reference,
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            TIMEOUT=timeout,
+            STATS=stats,
+            BIN=bin,
+            LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
+        )
+    )
 
 def alignWithoutFastpUsingBWA(
     script: TextIOWrapper, r1: str, r2: str, options: OptionsDict
@@ -158,11 +225,66 @@ fi
         )
     )
 
+def alignWithoutFastpAndHisat(
+    script: TextIOWrapper, 
+    r1: str,
+    r2: str,
+    options: OptionsDict
+):
+    reference = options["reference"]
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    threads = options["cores"]
+    timeout = options["watchdog"]
+    bin = options["bin"]
+
+    script.write(
+        """
+#
+# align the input files
+#
+if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
+    timeout {TIMEOUT}m bash -c \\
+        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+        hisat2 \\
+            -x {REFERENCE}/covid_reference \\
+            -1 {R1} \\
+            -2 {R2} \\
+            --rg-id "ID:{SAMPLE}" \\
+            --rg "PL:ILLUMINA" \\
+            --rg "PU:unspecified" \\
+            --rg "LB:{SAMPLE}" \\
+            --rg "SM:{SAMPLE}" \\
+            --no-spliced-alignment \\
+            --no-unal \\
+            --threads {THREADS} | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
+
+    status=$?
+    if [ $status -ne 0 ]; then
+        echo "Watchdog timer killed alignment process errno = $status"
+        rm -f {SAMPLE}.aligned.sam.gz
+        exit $status
+    fi
+else
+    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            R1=r1,
+            R2=r2,
+            REFERENCE=reference,
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            TIMEOUT=timeout,
+            BIN=bin,
+        )
+    )
 
 def alignAndSort(
-    script: TextIOWrapper, files: FastqSet, options: OptionsDict, output: str
+    script: TextIOWrapper, options: OptionsDict, output: str
 ):
     skipFastp = options["skipPreprocess"]
+    aligner = options["aligner"]
     filenames = getFileNames(options)
 
     script.write("#\n")
@@ -170,9 +292,15 @@ def alignAndSort(
     script.write("#\n")
 
     if skipFastp == False:
-        alignWithFastpAndBWA(script, filenames[0], filenames[1], options)
+        if aligner == "bwa":
+            alignWithFastpAndBWA(script, filenames[0], filenames[1], options)
+        else:
+            alignWithFastpAndHisat(script, filenames[0], filenames[1], options)
     else:
-        alignWithoutFastpUsingBWA(script, filenames[0], filenames[1], options)
+        if aligner == "bwa":
+            alignWithoutFastpUsingBWA(script, filenames[0], filenames[1], options)
+        else:
+            alignWithoutFastpAndHisat(script, filenames[0], filenames[1], options)
 
     sortAlignedAndMappedData(script, options, output)
 
@@ -245,12 +373,12 @@ def defineArguments() -> Namespace:
     )
 
     parser.add_argument(
-        "-A",
-        "--alternate-caller",
-        action="store_true",
-        dest="alternateCaller",
-        default=False,
-        help="Use alternate caller bcftools",
+        "-V",
+        "--caller",
+        action="store",
+        dest="caller",
+        default="bcftools",
+        help="Use `bcftools` or `gatk` as the variant caller",
     )
 
     parser.add_argument(
@@ -260,6 +388,24 @@ def defineArguments() -> Namespace:
         dest="alternateConsensus",
         default=False,
         help="Use alternate consensus generation process",
+    )
+
+    parser.add_argument(
+        "-A",
+        "--aligner",
+        action="store",
+        dest="aligner",
+        default="bwa",
+        help="Use 'bwa' or 'hisat2' as the aligner.",
+    )
+
+    parser.add_argument(
+        "-S",
+        "--sorter",
+        action="store",
+        dest="sorter",
+        default="biobambam",
+        help="Use 'biobambam' or 'samtools' as the sorter.",
     )
 
     parser.add_argument(
@@ -415,7 +561,6 @@ def main():
 
         alignAndSort(
             script,
-            filenames,
             options,
             sorted,
         )
