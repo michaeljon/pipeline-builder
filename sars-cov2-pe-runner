@@ -29,10 +29,9 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
         --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
         --temp-dir ${HOME}/stats/temp \
         --fastq-dir ${HOME}/pipeline/FASTQ \
-	    --caller bcftools \
-        --skip-fastp \
+        --caller bcftools \
         --aligner hisat \
-        --sorter biobambam
+        --sorter samtools
 
     # run the pipeline
     bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner

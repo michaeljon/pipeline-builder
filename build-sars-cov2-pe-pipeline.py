@@ -65,7 +65,6 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             --in1 {R1} \\
             --in2 {R2} \\
             --detect_adapter_for_pe \\
-            --merge \\
             --verbose {LIMITREADS} \\
             --stdout \\
             --thread 8 \\
@@ -131,7 +130,6 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             --report_title "fastp report for sample {SAMPLE}" \\
             --in1 {R1} \\
             --in2 {R2} \\
-            --merge \\
             --verbose {LIMITREADS} \\
             --stdout \\
             --thread 8 \\
