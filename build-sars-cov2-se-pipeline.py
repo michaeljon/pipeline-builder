@@ -18,7 +18,7 @@ from io import TextIOWrapper
 import argparse
 
 from argparse import Namespace
-from typing import  Tuple
+from typing import Tuple
 from datetime import datetime
 from os.path import exists, expandvars
 from os import cpu_count, system
@@ -31,18 +31,10 @@ def getFileNames(options: OptionsDict) -> FastqSet:
     fastq_dir = options["fastq_dir"]
 
     return (
-        "{FASTQ_DIR}/{SAMPLE}_L001_R1_001.fastq.gz".format(
-            FASTQ_DIR=fastq_dir, SAMPLE=sample
-        ),
-        "{FASTQ_DIR}/{SAMPLE}_L002_R1_001.fastq.gz".format(
-            FASTQ_DIR=fastq_dir, SAMPLE=sample
-        ),
-        "{FASTQ_DIR}/{SAMPLE}_L003_R1_001.fastq.gz".format(
-            FASTQ_DIR=fastq_dir, SAMPLE=sample
-        ),
-        "{FASTQ_DIR}/{SAMPLE}_L004_R1_001.fastq.gz".format(
-            FASTQ_DIR=fastq_dir, SAMPLE=sample
-        ),
+        "{FASTQ_DIR}/{SAMPLE}_L001_R1_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        "{FASTQ_DIR}/{SAMPLE}_L002_R1_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        "{FASTQ_DIR}/{SAMPLE}_L003_R1_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        "{FASTQ_DIR}/{SAMPLE}_L004_R1_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
     )
 
 
@@ -76,8 +68,155 @@ fi
     )
 
 
-def alignWithFastpAndBWA(
+def runIdentityPreprocessor(
     script: TextIOWrapper,
+    r1: str,
+    o1: str,
+    options: OptionsDict,
+):
+    script.write(
+        """
+#
+# run the fastp preprocessor
+#
+if [[ ! -f {O1} ]]; then
+    cp {R1} {O1}
+else
+    echo "Preprocessor already run, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            R1=r1,
+            O1=o1,
+        )
+    )
+
+
+def runFastpPreprocessor(
+    script: TextIOWrapper,
+    r1: str,
+    o1: str,
+    options: OptionsDict,
+):
+    reference = options["reference"]
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    adapters = options["adapters"]
+    threads = options["cores"]
+    timeout = options["watchdog"]
+    stats = options["stats"]
+    bin = options["bin"]
+    readLimit = int(options["read-limit"])
+
+    script.write(
+        """
+#
+# run the fastp preprocessor
+#
+if [[ ! -f {O1} || ! -f {O2} ]]; then
+    timeout {TIMEOUT}m bash -c \\
+        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+        fastp \\
+            --report_title "fastp report for sample {SAMPLE}" \\
+            --in1 {R1} \\
+            --out1 {O1} \\
+            {ADAPTERS} \\
+            --verbose {LIMITREADS} \\
+            --stdout \\
+            --thread 8 \\
+            -j {STATS}/{SAMPLE}-fastp.json \\
+            -h {STATS}/{SAMPLE}-fastp.html'
+
+    status=$?
+    if [ $status -ne 0 ]; then
+        echo "Watchdog timer killed alignment process errno = $status"
+        rm -f {O1}
+        exit $status
+    fi
+else
+    echo "Preprocessor already run, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            R1=r1,
+            O1=o1,
+            REFERENCE=reference,
+            ADAPTERS="--adapter_fasta " + adapters if adapters != "" else "--detect_adapter_for_pe",
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            TIMEOUT=timeout,
+            STATS=stats,
+            BIN=bin,
+            LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
+        )
+    )
+
+
+def runTrimmomaticPreprocessor(
+    script: TextIOWrapper,
+    r1: str,
+    o1: str,
+    options: OptionsDict,
+):
+    timeout = options["watchdog"]
+    bin = options["bin"]
+
+    script.write(
+        """
+#
+# run the trimmomatic preprocessor
+#
+if [[ ! -f {O1} || ! -f {O2} ]]; then
+    timeout {TIMEOUT}m bash -c \\
+        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+            java -jar ~/bin/trimmomatic-0.39.jar SE \\
+                {R1} \\
+                {O1} \\
+                ILLUMINACLIP:{BIN}/adapters/TruSeq3-SE.fa:2:30:10 \\
+                LEADING:5 \\
+                TRAILING:5 \\
+                SLIDINGWINDOW:4:20 \\
+                MINLEN:30'
+
+    status=$?
+    if [ $status -ne 0 ]; then
+        echo "Watchdog timer killed alignment process errno = $status"
+        rm -f {O1}
+        rm -f {O2}
+        exit $status
+    fi
+else
+    echo "Preprocessor already run, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            R1=r1, O1=o1, TIMEOUT=timeout, BIN=bin
+        )
+    )
+
+
+def preprocessFASTQ(
+    script: TextIOWrapper,
+    r1: str,
+    o1: str,
+    options: OptionsDict,
+):
+    preprocessor = options["preprocessor"]
+
+    if preprocessor == "none":
+        runIdentityPreprocessor(script, r1, o1, options)
+    elif preprocessor == "fastp":
+        runFastpPreprocessor(script, r1, o1, options)
+    elif preprocessor == "trimmomatic":
+        runTrimmomaticPreprocessor(script, r1, o1, options)
+    else:
+        print("Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(PREPROCESSOR=preprocessor))
+        quit(1)
+
+    pass
+
+
+def runBwaAligner(
+    script: TextIOWrapper,
+    o1: str,
     options: OptionsDict,
 ):
     reference = options["reference"]
@@ -85,125 +224,6 @@ def alignWithFastpAndBWA(
     pipeline = options["pipeline"]
     threads = options["cores"]
     timeout = options["watchdog"]
-    stats = options["stats"]
-    bin = options["bin"]
-    nonRepeatable = options["non-repeatable"]
-    readLimit = int(options["read-limit"])
-
-    script.write(
-        """
-#
-# align the input files
-#
-if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
-    timeout {TIMEOUT}m bash -c \\
-        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-        fastp \\
-            --report_title "fastp report for sample {SAMPLE}" \\
-            --in1 {PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz \\
-            --verbose {LIMITREADS} \\
-            --stdout \\
-            --thread 8 \\
-            -j {STATS}/{SAMPLE}-fastp.json \\
-            -h {STATS}/{SAMPLE}-fastp.html | \\
-        bwa-mem2 mem -t {THREADS} \\
-            -Y -M {DASHK} \\
-            -v 1 \\
-            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
-            {REFERENCE}/covid_reference.fasta \\
-            - | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
-
-    status=$?
-    if [ $status -ne 0 ]; then
-        echo "Watchdog timer killed alignment process errno = $status"
-        rm -f {SAMPLE}.aligned.sam.gz
-        exit $status
-    fi
-else
-    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
-fi
-""".format(
-            REFERENCE=reference,
-            SAMPLE=sample,
-            THREADS=threads,
-            PIPELINE=pipeline,
-            TIMEOUT=timeout,
-            STATS=stats,
-            BIN=bin,
-            DASHK=""
-            if nonRepeatable == True
-            else "-K " + str((10_000_000 * int(threads))),
-            LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
-        )
-    )
-
-
-def alignWithFastpAndHisat(script: TextIOWrapper, options: OptionsDict):
-    reference = options["reference"]
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    threads = options["cores"]
-    timeout = options["watchdog"]
-    stats = options["stats"]
-    bin = options["bin"]
-    readLimit = int(options["read-limit"])
-
-    script.write(
-        """
-#
-# align the input files
-#
-if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
-    timeout {TIMEOUT}m bash -c \\
-        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-        fastp \\
-            --report_title "fastp report for sample {SAMPLE}" \\
-            --in1 {PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz \\
-            --verbose {LIMITREADS} \\
-            --stdout \\
-            --thread 8 \\
-            -j {STATS}/{SAMPLE}-fastp.json \\
-            -h {STATS}/{SAMPLE}-fastp.html |
-        hisat2 \\
-            -U- \\
-            -x {REFERENCE}/covid_reference \\
-            --rg-id "ID:{SAMPLE}" \\
-            --rg "PL:ILLUMINA" \\
-            --rg "PU:unspecified" \\
-            --rg "LB:{SAMPLE}" \\
-            --rg "SM:{SAMPLE}" \\
-            --no-spliced-alignment \\
-            --no-unal \\
-            --threads 8 | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
-
-    status=$?
-    if [ $status -ne 0 ]; then
-        echo "Watchdog timer killed alignment process errno = $status"
-        rm -f {SAMPLE}.aligned.sam.gz
-        exit $status
-    fi
-else
-    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
-fi
-""".format(
-            REFERENCE=reference,
-            SAMPLE=sample,
-            THREADS=threads,
-            PIPELINE=pipeline,
-            TIMEOUT=timeout,
-            STATS=stats,
-            BIN=bin,
-            LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
-        )
-    )
-
-
-def alignWithoutFastpUsingBWA(script: TextIOWrapper, options: OptionsDict):
-    reference = options["reference"]
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    threads = options["cores"]
-    timeout = options["watchdog"]
     nonRepeatable = options["non-repeatable"]
     bin = options["bin"]
 
@@ -220,7 +240,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             -v 1 \\
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
             {REFERENCE}/covid_reference.fasta \\
-            {PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz \\
+            {O1} \\
             | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
 
     status=$?
@@ -234,20 +254,23 @@ else
 fi
 
 """.format(
+            O1=o1,
             REFERENCE=reference,
             SAMPLE=sample,
             THREADS=threads,
             PIPELINE=pipeline,
             TIMEOUT=timeout,
-            DASHK=""
-            if nonRepeatable == True
-            else "-K " + str((10_000_000 * int(threads))),
+            DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * int(threads))),
             BIN=bin,
         )
     )
 
 
-def alignWithoutFastpAndHisat(script: TextIOWrapper, options: OptionsDict):
+def runHisatAligner(
+    script: TextIOWrapper,
+    o1: str,
+    options: OptionsDict,
+):
     reference = options["reference"]
     sample = options["sample"]
     pipeline = options["pipeline"]
@@ -265,7 +288,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
         hisat2 \\
             -x {REFERENCE}/covid_reference \\
-            -U {PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz \\
+            -U {O1} \\
             --rg-id "ID:{SAMPLE}" \\
             --rg "PL:ILLUMINA" \\
             --rg "PU:unspecified" \\
@@ -284,8 +307,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
 else
     echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
 fi
-
 """.format(
+            O1=o1,
             REFERENCE=reference,
             SAMPLE=sample,
             THREADS=threads,
@@ -296,39 +319,43 @@ fi
     )
 
 
-def alignAndSort(
-    script: TextIOWrapper, files: FastqSet, options: OptionsDict, output: str
+def alignFASTQ(
+    script: TextIOWrapper,
+    o1: str,
+    options: OptionsDict,
 ):
-    skipFastp = options["skipPreprocess"]
     aligner = options["aligner"]
 
+    if aligner == "bwa":
+        runBwaAligner(script, o1, options)
+    elif aligner == "hisat2":
+        runHisatAligner(script, o1, options)
+    else:
+        print("Unexpected value {ALIGNER} given for the --aligner option".format(ALIGNER=aligner))
+        quit(1)
+
+    pass
+
+
+def alignAndSort(script: TextIOWrapper, files: FastqSet, options: OptionsDict, output: str):
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
     script.write("#\n")
 
     combineLaneData(script, files, options)
 
-    if skipFastp == False:
-        if aligner == "bwa":
-            alignWithFastpAndBWA(script, options)
-        else:
-            alignWithFastpAndHisat(script, options)
-    else:
-        if aligner == "bwa":
-            alignWithoutFastpUsingBWA(script, options)
-        else:
-            alignWithoutFastpAndHisat(script, options)
+    r1 = "{PIPELINE}/{SAMPLE}.combined_lanes.fastq.gz"
+    o1 = "{PIPELINE}/{SAMPLE}.combined_lanes.trimmed.fastq.gz"
+
+    preprocessFASTQ(script, r1, o1, options)
+    alignFASTQ(script, o1, options)
 
     sortAlignedAndMappedData(script, options, output)
 
 
 def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastqSet):
     script.write("#\n")
-    script.write(
-        "# generated at {TIME}\n".format(
-            TIME=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        )
-    )
+    script.write("# generated at {TIME}\n".format(TIME=datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     script.write("#\n")
     script.write("# Parameters\n")
     for opt in options.keys():
@@ -375,11 +402,12 @@ def defineArguments() -> Namespace:
     )
     parser.add_argument(
         "-P",
-        "--skip-fastp",
-        action="store_true",
-        dest="skipPreprocess",
-        default=False,
-        help="Skip running fastp on input file(s)",
+        "--preprocessor",
+        action="store",
+        dest="preprocessor",
+        default="none",
+        choices=["trimmomatic", "fastp", "none"],
+        help="Optionally run a FASTQ preprocessor",
     )
 
     parser.add_argument(
@@ -397,6 +425,7 @@ def defineArguments() -> Namespace:
         action="store",
         dest="caller",
         default="bcftools",
+        choices=["bcftools", "gatk"],
         help="Use `bcftools` or `gatk` as the variant caller",
     )
 
@@ -415,6 +444,7 @@ def defineArguments() -> Namespace:
         action="store",
         dest="aligner",
         default="bwa",
+        choices=["bwa", "hisat2"],
         help="Use 'bwa' or 'hisat2' as the aligner.",
     )
 
@@ -424,6 +454,7 @@ def defineArguments() -> Namespace:
         action="store",
         dest="sorter",
         default="biobambam",
+        choices=["biobambam", "samtools"],
         help="Use 'biobambam' or 'samtools' as the sorter.",
     )
 
@@ -555,15 +586,9 @@ def main():
     verifyOptions(options)
 
     filenames = getFileNames(options)
-    sorted = "{PIPELINE}/{SAMPLE}.sorted.bam".format(
-        PIPELINE=options["pipeline"], SAMPLE=options["sample"]
-    )
-    prefix = "{PIPELINE}/{SAMPLE}".format(
-        PIPELINE=options["pipeline"], SAMPLE=options["sample"]
-    )
-    aligned = "{PIPELINE}/{SAMPLE}.aligned.sam.gz".format(
-        PIPELINE=options["pipeline"], SAMPLE=options["sample"]
-    )
+    sorted = "{PIPELINE}/{SAMPLE}.sorted.bam".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
+    prefix = "{PIPELINE}/{SAMPLE}".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
+    aligned = "{PIPELINE}/{SAMPLE}.aligned.sam.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
 
     with open(options["script"], "w+") as script:
         script.truncate(0)
@@ -574,9 +599,7 @@ def main():
         writeEnvironment(script, options)
 
         script.write("\n")
-        script.write(
-            "touch {PIPELINE}/00-started\n".format(PIPELINE=options["pipeline"])
-        )
+        script.write("touch {PIPELINE}/00-started\n".format(PIPELINE=options["pipeline"]))
         script.write("\n")
 
         updateDictionary(script, options)
@@ -618,9 +641,7 @@ wait
         )
 
         script.write("\n")
-        script.write(
-            "touch {PIPELINE}/01-completed\n".format(PIPELINE=options["pipeline"])
-        )
+        script.write("touch {PIPELINE}/01-completed\n".format(PIPELINE=options["pipeline"]))
         script.write("\n")
 
     system("chmod +x " + options["script"])

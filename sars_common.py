@@ -171,9 +171,7 @@ def callVariantsUsingGatk(
     )
 
 
-def callVariantsUsingBcftools(
-    script: TextIOWrapper, reference: str, bam: str, vcf: str, gvcf: str, ploidy: str
-):
+def callVariantsUsingBcftools(script: TextIOWrapper, reference: str, bam: str, vcf: str, gvcf: str, ploidy: str):
     script.write(
         """
     # call variants
@@ -390,9 +388,7 @@ def annotate(script: TextIOWrapper, options: OptionsDict, vcf: str, annotated: s
     )
 
 
-def assignClade(
-    script: TextIOWrapper, options: OptionsDict, reference: str, consensus: str
-):
+def assignClade(script: TextIOWrapper, options: OptionsDict, reference: str, consensus: str):
     sample = options["sample"]
     pipeline = options["pipeline"]
 
@@ -449,9 +445,7 @@ def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
     annotate(script, options, vcf, annotated)
 
     if useAlternateConsensus == False:
-        produceConsensusUsingBcftools(
-            script, options["reference"], sample, consensus, vcf
-        )
+        produceConsensusUsingBcftools(script, options["reference"], sample, consensus, vcf)
     else:
         produceConsensusUsingIvar(script, options["reference"], sample, consensus, bam)
 
@@ -499,9 +493,7 @@ vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --het --out {STATS}/{SAMPLE} 2>/dev/null 
     )
 
 
-def runAlignmentQC(
-    script: TextIOWrapper, options: OptionsDict, sorted: str, aligned: str
-):
+def runAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str, aligned: str):
     reference = options["reference"]
     pipeline = options["pipeline"]
     sample = options["sample"]
@@ -677,15 +669,7 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
         print("--sample is a required option")
         quit(1)
 
-    for opt in [
-        "working",
-        "reference",
-        "pipeline",
-        "stats",
-        "temp",
-        "bin",
-        "script",
-    ]:
+    for opt in ["working", "reference", "pipeline", "stats", "temp", "bin", "script", "adapters"]:
         options[opt] = expandvars(options[opt])
 
     return options
@@ -693,61 +677,26 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
 
 def verifyOptions(options: OptionsDict):
     if exists(options["bin"]) == False:
-        print(
-            "Unable to find your --bin-dir directory at {PATH}".format(
-                PATH=options["bin"]
-            )
-        )
+        print("Unable to find your --bin-dir directory at {PATH}".format(PATH=options["bin"]))
         quit(1)
 
     if exists(options["working"]) == False:
-        print(
-            "Unable to find your --work-dir directory at {PATH}".format(
-                PATH=options["working"]
-            )
-        )
+        print("Unable to find your --work-dir directory at {PATH}".format(PATH=options["working"]))
         quit(1)
 
     if exists(options["temp"]) == False:
-        print(
-            "Unable to find your --temp-dir directory at {PATH}".format(
-                PATH=options["temp"]
-            )
-        )
+        print("Unable to find your --temp-dir directory at {PATH}".format(PATH=options["temp"]))
         quit(1)
 
     if exists(options["reference"]) == False:
-        print(
-            "Unable to find your --reference-dir directory at {PATH}".format(
-                PATH=options["reference"]
-            )
-        )
+        print("Unable to find your --reference-dir directory at {PATH}".format(PATH=options["reference"]))
         quit(1)
 
     if exists(options["pipeline"]) == False:
-        print(
-            "Unable to find your --pipeline-dir directory at {PATH}".format(
-                PATH=options["pipeline"]
-            )
-        )
+        print("Unable to find your --pipeline-dir directory at {PATH}".format(PATH=options["pipeline"]))
         quit(1)
 
     if exists(options["stats"]) == False:
-        print(
-            "Unable to find your --stats-dir directory at {PATH}".format(
-                PATH=options["stats"]
-            )
-        )
+        print("Unable to find your --stats-dir directory at {PATH}".format(PATH=options["stats"]))
         quit(1)
 
-    if options["aligner"] != "hisat" and options["aligner"] != "bwa":
-        print("Only `hisat` and `bwa` are supported as aligners")
-        quit(1)
-
-    if options["sorter"] != "biobambam" and options["sorter"] != "samtools":
-        print("Only `biobambam` and `samtools` are supported as aligners")
-        quit(1)
-
-    if options["caller"] != "bcftools" and options["caller"] != "gatk":
-        print("Only `bcftools` and `gatk` are supported as callers")
-        quit(1)

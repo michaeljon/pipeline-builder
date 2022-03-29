@@ -29,8 +29,10 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
         --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
         --temp-dir ${HOME}/stats/temp \
         --fastq-dir ${HOME}/pipeline/FASTQ \
+        --adapter-fasta ${HOME}/reference/zymo-adapters.fasta \
         --caller bcftools \
-        --aligner hisat \
+        --aligner hisat2 \
+        --preprocessor trimmomatic \
         --sorter samtools
 
     # run the pipeline
