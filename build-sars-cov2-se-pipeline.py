@@ -102,7 +102,6 @@ def runFastpPreprocessor(
     pipeline = options["pipeline"]
     adapters = options["adapters"]
     threads = options["cores"]
-    timeout = options["watchdog"]
     stats = options["stats"]
     bin = options["bin"]
     readLimit = int(options["read-limit"])
@@ -113,25 +112,17 @@ def runFastpPreprocessor(
 # run the fastp preprocessor
 #
 if [[ ! -f {O1} || ! -f {O2} ]]; then
-    timeout {TIMEOUT}m bash -c \\
-        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-        fastp \\
-            --report_title "fastp report for sample {SAMPLE}" \\
-            --in1 {R1} \\
-            --out1 {O1} \\
-            {ADAPTERS} \\
-            --verbose {LIMITREADS} \\
-            --stdout \\
-            --thread 8 \\
-            -j {STATS}/{SAMPLE}-fastp.json \\
-            -h {STATS}/{SAMPLE}-fastp.html'
-
-    status=$?
-    if [ $status -ne 0 ]; then
-        echo "Watchdog timer killed alignment process errno = $status"
-        rm -f {O1}
-        exit $status
-    fi
+    LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+    fastp \\
+        --report_title "fastp report for sample {SAMPLE}" \\
+        --in1 {R1} \\
+        --out1 {O1} \\
+        {ADAPTERS} \\
+        --verbose {LIMITREADS} \\
+        --stdout \\
+        --thread 8 \\
+        -j {STATS}/{SAMPLE}-fastp.json \\
+        -h {STATS}/{SAMPLE}-fastp.html
 else
     echo "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
@@ -143,7 +134,6 @@ fi
             SAMPLE=sample,
             THREADS=threads,
             PIPELINE=pipeline,
-            TIMEOUT=timeout,
             STATS=stats,
             BIN=bin,
             LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
@@ -157,7 +147,6 @@ def runTrimmomaticPreprocessor(
     o1: str,
     options: OptionsDict,
 ):
-    timeout = options["watchdog"]
     bin = options["bin"]
 
     script.write(
@@ -166,29 +155,20 @@ def runTrimmomaticPreprocessor(
 # run the trimmomatic preprocessor
 #
 if [[ ! -f {O1} || ! -f {O2} ]]; then
-    timeout {TIMEOUT}m bash -c \\
-        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-            java -jar ~/bin/trimmomatic-0.39.jar SE \\
-                {R1} \\
-                {O1} \\
-                ILLUMINACLIP:{BIN}/adapters/TruSeq3-SE.fa:2:30:10 \\
-                LEADING:5 \\
-                TRAILING:5 \\
-                SLIDINGWINDOW:4:20 \\
-                MINLEN:30'
-
-    status=$?
-    if [ $status -ne 0 ]; then
-        echo "Watchdog timer killed alignment process errno = $status"
-        rm -f {O1}
-        rm -f {O2}
-        exit $status
-    fi
+    LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+    java -jar ~/bin/trimmomatic-0.39.jar SE \\
+        {R1} \\
+        {O1} \\
+        ILLUMINACLIP:{BIN}/adapters/TruSeq3-SE.fa:2:30:10 \\
+        LEADING:5 \\
+        TRAILING:5 \\
+        SLIDINGWINDOW:4:20 \\
+        MINLEN:30
 else
     echo "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
 """.format(
-            R1=r1, O1=o1, TIMEOUT=timeout, BIN=bin
+            R1=r1, O1=o1, BIN=bin
         )
     )
 
@@ -232,25 +212,17 @@ def runBwaAligner(
 #
 # align the input files
 #
-if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
-    timeout {TIMEOUT}m bash -c \\
-        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-        bwa-mem2 mem -t {THREADS} \\
-            -Y -M {DASHK} \\
-            -v 1 \\
-            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
-            {REFERENCE}/covid_reference.fasta \\
-            {O1} \\
-            | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
-
-    status=$?
-    if [ $status -ne 0 ]; then
-        echo "Watchdog timer killed alignment process errno = $status"
-        rm -f {SAMPLE}.aligned.sam.gz
-        exit $status
-    fi
+if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
+    LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+    bwa-mem2 mem -t {THREADS} \\
+        -Y -M {DASHK} \\
+        -v 1 \\
+        -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+        {REFERENCE}/covid_reference.fasta \\
+        {O1} |
+    samtools view -Sb - >{PIPELINE}/{SAMPLE}.aligned.bam
 else
-    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
+    echo "{PIPELINE}/{SAMPLE}.aligned.bam, aligned temp file found, ${{green}}skipping${{reset}}"
 fi
 
 """.format(
@@ -283,9 +255,8 @@ def runHisatAligner(
 #
 # align the input files
 #
-if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
-    timeout {TIMEOUT}m bash -c \\
-        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
+        LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
         hisat2 \\
             -x {REFERENCE}/covid_reference \\
             -U {O1} \\
@@ -296,16 +267,10 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             --rg "SM:{SAMPLE}" \\
             --no-spliced-alignment \\
             --no-unal \\
-            --threads 8 | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
-
-    status=$?
-    if [ $status -ne 0 ]; then
-        echo "Watchdog timer killed alignment process errno = $status"
-        rm -f {SAMPLE}.aligned.sam.gz
-        exit $status
-    fi
+            --threads 8 |
+        samtools view -Sb - >{PIPELINE}/{SAMPLE}.aligned.bam
 else
-    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
+    echo "{PIPELINE}/{SAMPLE}.aligned.bam, aligned temp file found, ${{green}}skipping${{reset}}"
 fi
 """.format(
             O1=o1,
@@ -588,7 +553,7 @@ def main():
     filenames = getFileNames(options)
     sorted = "{PIPELINE}/{SAMPLE}.sorted.bam".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
     prefix = "{PIPELINE}/{SAMPLE}".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
-    aligned = "{PIPELINE}/{SAMPLE}.aligned.sam.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
+    aligned = "{PIPELINE}/{SAMPLE}.aligned.bam".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
 
     with open(options["script"], "w+") as script:
         script.truncate(0)

@@ -46,7 +46,6 @@ def sortWithBiobambam(script: TextIOWrapper, options: OptionsDict, output: str):
     sample = options["sample"]
     pipeline = options["pipeline"]
     threads = options["cores"]
-    timeout = options["watchdog"]
     stats = options["stats"]
     bin = options["bin"]
     temp = options["temp"]
@@ -59,25 +58,14 @@ def sortWithBiobambam(script: TextIOWrapper, options: OptionsDict, output: str):
 # sort and mark duplicates
 #
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
-    timeout {TIMEOUT}m bash -c \\
-        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-        unpigz --stdout {PIPELINE}/{SAMPLE}.aligned.sam.gz |
-        bamsormadup \\
-            SO=coordinate \\
-            threads={THREADS} \\
-            level=6 \\
-            tmpfile={TEMP}/{SAMPLE} \\
-            inputformat=sam \\
-            indexfilename={SORTED}.bai \\
-            M={STATS}/{SAMPLE}.duplication_metrics >{SORTED}'
-
-    status=$?
-    if [ $status -ne 0 ]; then
-        echo "Watchdog timer killed sort / dup process errno = $status"
-        rm -f {SORTED}
-        rm -f {SORTED}.bai
-        exit $status
-    fi
+    bamsormadup \\
+        SO=coordinate \\
+        threads={THREADS} \\
+        level=6 \\
+        tmpfile={TEMP}/{SAMPLE} \\
+        inputformat=bam \\
+        indexfilename={SORTED}.bai \\
+        M={STATS}/{SAMPLE}.duplication_metrics <{PIPELINE}/{SAMPLE}.aligned.bam >{SORTED}
 
     # force the index to look "newer" than its source
     touch {SORTED}.bai
@@ -90,7 +78,6 @@ fi
             THREADS=threads,
             SORTED=output,
             PIPELINE=pipeline,
-            TIMEOUT=timeout,
             STATS=stats,
             BIN=bin,
             TEMP=temp,
@@ -106,7 +93,6 @@ def sortWithSamtools(script: TextIOWrapper, options: OptionsDict, output: str):
     pipeline = options["pipeline"]
     reference = options["reference"]
     threads = options["cores"]
-    timeout = options["watchdog"]
     stats = options["stats"]
     bin = options["bin"]
     temp = options["temp"]
@@ -121,18 +107,7 @@ def sortWithSamtools(script: TextIOWrapper, options: OptionsDict, output: str):
 # sort and mark duplicates
 #
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
-    timeout {TIMEOUT}m bash -c \\
-        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-            unpigz --stdout {PIPELINE}/{SAMPLE}.aligned.sam.gz |
-            samtools view -Sb - |
-            samtools sort - >{UNMARKED}'
-
-    status=$?
-    if [ $status -ne 0 ]; then
-        echo "Watchdog timer killed sort / dup process errno = $status"
-        rm -f {SORTED}
-        exit $status
-    fi
+    samtools sort {PIPELINE}/{SAMPLE}.aligned.bam >{UNMARKED}
 
     java -Xmx8g -jar {BIN}/picard.jar MarkDuplicates \\
         --TAGGING_POLICY All \\
@@ -153,7 +128,6 @@ fi
             UNMARKED=unmarked,
             SORTED=output,
             PIPELINE=pipeline,
-            TIMEOUT=timeout,
             STATS=stats,
             BIN=bin,
             TEMP=temp,
