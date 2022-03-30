@@ -113,7 +113,7 @@ def sortWithSamtools(script: TextIOWrapper, options: OptionsDict, output: str):
 
     alignOnly = options["alignOnly"]
 
-    unmarked = "{PIPELINE}/{SAMPLE}.unsorted.bam".format(PIPELINE=pipeline, SAMPLE=sample)
+    unmarked = "{PIPELINE}/{SAMPLE}.unmarked.bam".format(PIPELINE=pipeline, SAMPLE=sample)
 
     script.write(
         """
@@ -125,7 +125,7 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
             unpigz --stdout {PIPELINE}/{SAMPLE}.aligned.sam.gz |
             samtools view -Sb - |
-            samtools sort - >{SORTED}'
+            samtools sort - >{UNMARKED}'
 
     status=$?
     if [ $status -ne 0 ]; then
@@ -134,11 +134,11 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
         exit $status
     fi
 
-    # java -jar {BIN}/picard.jar MarkDuplicates \\
-    #     --TAGGING_POLICY All \\
-    #     -I {UNMARKED} \\
-    #     -O {SORTED} \\
-    #     -M {STATS}/{SAMPLE}_marked_dup_metrics.txt    
+    java -Xmx8g -jar {BIN}/picard.jar MarkDuplicates \\
+        --TAGGING_POLICY All \\
+        -I {UNMARKED} \\
+        -O {SORTED} \\
+        -M {STATS}/{SAMPLE}_marked_dup_metrics.txt    
 
     # generate an index on the result
     samtools index -b {SORTED} {SORTED}.bai
@@ -518,7 +518,7 @@ else
 fi
 
 if [[ ! -f {PIPELINE}/{SAMPLE}.diff ]]; then
-    echo Generating consensus difference for{SAMPLE}
+    echo Generating consensus difference for {SAMPLE}
 
     tail -n +2 {PIPELINE}/{SAMPLE}.consensus.fa | 
         grep -v '^>' | 
