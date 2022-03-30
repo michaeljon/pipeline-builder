@@ -424,8 +424,8 @@ def defineArguments() -> Namespace:
         action="store",
         dest="caller",
         default="bcftools",
-        choices=["bcftools", "gatk"],
-        help="Use `bcftools` or `gatk` as the variant caller",
+        choices=["bcftools", "gatk", "lofreq"],
+        help="Use `bcftools`, `gatk`, or `lofreq` as the variant caller",
     )
 
     parser.add_argument(
@@ -596,6 +596,11 @@ def main():
         script.truncate(0)
 
         script.write("#!/usr/bin/env bash\n")
+        script.write("\n")
+        script.write("set -e\n")
+        script.write("set -o pipefail\n")
+        script.write("\n")
+
         writeHeader(script, options, filenames)
         writeVersions(script)
         writeEnvironment(script, options)

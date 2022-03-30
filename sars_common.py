@@ -42,7 +42,7 @@ fi
     )
 
 
-def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output: str):
+def sortWithBiobambam(script: TextIOWrapper, options: OptionsDict, output: str):
     sample = options["sample"]
     pipeline = options["pipeline"]
     threads = options["cores"]
@@ -51,95 +51,124 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output
     bin = options["bin"]
     temp = options["temp"]
 
-    sorter = options["sorter"]
     alignOnly = options["alignOnly"]
 
-    # this is one of the more time-consuming operations, so, if we've already
-    # done the alignment operation for this sample, we'll skip this
+    script.write(
+        """
+#
+# sort and mark duplicates
+#
+if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
+    timeout {TIMEOUT}m bash -c \\
+        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+        unpigz --stdout {PIPELINE}/{SAMPLE}.aligned.sam.gz |
+        bamsormadup \\
+            SO=coordinate \\
+            threads={THREADS} \\
+            level=6 \\
+            tmpfile={TEMP}/{SAMPLE} \\
+            inputformat=sam \\
+            indexfilename={SORTED}.bai \\
+            M={STATS}/{SAMPLE}.duplication_metrics >{SORTED}'
 
-    if sorter == "biobambam":
-        script.write(
-            """
-    #
-    # sort and mark duplicates
-    #
-    if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
-        timeout {TIMEOUT}m bash -c \\
-            'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-            unpigz --stdout {PIPELINE}/{SAMPLE}.aligned.sam.gz |
-            bamsormadup \\
-                SO=coordinate \\
-                threads={THREADS} \\
-                level=6 \\
-                tmpfile={TEMP}/{SAMPLE} \\
-                inputformat=sam \\
-                indexfilename={SORTED}.bai \\
-                M={STATS}/{SAMPLE}.duplication_metrics >{SORTED}'
-
-        status=$?
-        if [ $status -ne 0 ]; then
-            echo "Watchdog timer killed sort / dup process errno = $status"
-            rm -f {SORTED}
-            rm -f {SORTED}.bai
-            exit $status
-        fi
-
-        # force the index to look "newer" than its source
-        touch {SORTED}.bai
-    else
-        echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
+    status=$?
+    if [ $status -ne 0 ]; then
+        echo "Watchdog timer killed sort / dup process errno = $status"
+        rm -f {SORTED}
+        rm -f {SORTED}.bai
+        exit $status
     fi
+
+    # force the index to look "newer" than its source
+    touch {SORTED}.bai
+else
+    echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
+fi
     {EXIT_IF_ALIGN_ONLY}
     """.format(
-                SAMPLE=sample,
-                THREADS=threads,
-                SORTED=output,
-                PIPELINE=pipeline,
-                TIMEOUT=timeout,
-                STATS=stats,
-                BIN=bin,
-                TEMP=temp,
-                EXIT_IF_ALIGN_ONLY="exit" if alignOnly == True else "",
-            )
+            SAMPLE=sample,
+            THREADS=threads,
+            SORTED=output,
+            PIPELINE=pipeline,
+            TIMEOUT=timeout,
+            STATS=stats,
+            BIN=bin,
+            TEMP=temp,
+            EXIT_IF_ALIGN_ONLY="exit" if alignOnly == True else "",
         )
-    else:
-        script.write(
-            """
-    #
-    # sort and mark duplicates
-    #
-    if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
-        timeout {TIMEOUT}m bash -c \\
-            'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+    )
+
+    pass
+
+
+def sortWithSamtools(script: TextIOWrapper, options: OptionsDict, output: str):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    reference = options["reference"]
+    threads = options["cores"]
+    timeout = options["watchdog"]
+    stats = options["stats"]
+    bin = options["bin"]
+    temp = options["temp"]
+
+    alignOnly = options["alignOnly"]
+
+    unmarked = "{PIPELINE}/{SAMPLE}.unsorted.bam".format(PIPELINE=pipeline, SAMPLE=sample)
+
+    script.write(
+        """
+#
+# sort and mark duplicates
+#
+if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
+    timeout {TIMEOUT}m bash -c \\
+        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
             unpigz --stdout {PIPELINE}/{SAMPLE}.aligned.sam.gz |
-            samtools view -Sb - | \\
+            samtools view -Sb - |
             samtools sort - >{SORTED}'
 
-        status=$?
-        if [ $status -ne 0 ]; then
-            echo "Watchdog timer killed sort / dup process errno = $status"
-            rm -f {SORTED}
-            exit $status
-        fi
-
-        # force the index to look "newer" than its source
-        samtools index -b {SORTED} {SORTED}.bai
-    else
-        echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
+    status=$?
+    if [ $status -ne 0 ]; then
+        echo "Watchdog timer killed sort / dup process errno = $status"
+        rm -f {SORTED}
+        exit $status
     fi
+
+    # java -jar {BIN}/picard.jar MarkDuplicates \\
+    #     --TAGGING_POLICY All \\
+    #     -I {UNMARKED} \\
+    #     -O {SORTED} \\
+    #     -M {STATS}/{SAMPLE}_marked_dup_metrics.txt    
+
+    # generate an index on the result
+    samtools index -b {SORTED} {SORTED}.bai
+else
+    echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
+fi
     {EXIT_IF_ALIGN_ONLY}
     """.format(
-                SAMPLE=sample,
-                THREADS=threads,
-                SORTED=output,
-                PIPELINE=pipeline,
-                TIMEOUT=timeout,
-                STATS=stats,
-                BIN=bin,
-                TEMP=temp,
-                EXIT_IF_ALIGN_ONLY="exit" if alignOnly == True else "",
-            )
+            REFERENCE=reference,
+            SAMPLE=sample,
+            THREADS=threads,
+            UNMARKED=unmarked,
+            SORTED=output,
+            PIPELINE=pipeline,
+            TIMEOUT=timeout,
+            STATS=stats,
+            BIN=bin,
+            TEMP=temp,
+            EXIT_IF_ALIGN_ONLY="exit" if alignOnly == True else "",
         )
+    )
+
+
+def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output: str):
+    sorter = options["sorter"]
+
+    if sorter == "biobambam":
+        sortWithBiobambam(script, options, output)
+    else:
+        sortWithSamtools(script, options, output)
 
 
 def callVariantsUsingGatk(
@@ -151,20 +180,57 @@ def callVariantsUsingGatk(
 ):
     script.write(
         """
-    # call variants
-    if [[ ! -f {VCF} ]]; then
-        gatk HaplotypeCaller --java-options '-Xmx8g' \\
-            -R {REFERENCE}/covid_reference.fasta \\
-            -I {BAM} \\
-            -O {VCF} \\
-            --verbosity ERROR \\
-            --pairHMM FASTEST_AVAILABLE \\
-            --native-pair-hmm-threads 4
+# call variants
+if [[ ! -f {VCF} ]]; then
+    gatk HaplotypeCaller --java-options '-Xmx8g' \\
+        -R {REFERENCE}/covid_reference.fasta \\
+        -I {BAM} \\
+        -O {VCF} \\
+        --verbosity ERROR \\
+        --pairHMM FASTEST_AVAILABLE \\
+        --native-pair-hmm-threads 4
 
-        echo Completed variant calling for {BAM}
-    else
-        echo "Variants already called for {BAM}, ${{green}}skipping${{reset}}"
-    fi
+    echo Completed variant calling for {BAM}
+else
+    echo "Variants already called for {BAM}, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            REFERENCE=reference, BAM=bam, VCF=vcf, SAMPLE=sample
+        )
+    )
+
+
+def callVariantsUsingLofreq(
+    script: TextIOWrapper,
+    reference: str,
+    sample: str,
+    bam: str,
+    vcf: str,
+):
+    script.write(
+        """
+# call variants
+if [[ ! -f {VCF} ]]; then
+    lofreq indelqual \\
+        --dindel \\
+        --ref {REFERENCE}/covid_reference.fasta \\
+        --verbose \\
+        --out - \\
+        {BAM} |
+    lofreq call \\
+        --ref {REFERENCE}/covid_reference.fasta \\
+        --call-indels \\
+        --no-default-filter \\
+        --max-depth 1000000 \\
+        --force-overwrite \\
+        --verbose \\
+        --out {VCF} \\
+        -
+
+    echo Completed variant calling for {BAM}
+else
+    echo "Variants already called for {BAM}, ${{green}}skipping${{reset}}"
+fi
 """.format(
             REFERENCE=reference, BAM=bam, VCF=vcf, SAMPLE=sample
         )
@@ -174,60 +240,43 @@ def callVariantsUsingGatk(
 def callVariantsUsingBcftools(script: TextIOWrapper, reference: str, bam: str, vcf: str, gvcf: str, ploidy: str):
     script.write(
         """
-    # call variants
-    if [[ ! -f {VCF} ]]; then
-        echo Starting variant calling for {BAM}
+# call variants
+if [[ ! -f {VCF} ]]; then
+    echo Starting variant calling for {BAM}
 
-        if [[ ! -f {PLOIDY} ]]; then
-            echo '* * * * 1' >{PLOIDY}
-        fi
-
-        bcftools mpileup \\
-            --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \\
-            --max-depth 1000000 \\
-            --max-idepth 1000000 \\
-            --threads 4 \\
-            --output-type u \\
-            --fasta-ref {REFERENCE}/covid_reference.fasta \\
-            {BAM} 2>/dev/null | \\
-        bcftools call \\
-            --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \\
-            --variants-only \\
-            --keep-alts \\
-            --multiallelic-caller \\
-            --ploidy-file {PLOIDY} \\
-            --prior 0.05 \\
-            --threads 4 \\
-            --output-type v  \\
-            --output {VCF} 2>/dev/null
-    else
-        echo "Variants already called for {BAM}, ${{green}}skipping${{reset}}"
+    if [[ ! -f {PLOIDY} ]]; then
+        echo '* * * * 1' >{PLOIDY}
     fi
 
-    if [[ ! -f {GVCF} ]]; then
-        echo Starting gvcf generation for {BAM}
-        bcftools mpileup \\
-            --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \\
-            --max-depth 1000000 \\
-            --max-idepth 1000000 \\
-            --threads 4 \\
-            --output-type u \\
-            --fasta-ref {REFERENCE}/covid_reference.fasta \\
-            {BAM} 2>/dev/null | \\
-        bcftools call \\
-            --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \\
-            --keep-alts \\
-            --multiallelic-caller \\
-            --prior 0.05 \\
-            --threads 4 \\
-            --ploidy-file {PLOIDY} \\
-            --output-type v  \\
-            --output {GVCF} 2>/dev/null
+    bcftools mpileup \\
+        --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \\
+        --max-depth 1000000 \\
+        --max-idepth 1000000 \\
+        --threads 4 \\
+        --output-type u \\
+        --fasta-ref {REFERENCE}/covid_reference.fasta \\
+        {BAM} 2>/dev/null | \\
+    bcftools call \\
+        --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \\
+        --variants-only \\
+        --keep-alts \\
+        --multiallelic-caller \\
+        --ploidy-file {PLOIDY} \\
+        --prior 0.05 \\
+        --threads 4 \\
+        --output-type v  \\
+        --output {VCF}.tmp 2>/dev/null
 
-        echo Completed gvcf generation for {BAM}
-    else
-        echo "gVCF already generated for {BAM}, ${{green}}skipping${{reset}}"
-    fi
+    bcftools +fill-tags \\
+        {VCF}.tmp \\
+        --output-type v  \\
+        --output {VCF} \\
+        -- --tags AC,AN,AF,VAF,MAF 2>/dev/null
+
+    rm -f {VCF}.tmp
+else
+    echo "Variants already called for {BAM}, ${{green}}skipping${{reset}}"
+fi
 """.format(
             REFERENCE=reference, BAM=bam, VCF=vcf, GVCF=gvcf, PLOIDY=ploidy
         )
@@ -243,21 +292,21 @@ def produceConsensusUsingBcftools(
 ):
     script.write(
         """
-    # call variants
-    if [[ ! -f {CONSENSUS} ]]; then
-        echo Creating consensus for {VCF}
+# call variants
+if [[ ! -f {CONSENSUS} ]]; then
+    echo Creating consensus for {VCF}
 
-        bcftools view --output-type z <{VCF} >{VCF}.gz
-        bcftools index {VCF}.gz
-        bcftools consensus \\
-            --fasta-ref {REFERENCE}/covid_reference.fasta \\
-            {VCF}.gz \\
-        | sed '/>/ s/$/ | {SAMPLE}/' >{CONSENSUS}
+    bcftools view --output-type z <{VCF} >{VCF}.gz
+    bcftools index {VCF}.gz
+    bcftools consensus \\
+        --fasta-ref {REFERENCE}/covid_reference.fasta \\
+        {VCF}.gz \\
+    | sed '/>/ s/$/ | {SAMPLE}/' >{CONSENSUS}
 
-        echo Completed consensus generation for {VCF}
-    else
-        echo "Consensus generation already complete for {VCF}, ${{green}}skipping${{reset}}"
-    fi
+    echo Completed consensus generation for {VCF}
+else
+    echo "Consensus generation already complete for {VCF}, ${{green}}skipping${{reset}}"
+fi
 """.format(
             REFERENCE=reference,
             VCF=vcf,
@@ -276,27 +325,27 @@ def produceConsensusUsingIvar(
 ):
     script.write(
         """
-    # call variants
-    if [[ ! -f {CONSENSUS} ]]; then
-        echo Creating consensus for {BAM}
+# call variants
+if [[ ! -f {CONSENSUS} ]]; then
+    echo Creating consensus for {BAM}
 
-        samtools mpileup \\
-            -aa \\
-            -A \\
-            --max-depth 0 \\
-            --max-idepth 0 \\
-            --count-orphans \\
-            --min-BQ 0 \\
-            --fasta-ref {REFERENCE}/covid_reference.fasta \\
-            {BAM} | \\
-        ivar consensus -t 0 -m 3 -p {CONSENSUS}
+    samtools mpileup \\
+        -aa \\
+        -A \\
+        --max-depth 0 \\
+        --max-idepth 0 \\
+        --count-orphans \\
+        --min-BQ 0 \\
+        --fasta-ref {REFERENCE}/covid_reference.fasta \\
+        {BAM} | \\
+    ivar consensus -t 0 -m 3 -p {CONSENSUS}
 
-        sed -i 's/Consensus_{SAMPLE}.consensus_threshold_0_quality_20/{SAMPLE}/g' {CONSENSUS}
+    sed -i 's/Consensus_{SAMPLE}.consensus_threshold_0_quality_20/{SAMPLE}/g' {CONSENSUS}
 
-        echo Completed consensus generation for {BAM}
-    else
-        echo "Consensus generation already complete for {BAM}, ${{green}}skipping${{reset}}"
-    fi
+    echo Completed consensus generation for {BAM}
+else
+    echo "Consensus generation already complete for {BAM}, ${{green}}skipping${{reset}}"
+fi
 """.format(
             REFERENCE=reference,
             BAM=bam,
@@ -315,28 +364,28 @@ def producePileup(
 ):
     script.write(
         """
-    # create pileup
-    if [[ ! -f {PILEUP} ]]; then
-        echo Generate pileup for {BAM}
+# create pileup
+if [[ ! -f {PILEUP} ]]; then
+    echo Generate pileup for {BAM}
 
-        if [[ ! -f {PLOIDY} ]]; then
-            echo '* * * * 1' >{PLOIDY}
-        fi
-
-        samtools mpileup \\
-            -aa \\
-            -A \\
-            --max-depth 0 \\
-            --max-idepth 0 \\
-            --count-orphans \\
-            --min-BQ 0 \\
-            --fasta-ref {REFERENCE}/covid_reference.fasta \\
-            {BAM} | gzip >{PILEUP} 2>/dev/null
-
-        echo Pileup completed for {BAM}
-    else
-        echo "Pileup already finished for {BAM}, ${{green}}skipping${{reset}}"
+    if [[ ! -f {PLOIDY} ]]; then
+        echo '* * * * 1' >{PLOIDY}
     fi
+
+    samtools mpileup \\
+        -aa \\
+        -A \\
+        --max-depth 0 \\
+        --max-idepth 0 \\
+        --count-orphans \\
+        --min-BQ 0 \\
+        --fasta-ref {REFERENCE}/covid_reference.fasta \\
+        {BAM} | gzip >{PILEUP} 2>/dev/null
+
+    echo Pileup completed for {BAM}
+else
+    echo "Pileup already finished for {BAM}, ${{green}}skipping${{reset}}"
+fi
 """.format(
             REFERENCE=reference,
             BAM=bam,
@@ -353,35 +402,35 @@ def annotate(script: TextIOWrapper, options: OptionsDict, vcf: str, annotated: s
 
     script.write(
         """
-    # annotate
-    if [[ ! -f {PIPELINE}/{SAMPLE}.nirvana.json.gz || ! -f {PIPELINE}/{SAMPLE}.nirvana.json.gz.jsi ]]; then
-        echo Start nirvana annotation for {VCF}
+# annotate
+if [[ ! -f {PIPELINE}/{SAMPLE}.nirvana.json.gz || ! -f {PIPELINE}/{SAMPLE}.nirvana.json.gz.jsi ]]; then
+    echo Start nirvana annotation for {VCF}
 
-        dotnet {BIN}/nirvana/Nirvana.dll \\
-            -c {BIN}/nirvana/Data/Cache/SARS-CoV-2/SARS-CoV-2 \\
-            -sd {BIN}/nirvana/Data/SupplementaryAnnotation/SARS-CoV-2 \\
-            --enable-dq \\
-            -r {BIN}/nirvana/Data/References/SARS-CoV-2.ASM985889v3.dat \\
-            -i {VCF} \\
-            -o {SAMPLE}.nirvana
+    dotnet {BIN}/nirvana/Nirvana.dll \\
+        -c {BIN}/nirvana/Data/Cache/SARS-CoV-2/SARS-CoV-2 \\
+        -sd {BIN}/nirvana/Data/SupplementaryAnnotation/SARS-CoV-2 \\
+        --enable-dq \\
+        -r {BIN}/nirvana/Data/References/SARS-CoV-2.ASM985889v3.dat \\
+        -i {VCF} \\
+        -o {SAMPLE}.nirvana
 
-        mv {SAMPLE}.nirvana.json.gz {PIPELINE}
-        mv {SAMPLE}.nirvana.json.gz.jsi {PIPELINE}
+    mv {SAMPLE}.nirvana.json.gz {PIPELINE}
+    mv {SAMPLE}.nirvana.json.gz.jsi {PIPELINE}
 
-        echo Annotion complete for {VCF}
-    else
-        echo "Annotations already for {VCF}, ${{green}}skipping${{reset}}"
-    fi
+    echo Annotion complete for {VCF}
+else
+    echo "Annotations already for {VCF}, ${{green}}skipping${{reset}}"
+fi
 
-    if [[ ! -f {PIPELINE}/{SAMPLE}.annotated.vcf ]]; then
-        echo Start snpEff annotation for {VCF}
+if [[ ! -f {PIPELINE}/{SAMPLE}.annotated.vcf ]]; then
+    echo Start snpEff annotation for {VCF}
 
-        java -jar ~/bin/snpEff/snpEff.jar -htmlStats {PIPELINE}/{SAMPLE}.snpeff.html NC_045512.2 {VCF} >{ANNOTATED}
+    java -jar ~/bin/snpEff/snpEff.jar -htmlStats {PIPELINE}/{SAMPLE}.snpeff.html NC_045512.2 {VCF} >{ANNOTATED}
 
-        echo snpEff annotion complete for {VCF}
-    else
-        echo "snpEff annotations already for {VCF}, ${{green}}skipping${{reset}}"
-    fi
+    echo snpEff annotion complete for {VCF}
+else
+    echo "snpEff annotations already for {VCF}, ${{green}}skipping${{reset}}"
+fi
 """.format(
             VCF=vcf, SAMPLE=sample, BIN=bin, PIPELINE=pipeline, ANNOTATED=annotated
         )
@@ -394,23 +443,23 @@ def assignClade(script: TextIOWrapper, options: OptionsDict, reference: str, con
 
     script.write(
         """
-    # assign clade
-    if [[ ! -f {PIPELINE}/{SAMPLE}.nextclade.tsv ]]; then
-        nextclade \\
-            --in-order \\
-            --input-fasta {CONSENSUS} \\
-            --input-dataset {REFERENCE}/nextclade-data/sars-cov-2 \\
-            --genes E,M,N,ORF1a,ORF1b,ORF3a,ORF6,ORF7a,ORF7b,ORF8,ORF9b,S \\
-            --output-json {PIPELINE}/{SAMPLE}.nextclade.json \\
-            --output-tsv {PIPELINE}/{SAMPLE}.nextclade.tsv \\
-            --output-tree {PIPELINE}/{SAMPLE}.nextclade.auspice.json \\
-            --output-dir {PIPELINE}/ \\
-            --output-basename {SAMPLE}.nextclade
+# assign clade
+if [[ ! -f {PIPELINE}/{SAMPLE}.nextclade.tsv ]]; then
+    nextclade \\
+        --in-order \\
+        --input-fasta {CONSENSUS} \\
+        --input-dataset {REFERENCE}/nextclade-data/sars-cov-2 \\
+        --genes E,M,N,ORF1a,ORF1b,ORF3a,ORF6,ORF7a,ORF7b,ORF8,ORF9b,S \\
+        --output-json {PIPELINE}/{SAMPLE}.nextclade.json \\
+        --output-tsv {PIPELINE}/{SAMPLE}.nextclade.tsv \\
+        --output-tree {PIPELINE}/{SAMPLE}.nextclade.auspice.json \\
+        --output-dir {PIPELINE}/ \\
+        --output-basename {SAMPLE}.nextclade
 
-        echo "Clade assignment complete for {SAMPLE}"
-    else
-        echo "Clade assignment already complete for {SAMPLE}, ${{green}}skipping${{reset}}"
-    fi
+    echo "Clade assignment complete for {SAMPLE}"
+else
+    echo "Clade assignment already complete for {SAMPLE}, ${{green}}skipping${{reset}}"
+fi
     """.format(
             REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample, CONSENSUS=consensus
         )
@@ -421,6 +470,8 @@ def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
     caller = options["caller"]
     useAlternateConsensus = options["alternateConsensus"]
     sample = options["sample"]
+    pipeline = options["pipeline"]
+    reference = options["reference"]
 
     bam = """{PREFIX}.sorted.bam""".format(PREFIX=prefix)
     vcf = """{PREFIX}.vcf""".format(PREFIX=prefix)
@@ -438,8 +489,13 @@ def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
 
     if caller == "gatk":
         callVariantsUsingGatk(script, options["reference"], sample, bam, vcf)
-    else:
+    elif caller == "bcftools":
         callVariantsUsingBcftools(script, options["reference"], bam, vcf, gvcf, ploidy)
+    elif caller == "lofreq":
+        callVariantsUsingLofreq(script, options["reference"], sample, bam, vcf)
+    else:
+        print("Unexpected value {CALLER} given for the --caller option".format(CALLER=caller))
+        quit(1)
 
     producePileup(script, options["reference"], bam, pileup, ploidy)
     annotate(script, options, vcf, annotated)
@@ -448,6 +504,40 @@ def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
         produceConsensusUsingBcftools(script, options["reference"], sample, consensus, vcf)
     else:
         produceConsensusUsingIvar(script, options["reference"], sample, consensus, bam)
+
+    script.write(
+        """
+if [[ ! -f {REFERENCE}/covid_reference.flat.fasta ]]; then
+    tail -n +2 {REFERENCE}/covid_reference.fasta | 
+        grep -v '^>' | 
+        tr -d '\\n' | 
+        sed 's/\\(.\\)/\1 /g' | 
+        tr ' ' '\\n' > {REFERENCE}/covid_reference.flat.fasta
+else
+    echo "Flat reference already generated, ${{green}}skipping${{reset}}"
+fi
+
+if [[ ! -f {PIPELINE}/{SAMPLE}.diff ]]; then
+    echo Generating consensus difference for{SAMPLE}
+
+    tail -n +2 {PIPELINE}/{SAMPLE}.consensus.fa | 
+        grep -v '^>' | 
+        tr -d '\\n' | 
+        sed 's/\\(.\\)/\1 /g' | 
+        tr ' ' '\\n' >{PIPELINE}/{SAMPLE}.consensus.flat.fasta
+    dwdiff -L8 -s -3 \\
+        {REFERENCE}/covid_reference.flat.fasta \\
+        {PIPELINE}/{SAMPLE}.consensus.flat.fasta >{PIPELINE}/{SAMPLE}.diff 2>&1
+else
+    echo "Consensus difference already generated, ${{green}}skipping${{reset}}"
+fi
+        """.format(
+            REFERENCE=reference,
+            PIPELINE=pipeline,
+            SAMPLE=sample,
+            CONSENSUS=consensus
+        )
+    )
 
     assignClade(script, options, options["reference"], consensus)
 
@@ -480,13 +570,26 @@ echo "Starting Variant QC processes"
 #
 # we need to quiet vcftools here because it's stupid chatty and doesn't have an option to quiet
 #
-vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --freq2 --out {STATS}/{SAMPLE} --max-alleles 2 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --depth --out {STATS}/{SAMPLE} 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --site-mean-depth --out {STATS}/{SAMPLE} 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --site-quality --out {STATS}/{SAMPLE} 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --missing-indv --out {STATS}/{SAMPLE} 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --missing-site --out {STATS}/{SAMPLE} 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --het --out {STATS}/{SAMPLE} 2>/dev/null &
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --freq2 --out {STATS}/{SAMPLE}_vcfstats --max-alleles 2 2>/dev/null &
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --depth --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null &
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --site-mean-depth --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null &
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --site-quality --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null &
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --missing-indv --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null &
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --missing-site --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null &
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --het --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null &
+
+#
+# run some other stats on the vcf file
+#
+if [[ ! -d {STATS}/{SAMPLE}_bcfstats ]]; then
+    (
+        bcftools stats --fasta-ref {REFERENCE}/covid_reference.fasta {PIPELINE}/{SAMPLE}.vcf > {STATS}/{SAMPLE}.chk
+        plot-vcfstats --prefix {STATS}/{SAMPLE}_bcfstats {STATS}/{SAMPLE}.chk
+    ) &
+else
+    echo "bcftools stats and plots already run, ${{green}}skipping${{reset}}"
+fi
+
 """.format(
             REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample, STATS=stats
         )
@@ -590,23 +693,24 @@ def runMultiQC(script: TextIOWrapper, options: OptionsDict):
 # Run MultiQC across everything
 # 
 
-## Clean up any old stats
-cd {STATS}
-rm -rf *multiqc*
+if [[ ! -d {STATS}/{SAMPLE}_multiqc_data ]]; then
+    ## Clean up any old stats
+    cd {STATS}
+    rm -rf *multiqc*
 
-# Setup working space
-rm -rf {STATS}/qc
-mkdir -p {STATS}/qc
-cd {STATS}/qc
+    # Setup working space
+    rm -rf {STATS}/qc
+    mkdir -p {STATS}/qc
+    cd {STATS}/qc
 
-# Run multiqc
-multiqc --tag RNA -f {STATS}
+    # Run multiqc
+    multiqc --tag RNA -f {STATS}
 
-# Save the output
-mv {STATS}/qc/multiqc_data {STATS}/{SAMPLE}_multiqc_data
-mv {STATS}/qc/multiqc_report.html {STATS}/{SAMPLE}_multiqc_report.html
-rm -rf {STATS}/qc
-
+    # Save the output
+    mv {STATS}/qc/multiqc_data {STATS}/{SAMPLE}_multiqc_data
+    mv {STATS}/qc/multiqc_report.html {STATS}/{SAMPLE}_multiqc_report.html
+    rm -rf {STATS}/qc
+fi
 """.format(
             STATS=stats, SAMPLE=sample
         )
@@ -640,6 +744,9 @@ export PERL_LOCAL_LIB_ROOT=/home/ubuntu/perl5:$PERL_LOCAL_LIB_ROOT
 # shared library stuff
 export LD_LIBRARY_PATH={WORKING}/bin:/usr/lib64:/usr/local/lib/:$LB_LIBRARY_PATH
 export LD_PRELOAD={WORKING}/bin/libz.so.1.2.11.zlib-ng
+
+# bcftools
+export BCFTOOLS_PLUGINS={WORKING}/bin/plugins
 
 # handy path
 export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.2.3.0:{WORKING}/bin:$PATH\n""".format(
@@ -699,4 +806,3 @@ def verifyOptions(options: OptionsDict):
     if exists(options["stats"]) == False:
         print("Unable to find your --stats-dir directory at {PATH}".format(PATH=options["stats"]))
         quit(1)
-

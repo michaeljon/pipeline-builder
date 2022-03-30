@@ -2,20 +2,12 @@
 
 SAMPLE=$1
 
-echo ${SAMPLE}
-
 # download the reference data
 nextclade dataset get --name='sars-cov-2' --output-dir=$HOME/reference/nextclade-data/sars-cov-2
 
-if [[ ! -f $HOME/tmp/covid_reference.fasta ]]; then
-    tail -n +2 $HOME/reference/covid_reference.fasta | 
-        grep -v '^>' | 
-        tr -d '\n' | 
-        sed 's/\(.\)/\1 /g' | 
-        tr ' ' '\n' > $HOME/tmp/covid_reference.fasta
-fi
-
 if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
+    echo Starting ${SAMPLE} run
+
     # give us a place to work
     mkdir -p ${HOME}/pipeline/${SAMPLE}
 
@@ -29,27 +21,22 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
         --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
         --temp-dir ${HOME}/stats/temp \
         --fastq-dir ${HOME}/pipeline/FASTQ \
-        --adapter-fasta ${HOME}/reference/zymo-adapters.fasta \
         --caller bcftools \
         --aligner hisat2 \
         --preprocessor trimmomatic \
         --sorter samtools
 
     # run the pipeline
-    bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner
-
-    echo Generating consensus difference for $SAMPLE
-
-    C=$HOME/pipeline/${SAMPLE}/${SAMPLE}.consensus.fa
-    tail -n +2 $C | grep -v '^>' | tr -d '\n' | sed 's/\(.\)/\1 /g' | tr ' ' '\n' >$HOME/tmp/$SAMPLE.fasta
-    dwdiff -L8 -s -3 $HOME/tmp/covid_reference.fasta $HOME/tmp/$SAMPLE.fasta >$HOME/pipeline/$SAMPLE/$SAMPLE.diff 2>&1
+    bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner >${HOME}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
 
     # pack up the stuff and clean house
-    # rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.aligned.sam
+    rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.aligned.sam
 
     cd ${HOME}/pipeline/
     tar -cf ${HOME}/pipeline/${SAMPLE}.tar ./${SAMPLE}
     # rm -rf ${HOME}/pipeline/${SAMPLE}
+
+    echo Finished ${SAMPLE} run
 else
     echo "We have already processed sample ${SAMPLE}"
 fi
