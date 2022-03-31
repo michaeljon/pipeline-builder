@@ -2,8 +2,10 @@
 
 import csv
 import argparse
+from statistics import median, mean, pstdev, quantiles
 
 from argparse import Namespace
+import sys
 from typing import Dict, Any, List
 from os.path import exists, expandvars
 
@@ -14,6 +16,15 @@ CoverageData = list[int]
 
 def defineArguments() -> Namespace:
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-s",
+        "--sample",
+        required=False,
+        action="store",
+        metavar="SAMPLE",
+        dest="sample",
+        help="Short name for sample",
+    )
     parser.add_argument(
         "-c",
         "--coverage-file",
@@ -75,7 +86,7 @@ def verifyOptions(options: OptionsDict):
 
 
 def fieldToDict(type: str, field: str) -> FieldsDict:
-    cells = {cell.split("=")[0]: cell.split("=")[1] for cell in [cell for cell in field.split(";")]}
+    cells = {cell[0]: cell[1] for cell in [cell.split("=") for cell in field.split(";")]}
 
     if "gene" not in cells.keys():
         cells["gene"] = type
@@ -129,18 +140,41 @@ def calculateGaps(coverageData: CoverageData, minDepth: int) -> List:
     while locus < lociCount:
         if coverageData[locus] < minDepth:
             start = locus
-            basesLost = 0
+            deltas = []
 
             while locus < lociCount and coverageData[locus] < minDepth:
-                basesLost += minDepth - coverageData[locus]
+                deltas.append(minDepth - coverageData[locus])
                 locus += 1
 
-            end = locus - 1
-            gaps.append({"start": start, "end": end, "averageDelta": int(basesLost / (end - start + 1))})
+            gaps.append(
+                {
+                    "start": start,
+                    "end": locus - 1,
+                    "averageDelta": round(mean(deltas), 2),
+                    "medianDelta": median(deltas),
+                    "minDelta": min(deltas),
+                    "maxDelta": max(deltas),
+                    "stdevDelta": round(pstdev(deltas), 2) if len(deltas) > 2 else 0,
+                    "quantileDelta": quantiles(deltas, n=4, method="inclusive") if len(deltas) > 2 else [0, 0, 0],
+                }
+            )
         else:
             locus += 1
 
     return gaps
+
+
+def gatherOverlays(overlays):
+    return [
+        {
+            "gene": overlay["info"]["gene"],
+            "id": overlay["info"]["ID"],
+            "type": overlay["type"],
+            "geneStart": overlay["start"],
+            "geneEnd": overlay["end"],
+        }
+        for overlay in overlays
+    ]
 
 
 def overlay(gapData: List, featureData: List) -> List:
@@ -166,33 +200,43 @@ def overlay(gapData: List, featureData: List) -> List:
                     "gapEnd": gap["end"],
                     "gapSize": gap["end"] - gap["start"] + 1,
                     "averageDelta": gap["averageDelta"],
-                    "partialOverlays": [
-                        {
-                            "gene": partial["info"]["gene"],
-                            "id": partial["info"]["ID"],
-                            "type": partial["type"],
-                            "geneStart": partial["start"],
-                            "geneEnd": partial["end"],
-                        }
-                        for partial in partialOverlays
-                    ],
-                    "completeOverlays": [
-                        {
-                            "gene": complete["info"]["gene"],
-                            "id": complete["info"]["ID"],
-                            "type": complete["type"],
-                            "geneStart": complete["start"],
-                            "geneEnd": complete["end"],
-                        }
-                        for complete in completeOverlays
-                    ],
+                    "medianDelta": gap["medianDelta"],
+                    "minDelta": gap["minDelta"],
+                    "maxDelta": gap["maxDelta"],
+                    "stdevDelta": gap["stdevDelta"],
+                    "quantileDelta": gap["quantileDelta"],
+                    "partialOverlays": gatherOverlays(partialOverlays),
+                    "completeOverlays": gatherOverlays(completeOverlays),
                 }
             )
 
     return overlays
 
 
-def writeOutput(overlays: List, coverageFile: str):
+def writeRow(writer: csv.DictWriter, sample, gap, overlay, type):
+    writer.writerow(
+        {
+            "sample": sample,
+            "gapStart": gap["gapStart"],
+            "gapEnd": gap["gapEnd"],
+            "gapSize": gap["gapSize"],
+            "averageDelta": gap["averageDelta"],
+            "medianDelta": gap["medianDelta"],
+            "minDelta": gap["minDelta"],
+            "maxDelta": gap["maxDelta"],
+            "stdevDelta": gap["stdevDelta"],
+            "firstQuartile": gap["quantileDelta"][0],
+            "thirdQuartile": gap["quantileDelta"][2],
+            "geneStart": overlay["geneStart"],
+            "geneEnd": overlay["geneEnd"],
+            "gene": overlay["gene"],
+            "id": overlay["id"],
+            "overlapType": type,
+        }
+    )
+
+
+def writeOutput(overlays: List, coverageFile: str, sample: str):
     uniqueOverlayKeys = set()
     uniqueOverlays = list()
 
@@ -205,40 +249,34 @@ def writeOutput(overlays: List, coverageFile: str):
 
     with open(coverageFile, "w") as f:
         writer = csv.DictWriter(
-            f, ["gapStart", "gapEnd", "gapSize", "averageDelta", "geneStart", "geneEnd", "gene", "id", "overlapType"]
+            f,
+            [
+                "sample",
+                "gapStart",
+                "gapEnd",
+                "gapSize",
+                "averageDelta",
+                "medianDelta",
+                "minDelta",
+                "maxDelta",
+                "stdevDelta",
+                "firstQuartile",
+                "thirdQuartile",
+                "geneStart",
+                "geneEnd",
+                "gene",
+                "id",
+                "overlapType",
+            ],
         )
         writer.writeheader()
 
         for gap in uniqueOverlays:
-            for partial in gap["partialOverlays"]:
-                writer.writerow(
-                    {
-                        "gapStart": gap["gapStart"],
-                        "gapEnd": gap["gapEnd"],
-                        "gapSize": gap["gapSize"],
-                        "averageDelta": gap["averageDelta"],
-                        "geneStart": partial["geneStart"],
-                        "geneEnd": partial["geneEnd"],
-                        "gene": partial["gene"],
-                        "id": partial["id"],
-                        "overlapType": "partial",
-                    }
-                )
+            for overlay in gap["partialOverlays"]:
+                writeRow(writer, sample, gap, overlay, "partial")
 
-            for complete in gap["completeOverlays"]:
-                writer.writerow(
-                    {
-                        "gapStart": gap["gapStart"],
-                        "gapEnd": gap["gapEnd"],
-                        "gapSize": gap["gapSize"],
-                        "averageDelta": gap["averageDelta"],
-                        "geneStart": complete["geneStart"],
-                        "geneEnd": complete["geneEnd"],
-                        "gene": complete["gene"],
-                        "id": complete["id"],
-                        "overlapType": "complete",
-                    }
-                )
+            for overlay in gap["completeOverlays"]:
+                writeRow(writer, sample, gap, overlay, "complete")
 
 
 def main():
@@ -258,7 +296,7 @@ def main():
     overlays = overlay(gapData, featureData)
 
     # write the output
-    writeOutput(overlays, options["outputFile"])
+    writeOutput(overlays, options["outputFile"], options["sample"])
 
 
 if __name__ == "__main__":
