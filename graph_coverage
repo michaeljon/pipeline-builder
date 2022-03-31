@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+SAMPLES=$(/bin/ls -1d zr*)
+# SAMPLES="zr6254_1"
+
+for SAMPLE in ${SAMPLES}; do
+  echo Processing coverage for ${SAMPLE}
+
+  R --vanilla >/dev/null 2>&1 <<EOF
+library(ggplot2)
+library(ggthemes)
+library(tidyverse)
+
+cov <- read_tsv('./${SAMPLE}/${SAMPLE}.coverage', col_names=FALSE)
+names(cov) <- c('chromosome', 'position', 'coverage')
+
+mean_cov <- cov |>
+  pull(coverage) |>
+  mean()
+
+plt <- ggplot(data=cov, mapping=aes(x=position,y=coverage)) +
+  geom_smooth() +
+  theme_hc() +
+  ggtitle("Sample ${SAMPLE} coverage") +
+  geom_hline(yintercept = mean_cov, color="turquoise4") 
+
+png("coverage/${SAMPLE}.coverage.png")
+print(plt)
+EOF
+done

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+SAMPLES=$(/bin/ls -1d zr*)
+# SAMPLES="zr6254_1"
+
+for SAMPLE in ${SAMPLES}; do
+  echo Processing coverage for ${SAMPLE}
+
+  ./gap_minder.py \
+    --feature-file ./GCF_009858895.2_ASM985889v3_genomic.gff \
+    --min-depth 500 \
+    --coverage-file ${SAMPLE}/${SAMPLE}.coverage \
+    --output ${SAMPLE}/${SAMPLE}_gaps.csv
+done

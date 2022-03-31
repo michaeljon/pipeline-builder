@@ -107,10 +107,11 @@ def sortWithSamtools(script: TextIOWrapper, options: OptionsDict, output: str):
 # sort and mark duplicates
 #
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
-    samtools sort {PIPELINE}/{SAMPLE}.aligned.bam >{UNMARKED}
+    samtools sort {PIPELINE}/{SAMPLE}.aligned.bam -o {UNMARKED}
 
     java -Xmx8g -jar {BIN}/picard.jar MarkDuplicates \\
         --TAGGING_POLICY All \\
+        --REFERENCE_SEQUENCE {REFERENCE}/covid_reference.fasta \\
         -I {UNMARKED} \\
         -O {SORTED} \\
         -M {STATS}/{SAMPLE}_marked_dup_metrics.txt    
@@ -506,10 +507,7 @@ else
     echo "Consensus difference already generated, ${{green}}skipping${{reset}}"
 fi
         """.format(
-            REFERENCE=reference,
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-            CONSENSUS=consensus
+            REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample, CONSENSUS=consensus
         )
     )
 
