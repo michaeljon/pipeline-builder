@@ -420,6 +420,8 @@ def assignClade(script: TextIOWrapper, options: OptionsDict, reference: str, con
         """
 # assign clade
 if [[ ! -f {PIPELINE}/{SAMPLE}.nextclade.tsv ]]; then
+    echo "Starting nextclade characterization for {SAMPLE}"
+
     nextclade \\
         --in-order \\
         --input-fasta {CONSENSUS} \\
@@ -460,7 +462,6 @@ def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
     script.write("#\n")
     script.write("# Running pipeline for {BAM}\n".format(BAM=bam))
     script.write("#\n")
-    script.write("(")
 
     if caller == "gatk":
         callVariantsUsingGatk(script, options["reference"], sample, bam, vcf)
@@ -486,7 +487,7 @@ if [[ ! -f {REFERENCE}/covid_reference.flat.fasta ]]; then
     tail -n +2 {REFERENCE}/covid_reference.fasta | 
         grep -v '^>' | 
         tr -d '\\n' | 
-        sed 's/\\(.\\)/\1 /g' | 
+        sed 's/\\(.\\)/\\1 /g' | 
         tr ' ' '\\n' > {REFERENCE}/covid_reference.flat.fasta
 else
     echo "Flat reference already generated, ${{green}}skipping${{reset}}"
@@ -498,11 +499,13 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.diff ]]; then
     tail -n +2 {PIPELINE}/{SAMPLE}.consensus.fa | 
         grep -v '^>' | 
         tr -d '\\n' | 
-        sed 's/\\(.\\)/\1 /g' | 
+        sed 's/\\(.\\)/\\1 /g' | 
         tr ' ' '\\n' >{PIPELINE}/{SAMPLE}.consensus.flat.fasta
     dwdiff -L8 -s -3 \\
         {REFERENCE}/covid_reference.flat.fasta \\
-        {PIPELINE}/{SAMPLE}.consensus.flat.fasta >{PIPELINE}/{SAMPLE}.diff 2>&1
+        {PIPELINE}/{SAMPLE}.consensus.flat.fasta >{PIPELINE}/{SAMPLE}.diff
+
+    echo Consensus difference already completed for {SAMPLE}, ${{green}}skipping${{reset}}
 else
     echo "Consensus difference already generated, ${{green}}skipping${{reset}}"
 fi
@@ -513,7 +516,6 @@ fi
 
     assignClade(script, options, options["reference"], consensus)
 
-    script.write(") &\n")
     script.write("\n")
 
 
@@ -534,7 +536,7 @@ echo "Starting Variant QC processes"
 #    gatk CollectVariantCallingMetrics \\
 #        --VERBOSITY ERROR \\
 #        -I {PIPELINE}/{SAMPLE}.vcf \\
-#        -O {STATS}/{SAMPLE} &
+#        -O {STATS}/{SAMPLE}
 # else
 #     echo "Variant metrics already run, ${{green}}skipping${{reset}}"
 # fi
@@ -550,14 +552,16 @@ vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --missing-indv --out {STATS}/{SAMPLE}_vcf
 vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --missing-site --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null &
 vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --het --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null &
 
+echo "Waiting for VCF QC processed to complete"
+wait
+echo "VCF QC processes complete"
+
 #
 # run some other stats on the vcf file
 #
 if [[ ! -d {STATS}/{SAMPLE}_bcfstats ]]; then
-    (
-        bcftools stats --fasta-ref {REFERENCE}/covid_reference.fasta {PIPELINE}/{SAMPLE}.vcf > {STATS}/{SAMPLE}.chk
-        plot-vcfstats --prefix {STATS}/{SAMPLE}_bcfstats {STATS}/{SAMPLE}.chk
-    ) &
+    bcftools stats --fasta-ref {REFERENCE}/covid_reference.fasta {PIPELINE}/{SAMPLE}.vcf > {STATS}/{SAMPLE}.chk
+    plot-vcfstats --prefix {STATS}/{SAMPLE}_bcfstats {STATS}/{SAMPLE}.chk
 else
     echo "bcftools stats and plots already run, ${{green}}skipping${{reset}}"
 fi
@@ -643,6 +647,11 @@ if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fa
 else
     echo "FASTQC already run, ${{green}}skipping${{reset}}"
 fi
+
+echo "Waiting for QC processed to complete"
+wait
+echo "QC processes complete"
+
 """.format(
             REFERENCE=reference,
             PIPELINE=pipeline,

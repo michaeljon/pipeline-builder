@@ -556,9 +556,9 @@ def main():
 
         script.write("#!/usr/bin/env bash\n")
         script.write("\n")
-        script.write("set -e\n")
-        script.write("set -o pipefail\n")
-        script.write("\n")
+        # script.write("set -e\n")
+        # script.write("set -o pipefail\n")
+        # script.write("\n")
 
         writeHeader(script, options, filenames)
         writeVersions(script)
@@ -597,6 +597,7 @@ echo ${green}Pipeline processed${reset}
         script.write(
             """
 \necho ${{yellow}}Waiting for any outstanding processes to complete, this might return immediately, it might not.${{reset}}
+wait
 wait
 \necho -e "${{green}}Done processing${{reset}} {SAMPLE}\\n\\tstats in {STATS}\\n\\tVCFs in {PIPELINE}"\n""".format(
                 SAMPLE=options["sample"],
