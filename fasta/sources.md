@@ -17,3 +17,8 @@ HCoV-229E
 
 - https://www.ncbi.nlm.nih.gov/nuccore/MF542265
 - https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/853/505/GCA_000853505.1_ViralProj14913/
+
+SARS-CoV-2
+
+- https://www.ncbi.nlm.nih.gov/nuccore/NC_045512.2
+- https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/009/858/895/GCA_009858895.3_ASM985889v3/
