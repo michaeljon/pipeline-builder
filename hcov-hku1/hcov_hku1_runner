@@ -2,14 +2,14 @@
 
 SAMPLE=$1
 
-echo ${SAMPLE}
-
 if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
+    echo Starting ${SAMPLE} run
+
     # give us a place to work
     mkdir -p ${HOME}/pipeline/${SAMPLE}
 
     # build the pipeline
-    python ${HOME}/pipeline-builder/sars-cov-2/build_sars_cov2_pipeline.py \
+    python ${HOME}/pipeline-builder/hcov-hku1/build_hcov_hku1_pe_pipeline.py \
         --cores 8 \
         --sample ${SAMPLE} \
         --work-dir ${HOME} \
@@ -18,19 +18,23 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
         --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
         --temp-dir ${HOME}/stats/temp \
         --fastq-dir ${HOME}/pipeline/FASTQ \
-        --alternate-caller \
-        --alternate-consensus
+        --caller bcftools \
+        --aligner hisat2 \
+        --preprocessor trimmomatic \
+        --sorter samtools
 
     # run the pipeline
-    bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner
+    bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner >${HOME}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
 
     # pack up the stuff and clean house
-    rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.combined_lanes.fastq.gz
-    rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.aligned.sam
+    rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_R1.trimmed.fastq.gz
+    rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_R2.trimmed.fastq.gz
 
     cd ${HOME}/pipeline/
-    tar -cf ${HOME}/pipeline/${SAMPLE}.tar ./${SAMPLE}
+    tar cfz ${HOME}/pipeline/${SAMPLE}.tgz ./${SAMPLE}
     # rm -rf ${HOME}/pipeline/${SAMPLE}
+
+    echo Finished ${SAMPLE} run
 else
     echo "We have already processed sample ${SAMPLE}"
 fi
