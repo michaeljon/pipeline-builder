@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from sars_common import (
+from sars_cov_2_common import (
     OptionsDict,
     updateDictionary,
     sortAlignedAndMappedData,

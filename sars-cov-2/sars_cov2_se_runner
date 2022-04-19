@@ -9,7 +9,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
     mkdir -p ${HOME}/pipeline/${SAMPLE}
 
     # build the pipeline
-    python ${HOME}/pipeline-builder/build-sars-cov2-pipeline.py \
+    python ${HOME}/sars-cov-2/pipeline-builder/build_sars_cov2_pipeline.py \
         --cores 8 \
         --sample ${SAMPLE} \
         --work-dir ${HOME} \
