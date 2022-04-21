@@ -4,9 +4,9 @@
 
 ### HCoV-NL63
 
-- https://www.ncbi.nlm.nih.gov/nuccore/JX504050.1
+- https://www.ncbi.nlm.nih.gov/nuccore/NC_005831.2
+- https://www.ncbi.nlm.nih.gov/search/all/?term=NC_005831.2
 - https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/853/865/GCA_000853865.1_ViralProj14960/
-- NCBI:txid277944
 - experiments
     - SRX9443322 / SRR12991790
         - s3://sra-pub-src-18/SRR12991790/N1ds-SG_S40_L001_R1_001.fastq.gz.1
@@ -36,25 +36,15 @@
 
 ### HCoV-OC43
 
-- https://www.ncbi.nlm.nih.gov/nuccore/KX344031
-- https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/863/605/GCF_000863605.1_ViralProj15438/
-- NCBI:txid31631
-- experiments
-    - SRX14571381/ SRR18438219
-        - s3://sra-pub-src-12/SRR18438219/A549-ACE2-NS97-OC43-HiC-rep2_R1.fastq.gz.1
-        - s3://sra-pub-src-12/SRR18438219/A549-ACE2-NS97-OC43-HiC-rep2_R2.fastq.gz.1
-    - SRX12509785 / SRR16227949
-        - https://sra-pub-sars-cov2.s3.amazonaws.com/sra-src/SRR16227949/SRI-155_YD_R_all_R1_001.fastq.gz.1
-        - https://sra-pub-sars-cov2.s3.amazonaws.com/sra-src/SRR16227949/SRI-155_YD_R_all_R2_001.fastq.gz.1
-    - SRX12509765 / SRR16227969
-        - https://sra-pub-sars-cov2.s3.amazonaws.com/sra-src/SRR16227969/SRI-70_YD_R_all_R1_001.fastq.gz.1
-        - https://sra-pub-sars-cov2.s3.amazonaws.com/sra-src/SRR16227969/SRI-70_YD_R_all_R2_001.fastq.gz.1
+- https://www.ncbi.nlm.nih.gov/nuccore/NC_006213.1
+- https://www.ncbi.nlm.nih.gov/search/all/?term=NC_006213.1
+- https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/003/972/325/GCF_003972325.1_ASM397232v1/
 
 ### HCoV-HKU1
 
-- https://www.ncbi.nlm.nih.gov/nuccore/KF686346.1
+- https://www.ncbi.nlm.nih.gov/nuccore/NC_006577.2
+- https://www.ncbi.nlm.nih.gov/search/all/?term=NC_006577.2
 - https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/858/765/GCF_000858765.1_ViralProj15139/
-- NCBI:txid290028
 - experiments
     - SRX14023947 / SRR17863110
         - these are bam files in aws
@@ -73,9 +63,9 @@
 
 ### HCoV-229E
 
-- https://www.ncbi.nlm.nih.gov/nuccore/MF542265
+- https://www.ncbi.nlm.nih.gov/nuccore/NC_002645.1
+- https://www.ncbi.nlm.nih.gov/search/all/?term=NC_002645.1
 - https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/000/853/505/GCA_000853505.1_ViralProj14913/
-- NCBI:txid11137
 - experiments
     - SRX9560597, SRX9560598, SRX9560599, SRX9560600 (Krogan_Huh7-5_37C_229E_B_S13_L00[1234])
         - s3://sra-pub-src-16/SRR13118510/Krogan_Huh7-5_37C_229E_B_S13_L001_R1_001.fastq.gz.1	
