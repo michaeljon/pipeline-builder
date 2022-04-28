@@ -71,9 +71,7 @@ def computeIntervals(options: OptionsDict) -> ChromosomeList:
             while remainder > lastBlockMax:
                 lower = segment * segmentSize + 1
                 upper = (segment + 1) * segmentSize
-                intervals.append(
-                    "chr{c}:{lower}-{upper}".format(c=c, lower=lower, upper=upper)
-                )
+                intervals.append("chr{c}:{lower}-{upper}".format(c=c, lower=lower, upper=upper))
 
                 segment += 1
                 remainder -= segmentSize
@@ -103,10 +101,7 @@ def computeIntervals(options: OptionsDict) -> ChromosomeList:
                     )
                 )
 
-    return [
-        (interval, interval.replace(":", "_").replace("-", "_"))
-        for interval in intervals
-    ]
+    return [(interval, interval.replace(":", "_").replace("-", "_")) for interval in intervals]
 
 
 def getFileNames(options: OptionsDict) -> FastaPair:
@@ -127,9 +122,7 @@ def updateDictionary(script: TextIOWrapper, options: OptionsDict):
     script.write("# Build the reference dictionary and interval list\n")
     script.write("#\n")
 
-    chromosomes = [
-        "chr" + str(c) for c in loadChromosomeList(options["chromosomeSizes"])
-    ]
+    chromosomes = ["chr" + str(c) for c in loadChromosomeList(options["chromosomeSizes"])]
     regex = "|".join(chromosomes)
 
     script.write(
@@ -139,7 +132,7 @@ if [[ ! -f {REFERENCE}/Homo_sapiens_assembly38.dict ]]; then
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         -O {REFERENCE}/Homo_sapiens_assembly38.dict
 else
-    echo "Reference dictionary {REFERENCE}/Homo_sapiens_assembly38.dict ${{green}}already present${{reset}}"
+    logthis "Reference dictionary {REFERENCE}/Homo_sapiens_assembly38.dict ${{green}}already completed${{reset}}"
 fi
 
 if [[ ! -f {REFERENCE}/hg38_ref_genome_autosomal.interval_list ]]; then
@@ -147,11 +140,15 @@ if [[ ! -f {REFERENCE}/hg38_ref_genome_autosomal.interval_list ]]; then
     # processing a partial set of chromosomes. in the typical case this would
     # be a WGS collection.
 
+    logthis "Building {REFERENCE}/hg38_ref_genome_autosomal.interval_list"
+
     egrep '({REGEX})\\s' {REFERENCE}/Homo_sapiens_assembly38.fasta.fai |
         awk '{{print $1"\\t1\\t"$2"\\t+\\t"$1}}' |
         cat {REFERENCE}/Homo_sapiens_assembly38.dict - >{REFERENCE}/hg38_ref_genome_autosomal.interval_list
+
+    logthis "Building {REFERENCE}/hg38_ref_genome_autosomal.interval_list finished"
 else
-    echo "Interval list {REFERENCE}/hg38_ref_genome_autosomal.interval_list ${{green}}already present${{reset}}"
+    logthis "Interval list {REFERENCE}/hg38_ref_genome_autosomal.interval_list ${{green}}already completed${{reset}}"
 fi
 
 """.format(
@@ -160,9 +157,7 @@ fi
     )
 
 
-def alignAndSort(
-    script: TextIOWrapper, r1: str, r2: str, options: OptionsDict, output: str
-):
+def alignAndSort(script: TextIOWrapper, r1: str, r2: str, options: OptionsDict, output: str):
     reference = options["reference"]
     sample = options["sample"]
     pipeline = options["pipeline"]
@@ -187,6 +182,8 @@ def alignAndSort(
 # align the input files
 #
 if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
+    logthis "Running fastp and bwa-mem on {SAMPLE}"
+
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
         fastp \\
@@ -207,12 +204,14 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
 
     status=$?
     if [ $status -ne 0 ]; then
-        echo "Watchdog timer killed alignment process errno = $status"
+        logthis "Watchdog timer killed alignment process errno = $status"
         rm -f {SAMPLE}.aligned.sam.gz
         exit $status
     fi
+
+    logthis "fastp and bwa-mem run complete on {SAMPLE}"
 else
-    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
+    logthis "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}already completed${{reset}}"
 fi
 """.format(
                 R1=r1,
@@ -225,12 +224,8 @@ fi
                 STATS=stats,
                 BIN=bin,
                 TEMP=temp,
-                DASHK=""
-                if nonRepeatable == True
-                else "-K " + str((10_000_000 * int(threads))),
-                LIMITREADS="--reads_to_process " + str(readLimit)
-                if readLimit > 0
-                else "",
+                DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * int(threads))),
+                LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
             )
         )
     else:
@@ -240,6 +235,8 @@ fi
 # align the input files
 #
 if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
+    logthis "Running bwa-mem on {SAMPLE}"
+
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
         bwa-mem2 mem -t {THREADS} \\
@@ -253,12 +250,14 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
 
     status=$?
     if [ $status -ne 0 ]; then
-        echo "Watchdog timer killed alignment process errno = $status"
+        logthis "Watchdog timer killed alignment process errno = $status"
         rm -f {SAMPLE}.aligned.sam.gz
         exit $status
     fi
+
+    logthis "bwa-mem run complete on {SAMPLE}"
 else
-    echo "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}skipping${{reset}}"
+    logthis "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}already completed${{reset}}"
 fi
 
 """.format(
@@ -270,9 +269,7 @@ fi
                 PIPELINE=pipeline,
                 TIMEOUT=timeout,
                 BIN=bin,
-                DASHK=""
-                if nonRepeatable == True
-                else "-K " + str((10_000_000 * int(threads))),
+                DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * int(threads))),
             )
         )
 
@@ -283,7 +280,9 @@ fi
 #
 # sort and mark duplicates
 #
-if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
+if [[ ! -f {SORTED} ]]; then
+    logthis "Sorting and marking duplicates for {SAMPLE}"
+
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
         unpigz --stdout {PIPELINE}/{SAMPLE}.aligned.sam.gz |
@@ -298,17 +297,24 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
 
     status=$?
     if [ $status -ne 0 ]; then
-        echo "Watchdog timer killed sort / dup process errno = $status"
+        logthis "Watchdog timer killed sort / dup process errno = $status"
         rm -f {SORTED}
         rm -f {SORTED}.bai
         exit $status
     fi
 
-    # force the index to look "newer" than its source
-    touch {SORTED}.bai
+    logthis "Sorting and marking duplicates complete for {SAMPLE}"
 else
-    echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
+    logthis "Sorting and duplicate marking done for {SORTED}, ${{green}}already completed${{reset}}"
 fi
+
+if [[ ! -f {SORTED}.bai ]]; then
+    logthis "Indexing {SORTED}"
+    samtools index -@ {THREADS} {SORTED}
+else
+    logthis "Indexing already completed for {SORTED}, ${{green}}already completed${{reset}}"
+fi
+
 {EXIT_IF_ALIGN_ONLY}
 """.format(
             SAMPLE=sample,
@@ -329,10 +335,11 @@ def splinter(script: TextIOWrapper, bam: str, sorted: str, interval: str):
         """
 \n# Scatter interval {INTERVAL}        
 if [[ ! -f {BAM} || ! -f {BAM}.bai ]]; then
-    echo "Creating interval {INTERVAL}"
+    logthis "Creating interval {INTERVAL}"
     (samtools view -@ 4 -bh {SORTED} {INTERVAL} >{BAM} && samtools index -@ 4 {BAM})&
+    logthis "Interval {INTERVAL} created"
 else
-    echo "Splinter for {INTERVAL} has been computed, ${{green}}skipping${{reset}}"
+    logthis "Splinter for {INTERVAL} has been computed, ${{green}}already completed${{reset}}"
 fi""".format(
             SORTED=sorted, INTERVAL=interval, BAM=bam
         )
@@ -344,6 +351,8 @@ def genBQSR(script: TextIOWrapper, reference: str, interval: str, bam: str, bqsr
         """
     # run base quality score recalibration - build the bqsr table
     if [[ ! -f {BQSR}.table ]]; then
+        logthis "Generating {BQSR}.table"
+
         gatk BaseRecalibrator --java-options '-Xmx8g' \\
             -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
             -I {BAM} \\
@@ -354,12 +363,16 @@ def genBQSR(script: TextIOWrapper, reference: str, interval: str, bam: str, bqsr
             --known-sites {REFERENCE}/Homo_sapiens_assembly38.known_indels.vcf \\
             --known-sites {REFERENCE}/Mills_and_1000G_gold_standard.indels.hg38.vcf \\
             -L {INTERVAL}
+
+        logthis "{BQSR}.table completed"
     else
-        echo "BQSR table generation for {INTERVAL} ${{green}}skipped${{reset}}"
+        logthis "BQSR table generation for {INTERVAL} ${{green}}already completed${{reset}}"
     fi
 
     # run base quality score recalibration - apply the bqsr table
     if [[ ! -f {BQSR} || ! -f {BQSR}.bai ]]; then
+        logthis "Applying calibration for {BQSR}"
+
         gatk ApplyBQSR --java-options '-Xmx8g' \\
             -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
             -I {BAM} \\
@@ -375,8 +388,10 @@ def genBQSR(script: TextIOWrapper, reference: str, interval: str, bam: str, bqsr
 
         # index that file, this is our target for getting vcf
         samtools index -@ 4 {BQSR}
+
+        logthis "Calibation and indexing completed for for {BQSR}"
     else
-        echo "BQSR application for {INTERVAL} ${{green}}already completed${{reset}}"
+        logthis "BQSR application for {INTERVAL} ${{green}}already completed${{reset}}"
     fi
 """.format(
             REFERENCE=reference, INTERVAL=interval, BAM=bam, BQSR=bqsr
@@ -384,13 +399,13 @@ def genBQSR(script: TextIOWrapper, reference: str, interval: str, bam: str, bqsr
     )
 
 
-def callVariants(
-    script: TextIOWrapper, reference: str, interval: str, bqsr: str, vcf: str
-):
+def callVariants(script: TextIOWrapper, reference: str, interval: str, bqsr: str, vcf: str):
     script.write(
         """
     # call variants
     if [[ ! -f {VCF} ]]; then
+        logthis Starting variant calling for {INTERVAL}
+
         gatk HaplotypeCaller --java-options '-Xmx8g' \\
             -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
             -I {BQSR} \\
@@ -400,8 +415,10 @@ def callVariants(
             --pairHMM FASTEST_AVAILABLE \\
             --native-pair-hmm-threads 4 \\
             -L {INTERVAL}
+
+        logthis Completed variant calling for {INTERVAL}
     else
-        echo "Variants already called for {INTERVAL}, ${{green}}skipping${{reset}}"
+        logthis "Variants already called for {INTERVAL}, ${{green}}already completed${{reset}}"
     fi
 """.format(
             REFERENCE=reference, INTERVAL=interval, BQSR=bqsr, VCF=vcf
@@ -409,14 +426,12 @@ def callVariants(
     )
 
 
-def callVariants2(
-    script: TextIOWrapper, reference: str, interval: str, bqsr: str, vcf: str
-):
+def callVariants2(script: TextIOWrapper, reference: str, interval: str, bqsr: str, vcf: str):
     script.write(
         """
     # call variants
     if [[ ! -f {VCF} ]]; then
-        echo Starting variant calling for {INTERVAL}
+        logthis Starting variant calling for {INTERVAL}
 
         bcftools mpileup \\
             --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \\
@@ -424,6 +439,7 @@ def callVariants2(
             --no-BAQ \\
             --threads 4 \\
             --output-type u \\
+            --regions {INTERVAL} \\
             --fasta-ref {REFERENCE}/Homo_sapiens_assembly38.fasta \\
             {BQSR} 2>/dev/null | \\
         bcftools call \\
@@ -435,9 +451,9 @@ def callVariants2(
             --output-type v  \\
             --output {VCF} 2>/dev/null
 
-        echo Completed variant calling for {INTERVAL}
+        logthis Completed variant calling for {INTERVAL}
     else
-        echo "Variants already called for {INTERVAL}, ${{green}}skipping${{reset}}"
+        logthis "Variants already called for {INTERVAL}, ${{green}}already completed${{reset}}"
     fi
 """.format(
             REFERENCE=reference, INTERVAL=interval, BQSR=bqsr, VCF=vcf
@@ -461,7 +477,7 @@ def annotate(
     script.write(
         """
     if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
-        echo Starting annotation for {INTERVAL}
+        logthis Starting annotation for {INTERVAL}
         
         vep --dir {VEP} \\
             --cache \\
@@ -481,9 +497,9 @@ def annotate(
             --output_file {OUTPUT} \\
             --stats_file {STATS}/{SUMMARY}
 
-        echo Completed annotation for {INTERVAL}
+        logthis Completed annotation for {INTERVAL}
     else
-        echo "Annotations for {INTERVAL} already completed, ${{green}}skipping${{reset}}"
+        logthis "Annotations for {INTERVAL} already completed, ${{green}}already completed${{reset}}"
     fi
 """.format(
             VEP=vep,
@@ -508,24 +524,29 @@ def scatter(script: TextIOWrapper, options: OptionsDict, prefix: str, sorted: st
 
     script.write(
         """
-\necho ${yellow}Waiting for scattering to complete${reset}
+\n
+logthis ${yellow}Waiting for scattering to complete${reset}
 wait
-echo ${green}Scattering completed${reset}\n
+logthis ${green}Scattering completed${reset}
+\n
         """
     )
 
 
 def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
-    working = options["working"]
+    #
+    # for now commenting out individual region annotation as there's
+    # really no downstream consumer of that data. instead we'll 
+    # just keep the individual region's calls for later merging and
+    # bulk annotation (which provides a complete summary annotation)
+    # working = options["working"]
     useAlternateCaller = options["alternateCaller"]
 
     intervals = computeIntervals(options)
 
     for interval in intervals:
         bam = """{PREFIX}.{INTERVAL}.bam""".format(PREFIX=prefix, INTERVAL=interval[1])
-        bqsr = """{PREFIX}.{INTERVAL}_bqsr.bam""".format(
-            PREFIX=prefix, INTERVAL=interval[1]
-        )
+        bqsr = """{PREFIX}.{INTERVAL}_bqsr.bam""".format(PREFIX=prefix, INTERVAL=interval[1])
         vcf = """{PREFIX}.{INTERVAL}.vcf""".format(PREFIX=prefix, INTERVAL=interval[1])
 
         script.write("\n")
@@ -541,26 +562,27 @@ def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
         else:
             callVariants2(script, options["reference"], interval[0], bqsr, vcf)
 
-        annotate(
-            script,
-            options,
-            "{WORKING}/vep_data".format(WORKING=working),
-            interval[0],
-            vcf,
-            vcf.replace(".vcf", ".annotated.vcf"),
-            basename(vcf.replace(".vcf", ".annotated.vcf_summary.html")),
-        )
+        # annotate(
+        #     script,
+        #     options,
+        #     "{WORKING}/vep_data".format(WORKING=working),
+        #     interval[0],
+        #     vcf,
+        #     vcf.replace(".vcf", ".annotated.vcf"),
+        #     basename(vcf.replace(".vcf", ".annotated.vcf_summary.html")),
+        # )
 
         script.write(") &\n")
         script.write("\n")
 
     script.write(
         """
-echo ${yellow}Waiting for intervals to complete${reset}
+logthis ${yellow}Waiting for intervals to complete${reset}
 wait
-echo ${green}Intervals processed${reset}
+logthis ${green}Intervals processed${reset}
         """
     )
+
 
 def generateConsensus(script: TextIOWrapper, options: OptionsDict):
     reference = options["reference"]
@@ -570,19 +592,13 @@ def generateConsensus(script: TextIOWrapper, options: OptionsDict):
     script.write(
         """
 if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fasta ]]; then
-    echo "${{yellow}}Compressing {PIPELINE}/{SAMPLE}.final.vcf${{reset}}"
-    bcftools view --output-type z <{PIPELINE}/{SAMPLE}.final.vcf >{PIPELINE}/{SAMPLE}.final.vcf.gz
-
-    echo "${{yellow}}Indexing {PIPELINE}/{SAMPLE}.final.vcf${{reset}}"
-    bcftools index {PIPELINE}/{SAMPLE}.final.vcf.gz
-
-    echo "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.final.vcf${{reset}}"
+    logthis "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.final.vcf.gz${{reset}}"
     bcftools consensus \\
         --fasta-ref {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         {PIPELINE}/{SAMPLE}.final.vcf.gz \\
     | sed '/>/ s/$/ | {SAMPLE}/' >{PIPELINE}/{SAMPLE}.consensus.fasta
 else
-    echo "Consensus fasta already generated for {PIPELINE}/{SAMPLE}.consensus.fasta, ${{green}}skipping${{reset}}"
+    logthis "Consensus fasta already generated for {PIPELINE}/{SAMPLE}.consensus.fasta, ${{green}}already completed${{reset}}"
 fi
         """.format(
             REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample
@@ -590,6 +606,7 @@ fi
     )
 
     pass
+
 
 def gather(script: TextIOWrapper, options: OptionsDict):
     pipeline = options["pipeline"]
@@ -600,24 +617,33 @@ def gather(script: TextIOWrapper, options: OptionsDict):
 #
 # Gather interval data and recombine(s)
 # 
-if [[ ! -f {PIPELINE}/{SAMPLE}.final.vcf ]]; then
-    /bin/ls -1 {PIPELINE}/*.annotated.vcf | sort -k1,1V >{PIPELINE}/{SAMPLE}.merge.list
+if [[ ! -f {PIPELINE}/{SAMPLE}.final.vcf.gz ]]; then
+    logthis "Building merge list for {SAMPLE}"
+    /bin/ls -1 {PIPELINE}/{SAMPLE}.chr[0-9MXY]*.vcf | sort -k1,1V >{PIPELINE}/{SAMPLE}.merge.list
 
-    gatk MergeVcfs \\
-        --VERBOSITY ERROR \\
-        -I {PIPELINE}/{SAMPLE}.merge.list \\
-        -O {PIPELINE}/{SAMPLE}.final.vcf
+    logthis "Concatenating intermediate VCFs into final {PIPELINE}/{SAMPLE}.final.vcf.gz"
 
-    gatk IndexFeatureFile \\
-        --verbosity ERROR \\
-        -I {PIPELINE}/{SAMPLE}.final.vcf
+    vcf-concat --files {PIPELINE}/{SAMPLE}.merge.list \\
+        | bgzip >{PIPELINE}/{SAMPLE}.final.vcf.gz
+
+    logthis "VCF concatenation complete for {PIPELINE}/{SAMPLE}.final.vcf.gz"
 else
-    echo "VCFs already merged and index created, ${{green}}skipping${{reset}}"
+    logthis "VCFs already merged, ${{green}}already completed${{reset}}"
 fi
 
-echo ${{yellow}}Waiting for VCF merge to complete${{reset}}
+if [[ ! -f {PIPELINE}/{SAMPLE}.final.vcf.gz.tbi ]]; then
+    logthis "Indexing {PIPELINE}/{SAMPLE}.final.vcf.gz"
+
+    tabix -p vcf {PIPELINE}/{SAMPLE}.final.vcf.gz
+
+    logthis "Indexing {PIPELINE}/{SAMPLE}.final.vcf.gz complete"
+else
+    logthis "VCFs index already created, ${{green}}already completed${{reset}}"
+fi
+
+logthis ${{yellow}}Waiting for VCF merge to complete${{reset}}
 wait
-echo ${{green}}Final VCF merge completed${{reset}}
+logthis ${{green}}Final VCF merge completed${{reset}}
     """.format(
             PIPELINE=pipeline, SAMPLE=sample
         )
@@ -635,54 +661,61 @@ def doVariantQC(script: TextIOWrapper, options: OptionsDict):
 #
 # RUN Variant QC process
 # 
-echo "Starting Variant QC processes"
+logthis "Starting Variant QC processes"
 
-if [[ ! -f {STATS}/{SAMPLE}.variant_calling_detail_metrics ]]; then
-    (
+(
+    if [[ ! -f {STATS}/{SAMPLE}.variant_calling_detail_metrics ]]; then
+        logthis "Collection variant calling metrics"
+
         gatk CollectVariantCallingMetrics \\
             --VERBOSITY ERROR \\
             --DBSNP {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
-            -I {PIPELINE}/{SAMPLE}.final.vcf \\
+            -I {PIPELINE}/{SAMPLE}.final.vcf.gz \\
             -O {STATS}/{SAMPLE}
-     ) &
-else
-    echo "Variant metrics already run, ${{green}}skipping${{reset}}"
-fi
+
+        logthis "Variant calling metrics collected"
+    else
+        logthis "Variant metrics already run, ${{green}}already completed${{reset}}"
+    fi
+) &
 
 #
 # we need to quiet vcftools here because it's stupid chatty and doesn't have an option to quiet
 #
+logthis "Running vcftools statistics"
+
 if [[ ! -f {STATS}/{SAMPLE}.frq ]]; then
-    vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --freq2 --out {STATS}/{SAMPLE} --max-alleles 2 2>/dev/null &
+    vcftools --gzvcf {PIPELINE}/{SAMPLE}.final.vcf.gz --freq2 --out {STATS}/{SAMPLE} --max-alleles 2 2>/dev/null &
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.idepth ]]; then
-    vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --depth --out {STATS}/{SAMPLE} 2>/dev/null &
+    vcftools --gzvcf {PIPELINE}/{SAMPLE}.final.vcf.gz --depth --out {STATS}/{SAMPLE} 2>/dev/null &
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.ldepth.mean ]]; then
-    vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --site-mean-depth --out {STATS}/{SAMPLE} 2>/dev/null &
+    vcftools --gzvcf {PIPELINE}/{SAMPLE}.final.vcf.gz --site-mean-depth --out {STATS}/{SAMPLE} 2>/dev/null &
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.lqual ]]; then
-    vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --site-quality --out {STATS}/{SAMPLE} 2>/dev/null &
+    vcftools --gzvcf {PIPELINE}/{SAMPLE}.final.vcf.gz --site-quality --out {STATS}/{SAMPLE} 2>/dev/null &
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.imiss ]]; then
-    vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --missing-indv --out {STATS}/{SAMPLE} 2>/dev/null &
+    vcftools --gzvcf {PIPELINE}/{SAMPLE}.final.vcf.gz --missing-indv --out {STATS}/{SAMPLE} 2>/dev/null &
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.lmiss ]]; then
-    vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --missing-site --out {STATS}/{SAMPLE} 2>/dev/null &
+    vcftools --gzvcf {PIPELINE}/{SAMPLE}.final.vcf.gz --missing-site --out {STATS}/{SAMPLE} 2>/dev/null &
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.het ]]; then
-    vcftools --vcf {PIPELINE}/{SAMPLE}.final.vcf --het --out {STATS}/{SAMPLE} 2>/dev/null &
+    vcftools --gzvcf {PIPELINE}/{SAMPLE}.final.vcf.gz --het --out {STATS}/{SAMPLE} 2>/dev/null &
 fi
 
-echo ${{yellow}}Waiting for variant QC metrics to complete${{reset}}
+logthis ${{yellow}}Waiting for variant QC metrics to complete${{reset}}
+job
 wait
-echo ${{green}}Variant QC metrics completed${{reset}}
+logthis ${{green}}Variant QC metrics completed${{reset}}
 """.format(
             REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample, STATS=stats
         )
@@ -701,26 +734,32 @@ def runAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
 #
 # RUN QC process
 # 
-echo "Starting QC processes"
+logthis "Starting QC processes"
 
 if [[ ! -f {STATS}/{SAMPLE}.flagstat.txt ]]; then
+    logthis "Starting samtools flagstat on {SAMPLE}"
+
     samtools flagstat \\
         {SORTED} >{STATS}/{SAMPLE}.flagstat.txt &
 else
-    echo "samtools flagstat already run, ${{green}}skipping${{reset}}"
+    logthis "samtools flagstat already run, ${{green}}already completed${{reset}}"
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then
+    logthis "Starting alignment summary metrics on {SAMPLE}"
+
     gatk CollectAlignmentSummaryMetrics --java-options '-Xmx8g' \\
         --VERBOSITY ERROR \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         -I {SORTED} \\
         -O {STATS}/{SAMPLE}.alignment_metrics.txt &
 else
-    echo "Alignment metrics already run, ${{green}}skipping${{reset}}"
+    logthis "Alignment metrics already run, ${{green}}already completed${{reset}}"
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then
+    logthis "Starting GC bais metrics on {SAMPLE}"
+
     gatk CollectGcBiasMetrics --java-options '-Xmx8g' \\
         --VERBOSITY ERROR \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
@@ -729,10 +768,12 @@ if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias
         -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf \\
         -S {STATS}/{SAMPLE}.gc_bias_summary.txt &
 else
-    echo "GC bias metrics already run, ${{green}}skipping${{reset}}"
+    logthis "GC bias metrics already run, ${{green}}already completed${{reset}}"
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
+    logthis "Starting WGS metrics on {SAMPLE}"
+
     gatk CollectWgsMetrics --java-options '-Xmx8g' \\
         --VERBOSITY ERROR \\
         -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
@@ -743,31 +784,37 @@ if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
         --USE_FAST_ALGORITHM \\
         --INCLUDE_BQ_HISTOGRAM &
 else
-    echo "WGS metrics already run, ${{green}}skipping${{reset}}"
+    logthis "WGS metrics already run, ${{green}}already completed${{reset}}"
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
+    logthis "Starting samtools stats on {SAMPLE}"
+
     samtools stats -@ 8 \\
         -r {REFERENCE}/Homo_sapiens_assembly38.fasta \\
         {SORTED} >{STATS}/{SAMPLE}.samstats &
 else
-    echo "samtools stats already run, ${{green}}skipping${{reset}}"
+    logthis "samtools stats already run, ${{green}}already completed${{reset}}"
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.samidx ]]; then
+    logthis "Starting samtools idxstats on {SAMPLE}"
+
     samtools idxstats -@ 8 \\
         {SORTED} >{STATS}/{SAMPLE}.samidx &
 else
-    echo "samtools idxstats already run, ${{green}}skipping${{reset}}"
+    logthis "samtools idxstats already run, ${{green}}already completed${{reset}}"
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fastqc.html ]]; then
+    logthis "Starting fastqc for {SAMPLE}"
+
     fastqc \\
         --outdir {STATS} \\
         --noextract \\
         {SORTED} &
 else
-    echo "FASTQC already run, ${{green}}skipping${{reset}}"
+    logthis "FASTQC already run, ${{green}}already completed${{reset}}"
 fi
 """.format(
             REFERENCE=reference,
@@ -789,6 +836,7 @@ def runMultiQC(script: TextIOWrapper, options: OptionsDict):
 #
 # Run MultiQC across everything
 # 
+logthis "Starting MultiQC on {SAMPLE}"
 
 ## Clean up any old stats
 cd {STATS}
@@ -807,14 +855,14 @@ mv {STATS}/qc/multiqc_data {STATS}/{SAMPLE}_multiqc_data
 mv {STATS}/qc/multiqc_report.html {STATS}/{SAMPLE}_multiqc_report.html
 rm -rf {STATS}/qc
 
+logthis "MultiQC for {SAMPLE} is complete"
 """.format(
             STATS=stats, SAMPLE=sample
         )
     )
 
 
-def cleanup(script: TextIOWrapper, prefix: str, options: OptionsDict):
-    pipeline = options["pipeline"]
+def cleanup(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
 
     script.write("\n")
@@ -822,63 +870,15 @@ def cleanup(script: TextIOWrapper, prefix: str, options: OptionsDict):
     script.write("# Clean up all intermediate interval files\n")
     script.write("#\n")
 
-    bam = """{PREFIX}.chr*.bam""".format(PREFIX=prefix)
-    bqsr = """{PREFIX}.chr*_bqsr.bam""".format(PREFIX=prefix)
-    vcf = """{PREFIX}.chr*.vcf""".format(PREFIX=prefix)
-
-    script.write("rm -f {BAM}\n".format(BAM=bam))
-    script.write("rm -f {BAM}.bai\n".format(BAM=bam))
+    script.write("rm -f {SAMPLE}.chr*\n".format(SAMPLE=sample))
 
     script.write("\n")
-    script.write("rm -f {BQSR}\n".format(BQSR=bqsr))
-    script.write("rm -f {BQSR}.bai\n".format(BQSR=bqsr.replace(".bam", "")))
-    script.write("rm -f {BQSR}.table\n".format(BQSR=bqsr))
-
-    script.write("\n")
-    script.write("rm -f {VCF}\n".format(VCF=vcf))
-    script.write("rm -f {SAMPLE}.chr*.vcf.idx".format(SAMPLE=sample))
-    script.write("rm -f {VCF}.idx\n".format(VCF=vcf))
-    script.write("rm -f {VCF}\n".format(VCF=vcf).replace(".vcf", ".html"))
-
-    for type in ["snps", "indels"]:
-        script.write(
-            """
-rm -f {SAMPLE}.chr*.{TYPE}.vcf.idx
-            """.format(
-                PIPELINE=pipeline, TYPE=type, SAMPLE=sample
-            )
-        )
-
-    script.write("\n")
-    script.write("#\n")
-    script.write("# Clean up all remaining intermediate files\n")
-    script.write("#\n")
-    script.write("\n")
-    for type in ["snps", "indels"]:
-        script.write(
-            "rm -f {PIPELINE}/merge.{TYPE}.list\n".format(PIPELINE=pipeline, TYPE=type)
-        )
-
-    for type in ["snps", "indels"]:
-        script.write(
-            """
-rm -f {PIPELINE}/{SAMPLE}.{TYPE}.final.vcf
-rm -f {PIPELINE}/{SAMPLE}.{TYPE}.final.vcf.idx
-""".format(
-                PIPELINE=pipeline, SAMPLE=sample, TYPE=type
-            )
-        )
-
     script.write("\n")
 
 
 def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastaPair):
     script.write("#\n")
-    script.write(
-        "# generated at {TIME}\n".format(
-            TIME=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        )
-    )
+    script.write("# generated at {TIME}\n".format(TIME=datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     script.write("#\n")
     script.write("# Parameters\n")
     for opt in options.keys():
@@ -892,16 +892,10 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastaPai
     script.write("#\n")
 
     script.write("#\n")
-    script.write(
-        "# Assumed chromosome sizes (from {SIZES})\n".format(
-            SIZES=options["chromosomeSizes"]
-        )
-    )
+    script.write("# Assumed chromosome sizes (from {SIZES})\n".format(SIZES=options["chromosomeSizes"]))
     intervals = loadIntervals(options["chromosomeSizes"])
     for interval in intervals.keys():
-        script.write(
-            "#   {CHROME} = {SIZE}\n".format(CHROME=interval, SIZE=intervals[interval])
-        )
+        script.write("#   {CHROME} = {SIZE}\n".format(CHROME=interval, SIZE=intervals[interval]))
     script.write("#\n")
 
     script.write("#\n")
@@ -915,11 +909,7 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastaPai
     script.write("# Split parameters\n")
     script.write("#   segmentSize = {P}\n".format(P=options["segmentSize"]))
     script.write("#   factor = {P}\n".format(P=options["factor"]))
-    script.write(
-        "#   last block max size = {P}\n".format(
-            P=math.floor(options["segmentSize"] * options["factor"])
-        )
-    )
+    script.write("#   last block max size = {P}\n".format(P=math.floor(options["segmentSize"] * options["factor"])))
 
 
 def writeVersions(script: TextIOWrapper):
@@ -937,6 +927,11 @@ red=$(tput setaf 1)
 green=$(tput setaf 2)
 yellow=$(tput setaf 3)
 reset=$(tput sgr0)
+
+function logthis() {{
+  NOW=$(date "+%Y-%m-%d %H:%M:%S")
+  echo -e "[${{NOW}}] ${{1}}"
+}}
 
 # deal with really large fastq files
 ulimit -n 8192
@@ -960,7 +955,6 @@ export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.
 
 def defineArguments() -> Namespace:
     parser = argparse.ArgumentParser()
-    parser.set_defaults(doQC=False, cleanIntermediateFiles=True)
     parser.add_argument(
         "-s",
         "--sample",
@@ -1186,10 +1180,7 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
 def verifyOptions(options: OptionsDict):
     filenames = getFileNames(options)
 
-    if (
-        exists(expandvars(filenames[0])) == False
-        or exists(expandvars(filenames[1])) == False
-    ):
+    if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
         print(
             "Unable to locate the R1 or R2 files at {R1} and {R2}".format(
                 R1=filenames[0],
@@ -1200,51 +1191,27 @@ def verifyOptions(options: OptionsDict):
         quit(1)
 
     if exists(options["bin"]) == False:
-        print(
-            "Unable to find your --bin-dir directory at {PATH}".format(
-                PATH=options["bin"]
-            )
-        )
+        print("Unable to find your --bin-dir directory at {PATH}".format(PATH=options["bin"]))
         quit(1)
 
     if exists(options["working"]) == False:
-        print(
-            "Unable to find your --work-dir directory at {PATH}".format(
-                PATH=options["working"]
-            )
-        )
+        print("Unable to find your --work-dir directory at {PATH}".format(PATH=options["working"]))
         quit(1)
 
     if exists(options["temp"]) == False:
-        print(
-            "Unable to find your --temp-dir directory at {PATH}".format(
-                PATH=options["temp"]
-            )
-        )
+        print("Unable to find your --temp-dir directory at {PATH}".format(PATH=options["temp"]))
         quit(1)
 
     if exists(options["reference"]) == False:
-        print(
-            "Unable to find your --reference-dir directory at {PATH}".format(
-                PATH=options["reference"]
-            )
-        )
+        print("Unable to find your --reference-dir directory at {PATH}".format(PATH=options["reference"]))
         quit(1)
 
     if exists(options["pipeline"]) == False:
-        print(
-            "Unable to find your --pipeline-dir directory at {PATH}".format(
-                PATH=options["pipeline"]
-            )
-        )
+        print("Unable to find your --pipeline-dir directory at {PATH}".format(PATH=options["pipeline"]))
         quit(1)
 
     if exists(options["stats"]) == False:
-        print(
-            "Unable to find your --stats-dir directory at {PATH}".format(
-                PATH=options["stats"]
-            )
-        )
+        print("Unable to find your --stats-dir directory at {PATH}".format(PATH=options["stats"]))
         quit(1)
 
 
@@ -1255,12 +1222,8 @@ def main():
     verifyOptions(options)
 
     filenames = getFileNames(options)
-    sorted = "{PIPELINE}/{SAMPLE}.sorted.bam".format(
-        PIPELINE=options["pipeline"], SAMPLE=options["sample"]
-    )
-    prefix = "{PIPELINE}/{SAMPLE}".format(
-        PIPELINE=options["pipeline"], SAMPLE=options["sample"]
-    )
+    sorted = "{PIPELINE}/{SAMPLE}.sorted.bam".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
+    prefix = "{PIPELINE}/{SAMPLE}".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
 
     with open(options["script"], "w+") as script:
         script.truncate(0)
@@ -1271,9 +1234,7 @@ def main():
         writeEnvironment(script, options)
 
         script.write("\n")
-        script.write(
-            "touch {PIPELINE}/00-started\n".format(PIPELINE=options["pipeline"])
-        )
+        script.write("touch {PIPELINE}/00-started\n".format(PIPELINE=options["pipeline"]))
         script.write("\n")
 
         updateDictionary(script, options)
@@ -1322,42 +1283,42 @@ def main():
         gather(script, options)
 
         annotate(
-            script, 
-            options, 
+            script,
+            options,
             "{WORKING}/vep_data".format(WORKING=options["working"]),
             "FINAL",
-            "{PIPELINE}/{SAMPLE}.final.vcf".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
-            "{PIPELINE}/{SAMPLE}.annotated.final.vcf".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
-            "{SAMPLE}.annotated.final.vcf_summary.html".format(SAMPLE=options["sample"])
+            "{PIPELINE}/{SAMPLE}.final.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
+            "{PIPELINE}/{SAMPLE}.annotated.final.vcf.gz".format(
+                PIPELINE=options["pipeline"], SAMPLE=options["sample"]
+            ),
+            "{SAMPLE}.annotated.final.vcf_summary.html".format(SAMPLE=options["sample"]),
         )
 
         # generateConsensus(script, options)
+
+        if options["cleanIntermediateFiles"] == True:
+            cleanup(script, options)
 
         if options["doQC"]:
             doVariantQC(script, options)
             runMultiQC(script, options)
 
-        if options["cleanIntermediateFiles"] == True:
-            cleanup(script, prefix, options)
-
         script.write(
             """
-\necho ${{yellow}}Waiting for any outstanding processes to complete, this might return immediately, it might not.${{reset}}
+logthis ${{yellow}}Waiting for any outstanding processes to complete, this might return immediately, it might not.${{reset}}
 wait
-\necho -e "${{green}}Done processing${{reset}} {SAMPLE}\\n\\tstats in {STATS}\\n\\tVCFs in {PIPELINE}"\n""".format(
+logthis "${{green}}Done processing${{reset}} {SAMPLE}"
+""".format(
                 SAMPLE=options["sample"],
-                STATS=options["stats"],
-                PIPELINE=options["pipeline"],
             )
         )
 
         script.write("\n")
-        script.write(
-            "touch {PIPELINE}/01-completed\n".format(PIPELINE=options["pipeline"])
-        )
+        script.write("touch {PIPELINE}/01-completed\n".format(PIPELINE=options["pipeline"]))
         script.write("\n")
 
     system("chmod +x {SCRIPT}".format(SCRIPT=options["script"]))
+
 
 if __name__ == "__main__":
     main()
