@@ -404,7 +404,7 @@ def callVariants(script: TextIOWrapper, reference: str, interval: str, bqsr: str
         """
     # call variants
     if [[ ! -f {VCF} ]]; then
-        logthis Starting variant calling for {INTERVAL}
+        logthis "Starting variant calling for {INTERVAL}"
 
         gatk HaplotypeCaller --java-options '-Xmx8g' \\
             -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
@@ -416,7 +416,7 @@ def callVariants(script: TextIOWrapper, reference: str, interval: str, bqsr: str
             --native-pair-hmm-threads 4 \\
             -L {INTERVAL}
 
-        logthis Completed variant calling for {INTERVAL}
+        logthis "Completed variant calling for {INTERVAL}"
     else
         logthis "Variants already called for {INTERVAL}, ${{green}}already completed${{reset}}"
     fi
@@ -431,7 +431,7 @@ def callVariants2(script: TextIOWrapper, reference: str, interval: str, bqsr: st
         """
     # call variants
     if [[ ! -f {VCF} ]]; then
-        logthis Starting variant calling for {INTERVAL}
+        logthis "Starting variant calling for {INTERVAL}"
 
         bcftools mpileup \\
             --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \\
@@ -451,7 +451,7 @@ def callVariants2(script: TextIOWrapper, reference: str, interval: str, bqsr: st
             --output-type v  \\
             --output {VCF} 2>/dev/null
 
-        logthis Completed variant calling for {INTERVAL}
+        logthis "Completed variant calling for {INTERVAL}"
     else
         logthis "Variants already called for {INTERVAL}, ${{green}}already completed${{reset}}"
     fi
@@ -477,7 +477,7 @@ def annotate(
     script.write(
         """
     if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
-        logthis Starting annotation for {INTERVAL}
+        logthis "Starting annotation for {INTERVAL}"
         
         vep --dir {VEP} \\
             --cache \\
@@ -497,7 +497,7 @@ def annotate(
             --output_file {OUTPUT} \\
             --stats_file {STATS}/{SUMMARY}
 
-        logthis Completed annotation for {INTERVAL}
+        logthis "Completed annotation for {INTERVAL}"
     else
         logthis "Annotations for {INTERVAL} already completed, ${{green}}already completed${{reset}}"
     fi
@@ -525,9 +525,9 @@ def scatter(script: TextIOWrapper, options: OptionsDict, prefix: str, sorted: st
     script.write(
         """
 \n
-logthis ${yellow}Waiting for scattering to complete${reset}
+logthis "${yellow}Waiting for scattering to complete${reset}"
 wait
-logthis ${green}Scattering completed${reset}
+logthis "${green}Scattering completed${reset}"
 \n
         """
     )
@@ -536,7 +536,7 @@ logthis ${green}Scattering completed${reset}
 def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
     #
     # for now commenting out individual region annotation as there's
-    # really no downstream consumer of that data. instead we'll 
+    # really no downstream consumer of that data. instead we'll
     # just keep the individual region's calls for later merging and
     # bulk annotation (which provides a complete summary annotation)
     # working = options["working"]
@@ -577,9 +577,9 @@ def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
 
     script.write(
         """
-logthis ${yellow}Waiting for intervals to complete${reset}
+logthis "${yellow}Waiting for intervals to complete${reset}"
 wait
-logthis ${green}Intervals processed${reset}
+logthis "${green}Intervals processed${reset}"
         """
     )
 
@@ -592,10 +592,10 @@ def generateConsensus(script: TextIOWrapper, options: OptionsDict):
     script.write(
         """
 if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fasta ]]; then
-    logthis "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.final.vcf.gz${{reset}}"
+    logthis "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.unannotated.vcf.gz${{reset}}"
     bcftools consensus \\
         --fasta-ref {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-        {PIPELINE}/{SAMPLE}.final.vcf.gz \\
+        {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
     | sed '/>/ s/$/ | {SAMPLE}/' >{PIPELINE}/{SAMPLE}.consensus.fasta
 else
     logthis "Consensus fasta already generated for {PIPELINE}/{SAMPLE}.consensus.fasta, ${{green}}already completed${{reset}}"
@@ -617,33 +617,33 @@ def gather(script: TextIOWrapper, options: OptionsDict):
 #
 # Gather interval data and recombine(s)
 # 
-if [[ ! -f {PIPELINE}/{SAMPLE}.final.vcf.gz ]]; then
+if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
     logthis "Building merge list for {SAMPLE}"
     /bin/ls -1 {PIPELINE}/{SAMPLE}.chr[0-9MXY]*.vcf | sort -k1,1V >{PIPELINE}/{SAMPLE}.merge.list
 
-    logthis "Concatenating intermediate VCFs into final {PIPELINE}/{SAMPLE}.final.vcf.gz"
+    logthis "Concatenating intermediate VCFs into final {PIPELINE}/{SAMPLE}.unannotated.vcf.gz"
 
     vcf-concat --files {PIPELINE}/{SAMPLE}.merge.list \\
-        | bgzip >{PIPELINE}/{SAMPLE}.final.vcf.gz
+        | bgzip >{PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
-    logthis "VCF concatenation complete for {PIPELINE}/{SAMPLE}.final.vcf.gz"
+    logthis "VCF concatenation complete for {PIPELINE}/{SAMPLE}.unannotated.vcf.gz"
 else
     logthis "VCFs already merged, ${{green}}already completed${{reset}}"
 fi
 
-if [[ ! -f {PIPELINE}/{SAMPLE}.final.vcf.gz.tbi ]]; then
-    logthis "Indexing {PIPELINE}/{SAMPLE}.final.vcf.gz"
+if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz.tbi ]]; then
+    logthis "Indexing {PIPELINE}/{SAMPLE}.unannotated.vcf.gz"
 
-    tabix -p vcf {PIPELINE}/{SAMPLE}.final.vcf.gz
+    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
-    logthis "Indexing {PIPELINE}/{SAMPLE}.final.vcf.gz complete"
+    logthis "Indexing {PIPELINE}/{SAMPLE}.unannotated.vcf.gz complete"
 else
     logthis "VCFs index already created, ${{green}}already completed${{reset}}"
 fi
 
-logthis ${{yellow}}Waiting for VCF merge to complete${{reset}}
+logthis "${{yellow}}Waiting for VCF merge to complete${{reset}}"
 wait
-logthis ${{green}}Final VCF merge completed${{reset}}
+logthis "${{green}}Final VCF merge completed${{reset}}"
     """.format(
             PIPELINE=pipeline, SAMPLE=sample
         )
@@ -670,7 +670,7 @@ logthis "Starting Variant QC processes"
         gatk CollectVariantCallingMetrics \\
             --VERBOSITY ERROR \\
             --DBSNP {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
-            -I {PIPELINE}/{SAMPLE}.final.vcf.gz \\
+            -I {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
             -O {STATS}/{SAMPLE}
 
         logthis "Variant calling metrics collected"
@@ -685,37 +685,37 @@ logthis "Starting Variant QC processes"
 logthis "Running vcftools statistics"
 
 if [[ ! -f {STATS}/{SAMPLE}.frq ]]; then
-    vcftools --gzvcf {PIPELINE}/{SAMPLE}.final.vcf.gz --freq2 --out {STATS}/{SAMPLE} --max-alleles 2 2>/dev/null &
+    vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --freq2 --out {STATS}/{SAMPLE} --max-alleles 2 2>/dev/null &
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.idepth ]]; then
-    vcftools --gzvcf {PIPELINE}/{SAMPLE}.final.vcf.gz --depth --out {STATS}/{SAMPLE} 2>/dev/null &
+    vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --depth --out {STATS}/{SAMPLE} 2>/dev/null &
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.ldepth.mean ]]; then
-    vcftools --gzvcf {PIPELINE}/{SAMPLE}.final.vcf.gz --site-mean-depth --out {STATS}/{SAMPLE} 2>/dev/null &
+    vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --site-mean-depth --out {STATS}/{SAMPLE} 2>/dev/null &
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.lqual ]]; then
-    vcftools --gzvcf {PIPELINE}/{SAMPLE}.final.vcf.gz --site-quality --out {STATS}/{SAMPLE} 2>/dev/null &
+    vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --site-quality --out {STATS}/{SAMPLE} 2>/dev/null &
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.imiss ]]; then
-    vcftools --gzvcf {PIPELINE}/{SAMPLE}.final.vcf.gz --missing-indv --out {STATS}/{SAMPLE} 2>/dev/null &
+    vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --missing-indv --out {STATS}/{SAMPLE} 2>/dev/null &
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.lmiss ]]; then
-    vcftools --gzvcf {PIPELINE}/{SAMPLE}.final.vcf.gz --missing-site --out {STATS}/{SAMPLE} 2>/dev/null &
+    vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --missing-site --out {STATS}/{SAMPLE} 2>/dev/null &
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.het ]]; then
-    vcftools --gzvcf {PIPELINE}/{SAMPLE}.final.vcf.gz --het --out {STATS}/{SAMPLE} 2>/dev/null &
+    vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --het --out {STATS}/{SAMPLE} 2>/dev/null &
 fi
 
-logthis ${{yellow}}Waiting for variant QC metrics to complete${{reset}}
+logthis "${{yellow}}Waiting for variant QC metrics to complete${{reset}}"
 job
 wait
-logthis ${{green}}Variant QC metrics completed${{reset}}
+logthis "${{green}}Variant QC metrics completed${{reset}}"
 """.format(
             REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample, STATS=stats
         )
@@ -862,7 +862,7 @@ logthis "MultiQC for {SAMPLE} is complete"
     )
 
 
-def cleanup(script: TextIOWrapper, options: OptionsDict):
+def cleanup(script: TextIOWrapper, prefix: str, options: OptionsDict):
     sample = options["sample"]
 
     script.write("\n")
@@ -870,10 +870,7 @@ def cleanup(script: TextIOWrapper, options: OptionsDict):
     script.write("# Clean up all intermediate interval files\n")
     script.write("#\n")
 
-    script.write("rm -f {SAMPLE}.chr*\n".format(SAMPLE=sample))
-
-    script.write("\n")
-    script.write("\n")
+    script.write("rm -f {PREFIX}/{SAMPLE}.chr*\n".format(PREFIX=prefix, SAMPLE=sample))
 
 
 def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastaPair):
@@ -1224,6 +1221,7 @@ def main():
     filenames = getFileNames(options)
     sorted = "{PIPELINE}/{SAMPLE}.sorted.bam".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
     prefix = "{PIPELINE}/{SAMPLE}".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
+    cleantarget = options["pipeline"]
 
     with open(options["script"], "w+") as script:
         script.truncate(0)
@@ -1287,17 +1285,15 @@ def main():
             options,
             "{WORKING}/vep_data".format(WORKING=options["working"]),
             "FINAL",
-            "{PIPELINE}/{SAMPLE}.final.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
-            "{PIPELINE}/{SAMPLE}.annotated.final.vcf.gz".format(
-                PIPELINE=options["pipeline"], SAMPLE=options["sample"]
-            ),
-            "{SAMPLE}.annotated.final.vcf_summary.html".format(SAMPLE=options["sample"]),
+            "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
+            "{PIPELINE}/{SAMPLE}.annotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
+            "{SAMPLE}.annotated.vcf_summary.html".format(SAMPLE=options["sample"]),
         )
 
         # generateConsensus(script, options)
 
         if options["cleanIntermediateFiles"] == True:
-            cleanup(script, options)
+            cleanup(script, cleantarget, options)
 
         if options["doQC"]:
             doVariantQC(script, options)
@@ -1305,7 +1301,7 @@ def main():
 
         script.write(
             """
-logthis ${{yellow}}Waiting for any outstanding processes to complete, this might return immediately, it might not.${{reset}}
+logthis "${{yellow}}Waiting for any outstanding processes to complete, this might return immediately, it might not.${{reset}}"
 wait
 logthis "${{green}}Done processing${{reset}} {SAMPLE}"
 """.format(
