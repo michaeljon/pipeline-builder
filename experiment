@@ -70,3 +70,55 @@ ls -1 *.bam > bams.lst
 time \
     samtools merge -cfp --threads 64 -b bams.lst -f -o - |
     samtools view --threads 64 --bam --write-index --reference /home/ubuntu/reference/covid_reference.fasta --output DPZw_k.sorted.aligned.bam
+
+# create intervals
+time samtools view -@ 4 -bh /home/ubuntu/pipeline/DPZw_k/DPZw_k.sorted.aligned.bam chr1:1-50000000 >/home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam
+time samtools index -@ 4 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam
+
+# generate BQSR table
+time gatk BaseRecalibrator --java-options '-Xmx8g' \
+        -R /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+        -I /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam \
+        -O /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqsr.bam.table \
+        --verbosity ERROR \
+        --preserve-qscores-less-than 6 \
+        --known-sites /home/ubuntu/reference/Homo_sapiens_assembly38.dbsnp138.vcf \
+        --known-sites /home/ubuntu/reference/Homo_sapiens_assembly38.known_indels.vcf \
+        --known-sites /home/ubuntu/reference/Mills_and_1000G_gold_standard.indels.hg38.vcf \
+        -L chr1:1-50000000
+
+# apply BSQR
+time gatk ApplyBQSR --java-options '-Xmx8g' \
+    -R /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+    -I /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam \
+    -O /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqsr.bam \
+    --verbosity ERROR \
+    --emit-original-quals true \
+    --preserve-qscores-less-than 6 \
+    --static-quantized-quals 10 \
+    --static-quantized-quals 20 \
+    --static-quantized-quals 30 \
+    --bqsr-recal-file /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqsr.bam.table \
+    -L chr1:1-50000000
+
+# index the resulting file
+time samtools index -@ 4 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqsr.bam
+
+# call variants
+time bcftools mpileup \
+        --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \
+        --max-depth 250 \
+        --no-BAQ \
+        --threads 64 \
+        --output-type u \
+        --regions chr1:1-50000000 \
+        --fasta-ref /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+        /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqsr.bam 2>/dev/null | \
+    bcftools call \
+        --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \
+        --variants-only \
+        --multiallelic-caller \
+        --ploidy GRCh38 \
+        --threads 64 \
+        --output-type v  \
+        --output /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.vcf 2>/dev/null

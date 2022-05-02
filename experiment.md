@@ -164,3 +164,29 @@ sys	    2m59.965s
 5084787 (index)
 
 # the next operation here is based on creating intervals from the bam
+786287499 DPZw_k.chr1_1_50000000.bam
+real    0m34.356s
+user    2m20.602s
+sys     0m1.991s
+
+177200	DPZw_k.chr1_1_50000000.bam.bai
+real    0m3.636s
+user    0m15.895s
+sys     0m0.644s
+
+# bqsr table generation and application
+112626	DPZw_k.chr1_1_50000000_bqsr.bam.table
+real	4m42.610s
+user	5m1.564s
+sys		0m5.962s
+
+1327080841	DPZw_k.chr1_1_50000000_bqsr.bam
+real	3m50.399s
+user	5m10.759s
+sys		0m47.233s
+
+# finally, variant calling uses bcftools mpileup / call
+22273294	DPZw_k.chr1_1_50000000.vcf
+real	5m42.431s
+user	5m56.986s
+sys		0m10.371s
