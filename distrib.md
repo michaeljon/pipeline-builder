@@ -159,13 +159,13 @@ time samtools index -@ 4 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqs
 
 Each resulting quality-adjusted BAM is then passed to one of the variant calling operations (both are options to our pipeline): `bcftools mpileup` / `bcftools call` or `HaplotypeCaller`.
 
-The `bcftools` caller has an option to specify the number of threads however that option is either ignored or doesn't work as defined. The calling process is single threaded. We currently run `mpileup` and pipe its output directly to `call` to reduce both the overall time and the temporary disk space needed. Variant calling is one of the most time-wise expensive operations. The pileup operation uses 100% of a single core while running and the linked call operation uses < 10%. Overall variant calling runs in about 360 seconds (6 minutes) per interval.
+The `bcftools` caller has an option to specify the number of threads however that option is either ignored or [doesn't work as defined](https://github.com/samtools/samtools/issues/480). The calling process is single threaded. We currently run `mpileup` and pipe its output directly to `call` to reduce both the overall time and the temporary disk space needed. Variant calling is one of the most time-wise expensive operations. The pileup operation uses 100% of a single core while running and the linked call operation uses < 10%. Overall variant calling runs in about 360 seconds (6 minutes) per interval.
 
 ```bash
 # call variants
 time bcftools mpileup \
         --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \
-        --max-depth 250 \
+        --max-depth 500 \
         --no-BAQ \
         --threads 64 \
         --output-type u \

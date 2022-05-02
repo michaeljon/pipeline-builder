@@ -436,7 +436,7 @@ def callVariants2(script: TextIOWrapper, reference: str, interval: str, bqsr: st
 
         bcftools mpileup \\
             --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \\
-            --max-depth 250 \\
+            --max-depth 500 \\
             --no-BAQ \\
             --threads 4 \\
             --output-type u \\

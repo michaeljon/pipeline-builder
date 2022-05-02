@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 
-THREAD_COUNT=72
-
 # trim (fastp is limited to 16 threads)
 time fastp \
     --in1 /home/ubuntu/stats/FASTQ/DPZw_k_R1.fastq.gz \
     --in2 /home/ubuntu/stats/FASTQ/DPZw_k_R2.fastq.gz \
-    --out1=/home/ubuntu/pipeline/parts/DPZw_k_trimmed_R1.fastq.gz \
-    --out2=/home/ubuntu/pipeline/parts/DPZw_k_trimmed_R2.fastq.gz \
+    --out1=/home/ubuntu/pipeline/DPZw_k/DPZw_k_trimmed_R1.fastq.gz \
+    --out2=/home/ubuntu/pipeline/DPZw_k/DPZw_k_trimmed_R2.fastq.gz \
     --verbose \
     --thread 16 \
     --detect_adapter_for_pe \
@@ -16,10 +14,10 @@ time fastp \
 
 # split (fastp is limited to 16 threads, disable all quality operations)
 time fastp \
-    --in1=/home/ubuntu/pipeline/parts/DPZw_k_trimmed_R1.fastq.gz \
-    --in2=/home/ubuntu/pipeline/parts/DPZw_k_trimmed_R2.fastq.gz \
-    --out1=/home/ubuntu/pipeline/parts/DPZw_k_R1.fastq.gz \
-    --out2=/home/ubuntu/pipeline/parts/DPZw_k_R2.fastq.gz \
+    --in1=/home/ubuntu/pipeline/DPZw_k/DPZw_k_trimmed_R1.fastq.gz \
+    --in2=/home/ubuntu/pipeline/DPZw_k/DPZw_k_trimmed_R2.fastq.gz \
+    --out1=/home/ubuntu/pipeline/DPZw_k/DPZw_k_R1.fastq.gz \
+    --out2=/home/ubuntu/pipeline/DPZw_k/DPZw_k_R2.fastq.gz \
     --verbose \
     --thread 16 \
     --split 64 \
@@ -35,19 +33,19 @@ for i in {1..64}; do
     SEGMENT=$(printf "%.4d" $i)
 
     time bwa-mem2 mem \
-        -t ${THREAD_COUNT} \
+        -t 72 \
         -Y \
         -M \
         -K 720000000 \
         -v 2 \
         -R "@RG\tID:DPZw_k\tPL:ILLUMINA\tPU:unspecified\tLB:DPZw_k\tSM:DPZw_k" \
         /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
-        /home/ubuntu/pipeline/parts/${SEGMENT}.DPZw_k_R1.fastq.gz \
-        /home/ubuntu/pipeline/parts/${SEGMENT}.DPZw_k_R2.fastq.gz |
+        /home/ubuntu/pipeline/DPZw_k/${SEGMENT}.DPZw_k_R1.fastq.gz \
+        /home/ubuntu/pipeline/DPZw_k/${SEGMENT}.DPZw_k_R2.fastq.gz |
         pigz >/home/ubuntu/pipeline/DPZw_k/DPZw_k.${SEGMENT}.aligned.sam.gz
 
-    rm /home/ubuntu/pipeline/parts/${SEGMENT}.DPZw_k_R1.fastq.gz
-    rm /home/ubuntu/pipeline/parts/${SEGMENT}.DPZw_k_R2.fastq.gz
+    rm /home/ubuntu/pipeline/DPZw_k/${SEGMENT}.DPZw_k_R1.fastq.gz
+    rm /home/ubuntu/pipeline/DPZw_k/${SEGMENT}.DPZw_k_R2.fastq.gz
 done
 
 # sort and mark duplicates
@@ -57,7 +55,7 @@ for i in {1..64}; do
     time unpigz --stdout /home/ubuntu/pipeline/DPZw_k/DPZw_k.${SEGMENT}.aligned.sam.gz |
     bamsormadup \
         SO=coordinate \
-        threads=${THREAD_COUNT} \
+        threads=72 \
         level=6 \
         tmpfile=/home/ubuntu/stats/temp/DPZw_k \
         inputformat=sam \
@@ -68,12 +66,12 @@ done
 # merge the segments in a single bam per-segment
 ls -1 *.bam > bams.lst
 time \
-    samtools merge -cfp --threads 64 -b bams.lst -f -o - |
-    samtools view --threads 64 --bam --write-index --reference /home/ubuntu/reference/covid_reference.fasta --output DPZw_k.sorted.aligned.bam
+    samtools merge -cfp --threads 72 -b bams.lst -f -o - |
+    samtools view --threads 72 --bam --write-index --reference /home/ubuntu/reference/covid_reference.fasta --output DPZw_k.sorted.aligned.bam
 
 # create intervals
-time samtools view -@ 4 -bh /home/ubuntu/pipeline/DPZw_k/DPZw_k.sorted.aligned.bam chr1:1-50000000 >/home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam
-time samtools index -@ 4 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam
+time samtools view --threads 72 -bh /home/ubuntu/pipeline/DPZw_k/DPZw_k.sorted.aligned.bam chr1:1-50000000 >/home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam
+time samtools index --threads 72 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam
 
 # generate BQSR table
 time gatk BaseRecalibrator --java-options '-Xmx8g' \
@@ -102,23 +100,24 @@ time gatk ApplyBQSR --java-options '-Xmx8g' \
     -L chr1:1-50000000
 
 # index the resulting file
-time samtools index -@ 4 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqsr.bam
+time samtools index --threads 72 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqsr.bam
 
 # call variants
 time bcftools mpileup \
         --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \
-        --max-depth 250 \
+        --max-depth 500 \
         --no-BAQ \
-        --threads 64 \
+        --ignore-overlaps \
+        --seed 2601610512 \
         --output-type u \
         --regions chr1:1-50000000 \
         --fasta-ref /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
         /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqsr.bam 2>/dev/null | \
     bcftools call \
+        --threads 72 \
         --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \
         --variants-only \
         --multiallelic-caller \
         --ploidy GRCh38 \
-        --threads 64 \
         --output-type v  \
         --output /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.vcf 2>/dev/null
