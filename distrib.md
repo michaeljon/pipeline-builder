@@ -1,5 +1,7 @@
 # Notes and thoughts on distributing alignment
 
+See [the supplemental file](experiment.md) for actual timing and file sizes for the commands shown here.
+
 ## Alignment
 
 Ok, after having hacked through the alignment process over the weekend I've kinda come to the conclusion that using map/reduce or something like it isn't really the right idea. To make it really work would require an always-on BWA aligner (because of cache and index loading costs) that could listen on some IPC mechanism (probably a socket). I don't think we want to be in the game of forking and maintaining the BWA-MEM2 code (while fun and interesting, unless there's a serious competitive advantage, it's some very gnarly C code hand-tuned by Intel to work very well on their processors and takes explicit advantage of certain processor instruction sets being available)...
