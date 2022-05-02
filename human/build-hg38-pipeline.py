@@ -187,8 +187,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
         fastp \\
-            -i {R1} \\
-            -I {R2} \\
+            --in1 {R1} \\
+            --in2 {R2} \\
             --verbose {LIMITREADS} \\
             --stdout \\
             --thread 8 \\
@@ -196,7 +196,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             -j {STATS}/{SAMPLE}-fastp.json \\
             -h {STATS}/{SAMPLE}-fastp.html | \\
         bwa-mem2 mem -t {THREADS} \\
-            -Y -M {DASHK} \\
+            -Y \\
+            -M {DASHK} \\
             -v 1 \\
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
             {REFERENCE}/Homo_sapiens_assembly38.fasta \\
