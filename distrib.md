@@ -2,6 +2,8 @@
 
 See [the supplemental file](experiment.md) for actual timing and file sizes for the commands shown here. The experiment was run on `DPZw_k` which is a 30x Illumina sample. The script that ran the partial experiment is [also available](experiment). `THREAD_COUNT` was set there to 72.
 
+Note, the following discussion is only interesting if we hit the kind of genomic processing that demands and automated solution. A single person can kick off a dozen or more of these jobs on demand per day without worrying about it. The existing pipeline can be tuned so that it automated pulling source FASTQ onto a booted ec2, runs the pipeline, pushes the results to some destination, then shuts down the ec2. Where this gets interesting, and only when we hit the point where we make the call that we're doing research-level queries over variant data, is what that environment looks like. For now a smarter version of `grep` can easily locate a position on a chromosome, and with some extension find those positions that overlap an indel but aren't tied to the left-most position.
+
 ## Alignment
 
 Ok, after having hacked through the alignment process over the weekend I've kinda come to the conclusion that using map/reduce or something like it isn't really the right idea. To make it really work would require an always-on BWA aligner (because of cache and index loading costs) that could listen on some IPC mechanism (probably a socket). I don't think we want to be in the game of forking and maintaining the BWA-MEM2 code (while fun and interesting, unless there's a serious competitive advantage, it's some very gnarly C code hand-tuned by Intel to work very well on their processors and takes explicit advantage of certain processor instruction sets being available)...
