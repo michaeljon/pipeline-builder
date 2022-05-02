@@ -94,19 +94,29 @@ The final step before we can call variants is to reconstruct the complete aligne
 ls -1 *.bam > bams.lst
 time \
     samtools merge -cfp --threads 64 -b bams.lst -f -o - |
-    samtools view --threads 64 --bam --write-index --reference /home/ubuntu/reference/covid_reference.fasta --output DPZw_k.sorted.aligned.bam
+    samtools view --threads 64 --bam \
+      --write-index \
+      --reference /home/ubuntu/reference/covid_reference.fasta \
+      --output DPZw_k.sorted.aligned.bam
 ```
 
 ## Variant calling
 
-(This section will use the `chr1:1-50000000` interval as an example.)
+(This section will use the `chr1:1-50000000` interval as an example. Most other intervals have similar behavior.)
 
 Variant calling is inherently parallelizable. Once we have an aligned and sorted BAM we can create intervals of that BAM and run a variant calling process on the individual interval. `samtools` is used to create the interval files and their associated index. This scattering operation uses a different set of input rules but is otherwise configurable (chromosome "sizes" are the fixed input, interval sizes and an overfill factor are used to construct the actual per-interval file sizes). "Scattering" these files is a read-only operation on the source BAM and can be computed in parallel on a single compute node. Our current pipeline performs the interval creation and indexing by starting the process pairs as background jobs and waiting on them to complete. Each interval, run at 4 threads, takes approximately 35 seconds for BAM construction and 3 seconds for index construction. I expect the interval sizes to stay within a fairly small range since each interval is approximately the same size. However, the number of reads within a given interval may differ. (This might be an interesting research paper - what's the relationship to genome position vs. chromosome read distribution vs. coverage alignment)
 
 ```bash
 # create intervals
-time samtools view -@ 4 -bh /home/ubuntu/pipeline/DPZw_k/DPZw_k.sorted.aligned.bam chr1:1-50000000 >/home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam
-time samtools index -@ 4 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam
+time samtools view \
+    -@ 4 -bh \
+    /home/ubuntu/pipeline/DPZw_k/DPZw_k.sorted.aligned.bam chr1:1-50000000 \
+    >/home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam
+
+# and index the resulting interval file
+time samtools index \
+    -@ 4 \
+    /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam
 ```
 
 The way we're calling variants right now (on the single ec2) is to create per-chromosome intervals of 50mbp ±20% and using those individual intervals as inputs to the GATK BQSR process. BQSR is a two-step process which first uses the BAM and various reference data, to construct a table of corrections. Those corrections are then applied to the BAM to create a quality-adjusted BAM. We should run some experiments to determine the value of this step as it's recommended for the GATK "best practices" workflow, but not all experiments use that workflow.
@@ -144,7 +154,7 @@ time gatk ApplyBQSR --java-options '-Xmx8g' \
 time samtools index -@ 4 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqsr.bam
 ```
 
-Each resulting quality-adjusted BAM is then passed to one of the variant calling operations (both are options to our pipeline): `bcftools mpileup`/`bcftools call` or `HaplotypeCaller`.
+Each resulting quality-adjusted BAM is then passed to one of the variant calling operations (both are options to our pipeline): `bcftools mpileup` / `bcftools call` or `HaplotypeCaller`.
 
 The `bcftools` caller has an option to specify the number of threads however that option is either ignored or doesn't work as defined. The calling process is single threaded. We currently run `mpileup` and pipe its output directly to `call` to reduce both the overall time and the temporary disk space needed. Variant calling is one of the most time-wise expensive operations. The pileup operation uses 100% of a single core while running and the linked call operation uses < 10%. Overall variant calling runs in about 360 seconds (6 minutes) per interval.
 
