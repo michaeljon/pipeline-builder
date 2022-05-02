@@ -169,6 +169,20 @@ time bcftools mpileup \
         --output /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.vcf 2>/dev/null
 ```
 
+## Alignment approach
+
+Given the above I think we need to construct a repeatable workflow (I'm hesitant to use that term, but...) that listens for an inbound FASTQ alignment job consisting of { sample, FASTQ location, job parameters } which then starts the above processing. The listener process would schedule the FASTQ trimming and partitioning on one of the medium-sized partitioning nodes (because FASTP is CPU-limited to 16 threads). Each partition FASTQ pair would be written to S3 and we'd record execution metrics in addition to the FASTP quality reports.
+
+That pre-process step would perform trimming and partitioning then schedule the alignment processing for each individual partition. The alignment process `bwa-mem2` is capable of using multiple / all CPUs on a given node and the more available the faster it'll run. The alignment nodes would read their individual gzipped partition FASTQ pair and generate a single gzipped and aligned SAM. We'd then write the SAM to S3 and store the execution data (we'll probably want to write a BWA output scraper to grab additional execution data).
+
+As each of the alignments are completed and the FASTQ pairs are written to S3 a sorting and duplicate marking job can be scheduled. That job pulls the individual SAM from S3 sorts and duplicate marks it and writes the resulting BAM back to S3. `bamsormadup` is also capable of using all CPUs on a node and behaves well up to the 72 core node that I've been using.
+
+The next step requires some additional coordination as the overall workflow is blocked until all partitions are aligned and sorted. Those partitions serve as input to the merge operation that's used for creating the individual interval files. Some process (it could be an "outer" workflow that's watching the job or it could be the sorting node) will be responsible for noting that the last partition is complete and in S3 so that the merge and interval-generation process can begin. That process pulls the BAM from S3 and the interval configuration data from the job to create the intervals over which we'll apply calibration and call variants. Each interval generates two files (or the calibration node can pull the interval and generate the interval it needs) - the BAM and an index.
+
+Calibration operates on the aligned and sorted interval and generates another BAM as a result. These two processes must run sequentially and both are single-threaded. They both use several reference files which should be staged (including the reference file indexes and trees) locally instead of pulling them from storage (they're large and the time to pull will be close to the execution time). Each partition runs independently of the others and the resulting BAM is then pushed into S3.
+
+The final step before variant post-processing is to actually call the variants. This step also requires access to the reference data (the reference genome FASTA and variant index files), and is also single-threaded. See below for how we might conclude the workflow.
+
 ## Variant post-processing
 
 We have a number of alternatives for post-call variant processing. My preferred model is to send each interval variant set to a process that reads the VCF and stores the resulting variant data on a per-position basis in a relational store. This option gives us a queryable database (using technology that we are all comfortable with) in which we can perform downstream variant analysis (searching, joining to known annotation stores, reconstructing full or partial VCF files).
