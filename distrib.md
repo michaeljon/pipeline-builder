@@ -1,6 +1,6 @@
 # Notes and thoughts on distributing alignment
 
-See [the supplemental file](experiment.md) for actual timing and file sizes for the commands shown here.
+See [the supplemental file](experiment.md) for actual timing and file sizes for the commands shown here. The experiment was run on `DPZw_k` which is a 30x Illumina sample. The script that ran the partial experiment is [also available](experiment). `THREAD_COUNT` was set there to 72.
 
 ## Alignment
 
@@ -68,7 +68,7 @@ for i in {1..64}; do
 done
 ```
 
-Once each partition is aligned is can immediately be sent on to be coordinate sorted, duplicate marked, and indexed. This process uses no additional input files and is limited only by the available threads and memory on the sorting node. Each partition in my experiment took about 150 wall clock seconds.
+Once each partition is aligned it can immediately be sent on to be coordinate sorted, duplicate marked, and indexed. This process uses no additional input files and is limited only by the available threads and memory on the sorting node. Each partition in my experiment took about 150 wall clock seconds.
 
 ```bash
 # sort and mark duplicates
