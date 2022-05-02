@@ -83,7 +83,8 @@ for i in {1..64}; do
         tmpfile=/home/ubuntu/stats/temp/DPZw_k \
         inputformat=sam \
         indexfilename=/home/ubuntu/pipeline/DPZw_k/DPZw_k.${SEGMENT}.sorted.bam.bai \
-        M=/home/ubuntu/pipeline/DPZw_k/DPZw_k.${SEGMENT}.duplication_metrics >/home/ubuntu/pipeline/DPZw_k/DPZw_k.${SEGMENT}.sorted.bam
+        M=/home/ubuntu/pipeline/DPZw_k/DPZw_k.${SEGMENT}.duplication_metrics \
+        >/home/ubuntu/pipeline/DPZw_k/DPZw_k.${SEGMENT}.sorted.bam
 done
 ```
 
