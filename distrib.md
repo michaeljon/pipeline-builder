@@ -111,7 +111,7 @@ time samtools index -@ 4 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam
 
 The way we're calling variants right now (on the single ec2) is to create per-chromosome intervals of 50mbp ±20% and using those individual intervals as inputs to the GATK BQSR process. BQSR is a two-step process which first uses the BAM and various reference data, to construct a table of corrections. Those corrections are then applied to the BAM to create a quality-adjusted BAM. We should run some experiments to determine the value of this step as it's recommended for the GATK "best practices" workflow, but not all experiments use that workflow.
 
-One thing to note about using GATK for the BQSR and variant calling process - GATK is single-threaded. Our current pipeline takes advantage of that by running many BQSR processes in parallel on a single large compute node. I think keeping a smaller cluster of these compute nodes that can run many BQSR processes simultaneously might be a better approach than using many very small nodes. Computing the BQSR table uses around 385 seconds and applying the BQSR to the resulting BAM uses 240 seconds. These processes must be run serially and operate on the same input file. One thing of interest is that the resulting BAM after BQSR application is $2x$ the size of the input BAM.
+One thing to note about using GATK for the BQSR and variant calling process - GATK is single-threaded. Our current pipeline takes advantage of that by running many BQSR processes in parallel on a single large compute node. I think keeping a smaller cluster of these compute nodes that can run many BQSR processes simultaneously might be a better approach than using many very small nodes. Computing the BQSR table uses around 385 seconds and applying the BQSR to the resulting BAM uses 240 seconds. These processes must be run serially and operate on the same input file. One thing of interest is that the resulting BAM after BQSR application is twice the size of the input BAM.
 
 ```bash
 # generate BQSR table
@@ -170,6 +170,10 @@ time bcftools mpileup \
 ```
 
 ## Alignment approach
+
+The following describes most of what's shown on this diagram. The exception is the "writer worker" and "vcf writer". They are mentioned in the description, but I didn't go into all the detail they demand. This process starts at the top-right with the receipt of a FASTQ processing request (a sample and a pointer to the associated paired-end Illumina FASTQ files).
+
+![distributed pipeline](pipeline.png)
 
 Given the above I think we need to construct a repeatable workflow (I'm hesitant to use that term, but...) that listens for an inbound FASTQ alignment job consisting of { sample, FASTQ location, job parameters } which then starts the above processing. The listener process would schedule the FASTQ trimming and partitioning on one of the medium-sized partitioning nodes (because FASTP is CPU-limited to 16 threads). Each partition FASTQ pair would be written to S3 and we'd record execution metrics in addition to the FASTP quality reports.
 
