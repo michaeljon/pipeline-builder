@@ -159,7 +159,25 @@ time samtools index -@ 4 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqs
 
 Each resulting quality-adjusted BAM is then passed to one of the variant calling operations (both are options to our pipeline): `bcftools mpileup` / `bcftools call` or `HaplotypeCaller`.
 
+```bash
+gatk HaplotypeCaller --java-options '-Xmx16g' \
+    -R /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+    -I /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqsr.bam \
+    -O /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.vcf \
+    --verbosity ERROR \
+    --dbsnp /home/ubuntu/reference/Homo_sapiens_assembly38.dbsnp138.vcf \
+    --sequence-dictionary /home/ubuntu/reference/Homo_sapiens_assembly38.dict \
+    --pairHMM FASTEST_AVAILABLE \
+    --native-pair-hmm-threads 72 \
+    --annotation AlleleFraction \
+    --annotation Coverage \
+    --annotation PossibleDeNovo \
+    --intervals chr1:1-50000000
+```
+
 The `bcftools` caller has an option to specify the number of threads however that option is either ignored or [doesn't work as defined](https://github.com/samtools/samtools/issues/480). The calling process is single threaded. We currently run `mpileup` and pipe its output directly to `call` to reduce both the overall time and the temporary disk space needed. Variant calling is one of the most time-wise expensive operations. The pileup operation uses 100% of a single core while running and the linked call operation uses < 10%. Overall variant calling runs in about 360 seconds (6 minutes) per interval.
+
+One of the most important differences between an algorithmic variant call such as `bcftools mpileup` / `bcftools call` and `HaplotypeCaller` is the additional level of annotation provided when the caller is comparing against a known database. In the GATK case we're using the dbSNP reference `Homo_sapiens_assembly38.dbsnp138.vcf`. In that case we pay an additional cost for calling but the calls carry the { chrom, pos } "rs" number if that's available. Note, this isn't needed in the case where we are simply taking the raw variants into a downstream database where we can later "join" them to known variant locations. But, if we're not using a database and we're not going to construct our own VCFs, then the additional time may be worth it. We can adjust some options on `HaplotypeCaller` to increase its speed as the underlying Intel functions are actually multithread-aware. `HaplotypeCaller` runs longer both because it's doing the additional dbSNP alignment and because it's doing another "re-alignment" step between the aligned and sorted BAM and the reference genome. In theory this provides for better calls. My preference is to eat the time and bet on the GATK tooling here. We can make this up in terms of additional larger compute nodes and possibly smaller intervals. But the overall quality of calls appears to be much better.
 
 ```bash
 # call variants

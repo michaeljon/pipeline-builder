@@ -70,39 +70,76 @@ time \
     samtools view --threads 72 --bam --write-index --reference /home/ubuntu/reference/covid_reference.fasta --output DPZw_k.sorted.aligned.bam
 
 # create intervals
-time samtools view --threads 72 -bh /home/ubuntu/pipeline/DPZw_k/DPZw_k.sorted.aligned.bam chr1:1-50000000 >/home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam
-time samtools index --threads 72 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam
+time samtools view --threads 72 -bh /home/ubuntu/pipeline/DPZw_k/DPZw_k.sorted.aligned.bam chr3:100000001-150000000 >/home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.bam
+time samtools index -@ 72 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.bam
 
 # generate BQSR table
 time gatk BaseRecalibrator --java-options '-Xmx8g' \
         -R /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
-        -I /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam \
-        -O /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqsr.bam.table \
+        -I /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.bam \
+        -O /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000_bqsr.bam.table \
         --verbosity ERROR \
         --preserve-qscores-less-than 6 \
         --known-sites /home/ubuntu/reference/Homo_sapiens_assembly38.dbsnp138.vcf \
         --known-sites /home/ubuntu/reference/Homo_sapiens_assembly38.known_indels.vcf \
         --known-sites /home/ubuntu/reference/Mills_and_1000G_gold_standard.indels.hg38.vcf \
-        -L chr1:1-50000000
+        -L chr3:100000001-150000000
 
 # apply BSQR
 time gatk ApplyBQSR --java-options '-Xmx8g' \
     -R /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
-    -I /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.bam \
-    -O /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqsr.bam \
+    -I /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.bam \
+    -O /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000_bqsr.bam \
     --verbosity ERROR \
     --emit-original-quals true \
     --preserve-qscores-less-than 6 \
     --static-quantized-quals 10 \
     --static-quantized-quals 20 \
     --static-quantized-quals 30 \
-    --bqsr-recal-file /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqsr.bam.table \
-    -L chr1:1-50000000
+    --bqsr-recal-file /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000_bqsr.bam.table \
+    -L chr3:100000001-150000000
 
 # index the resulting file
-time samtools index --threads 72 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqsr.bam
+time samtools index -@ 72 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000_bqsr.bam
 
-# call variants
+# call variants using gatk
+time gatk HaplotypeCaller --java-options '-Xmx16g' \
+    --gatk-config-file /home/ubuntu/bin/gatk-4.2.3.0/GATKConfig.properties \
+    -R /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+    -I /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000_bqsr.bam \
+    -O /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.vcf \
+    --verbosity ERROR \
+    --dbsnp /home/ubuntu/reference/Homo_sapiens_assembly38.dbsnp138.vcf \
+    --sequence-dictionary /home/ubuntu/reference/Homo_sapiens_assembly38.dict \
+    --pairHMM FASTEST_AVAILABLE \
+    --native-pair-hmm-threads 72 \
+    --pcr-indel-model NONE \
+    --annotation AlleleFraction \
+    --annotation Coverage \
+    --annotation PossibleDeNovo \
+    --intervals chr3:100000001-150000000
+
+# time gatk SelectVariants --java-options '-Xmx16g' \
+#     --gatk-config-file /home/ubuntu/bin/gatk-4.2.3.0/GATKConfig.properties \
+#     -R /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+#     -V /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.vcf \
+#     -O /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.filtered.vcf \
+#     --verbosity ERROR \
+#     -select-type MIXED
+
+# time gatk SelectVariants --java-options '-Xmx16g' \
+#     --gatk-config-file /home/ubuntu/bin/gatk-4.2.3.0/GATKConfig.properties \
+#     -R /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+#     -V /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.vcf \
+#     -O /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.filtered.vcf \
+#     --verbosity ERROR \
+#     -xl-select-type INDEL \
+#     -xl-select-type SNP \
+#     -xl-select-type MNP \
+#     -xl-select-type SYMBOLIC \
+#     -xl-select-type MIXED 
+
+# call variants using bcftools
 time bcftools mpileup \
         --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \
         --max-depth 500 \
@@ -110,9 +147,9 @@ time bcftools mpileup \
         --ignore-overlaps \
         --seed 2601610512 \
         --output-type u \
-        --regions chr1:1-50000000 \
+        --regions chr3:100000001-150000000 \
         --fasta-ref /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
-        /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000_bqsr.bam 2>/dev/null | \
+        /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000_bqsr.bam 2>/dev/null | \
     bcftools call \
         --threads 72 \
         --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \
@@ -120,4 +157,21 @@ time bcftools mpileup \
         --multiallelic-caller \
         --ploidy GRCh38 \
         --output-type v  \
-        --output /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr1_1_50000000.vcf 2>/dev/null
+        --output /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.vcf 2>/dev/null
+
+# annotation our interval
+time vep --dir /home/ubuntu/vep_data \
+    --cache \
+    --format vcf \
+    --vcf \
+    --merged \
+    --fork 64 \
+    --offline \
+    --use_given_ref \
+    --verbose \
+    --force_overwrite  \
+    --symbol \
+    --fasta /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+    --input_file /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.vcf \
+    --output_file /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.annotated.vcf \
+    --stats_file /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.annotated.vcf_summary.html

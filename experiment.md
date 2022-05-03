@@ -190,3 +190,9 @@
 	real	5m42.431s
 	user	5m56.986s
 	sys		0m10.371s
+
+### variant calling using haplotypecaller for comparison
+	17945918	DPZw_k.chr1_1_50000000.vcf
+	real	25m48.054s
+	user	1105m35.625s
+	sys		1m10.280s

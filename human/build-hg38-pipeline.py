@@ -466,41 +466,37 @@ def annotate(
     script: TextIOWrapper,
     options: OptionsDict,
     vep: str,
-    interval: str,
     input: str,
     output: str,
     summary: str,
 ):
     reference = options["reference"]
     stats = options["stats"]
-    chromosome = interval.split(":")[0]
 
     script.write(
         """
     if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
-        logthis "Starting annotation for {INTERVAL}"
+        logthis "Starting annotation"
         
         vep --dir {VEP} \\
             --cache \\
             --format vcf \\
             --vcf \\
             --merged \\
-            --fork {FORKS} \\
+            --fork 64 \\
             --offline \\
             --use_given_ref \\
             --verbose \\
-            --force_overwrite {CHROMOSOME} \\
-            --exclude_null_alleles \\
+            --force_overwrite \\
             --symbol \\
-            --coding_only \\
             --fasta {REFERENCE}/Homo_sapiens_assembly38.fasta \\
             --input_file {INPUT} \\
             --output_file {OUTPUT} \\
             --stats_file {STATS}/{SUMMARY}
 
-        logthis "Completed annotation for {INTERVAL}"
+        logthis "Completed annotation"
     else
-        logthis "Annotations for {INTERVAL} already completed, ${{green}}already completed${{reset}}"
+        logthis "Annotations already completed, ${{green}}already completed${{reset}}"
     fi
 """.format(
             VEP=vep,
@@ -508,10 +504,7 @@ def annotate(
             INPUT=input,
             OUTPUT=output,
             SUMMARY=summary,
-            INTERVAL=interval,
-            CHROMOSOME="--chr " + chromosome if interval != "FINAL" else "",
             STATS=stats,
-            FORKS=8 if interval != "FINAL" else 64,
         )
     )
 
@@ -1285,7 +1278,6 @@ def main():
             script,
             options,
             "{WORKING}/vep_data".format(WORKING=options["working"]),
-            "FINAL",
             "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
             "{PIPELINE}/{SAMPLE}.annotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
             "{SAMPLE}.annotated.vcf_summary.html".format(SAMPLE=options["sample"]),
