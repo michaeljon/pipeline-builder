@@ -19,9 +19,9 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
         --temp-dir ${HOME}/stats/temp \
         --fastq-dir ${HOME}/stats/FASTQ \
         --sizes ${HOME}/pipeline-builder/human/chromosomeSizes.json \
-        --clean \
-        --alternate-caller
+        --clean 
 
+    exit
     # run the pipeline
     bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner >${HOME}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
 

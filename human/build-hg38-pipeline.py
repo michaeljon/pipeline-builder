@@ -187,8 +187,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
     timeout {TIMEOUT}m bash -c \\
         'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
         fastp \\
-            -i {R1} \\
-            -I {R2} \\
+            --in1 {R1} \\
+            --in2 {R2} \\
             --verbose {LIMITREADS} \\
             --stdout \\
             --thread 8 \\
@@ -196,7 +196,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             -j {STATS}/{SAMPLE}-fastp.json \\
             -h {STATS}/{SAMPLE}-fastp.html | \\
         bwa-mem2 mem -t {THREADS} \\
-            -Y -M {DASHK} \\
+            -Y \\
+            -M {DASHK} \\
             -v 1 \\
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
             {REFERENCE}/Homo_sapiens_assembly38.fasta \\
@@ -435,7 +436,7 @@ def callVariants2(script: TextIOWrapper, reference: str, interval: str, bqsr: st
 
         bcftools mpileup \\
             --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \\
-            --max-depth 250 \\
+            --max-depth 500 \\
             --no-BAQ \\
             --threads 4 \\
             --output-type u \\
@@ -465,41 +466,37 @@ def annotate(
     script: TextIOWrapper,
     options: OptionsDict,
     vep: str,
-    interval: str,
     input: str,
     output: str,
     summary: str,
 ):
     reference = options["reference"]
     stats = options["stats"]
-    chromosome = interval.split(":")[0]
 
     script.write(
         """
     if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
-        logthis "Starting annotation for {INTERVAL}"
+        logthis "Starting annotation"
         
         vep --dir {VEP} \\
             --cache \\
             --format vcf \\
             --vcf \\
             --merged \\
-            --fork {FORKS} \\
+            --fork 64 \\
             --offline \\
             --use_given_ref \\
             --verbose \\
-            --force_overwrite {CHROMOSOME} \\
-            --exclude_null_alleles \\
+            --force_overwrite \\
             --symbol \\
-            --coding_only \\
             --fasta {REFERENCE}/Homo_sapiens_assembly38.fasta \\
             --input_file {INPUT} \\
             --output_file {OUTPUT} \\
             --stats_file {STATS}/{SUMMARY}
 
-        logthis "Completed annotation for {INTERVAL}"
+        logthis "Completed annotation"
     else
-        logthis "Annotations for {INTERVAL} already completed, ${{green}}already completed${{reset}}"
+        logthis "Annotations already completed, ${{green}}already completed${{reset}}"
     fi
 """.format(
             VEP=vep,
@@ -507,10 +504,7 @@ def annotate(
             INPUT=input,
             OUTPUT=output,
             SUMMARY=summary,
-            INTERVAL=interval,
-            CHROMOSOME="--chr " + chromosome if interval != "FINAL" else "",
             STATS=stats,
-            FORKS=8 if interval != "FINAL" else 64,
         )
     )
 
@@ -1284,7 +1278,6 @@ def main():
             script,
             options,
             "{WORKING}/vep_data".format(WORKING=options["working"]),
-            "FINAL",
             "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
             "{PIPELINE}/{SAMPLE}.annotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
             "{SAMPLE}.annotated.vcf_summary.html".format(SAMPLE=options["sample"]),

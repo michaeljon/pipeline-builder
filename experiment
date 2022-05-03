@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+
+# trim (fastp is limited to 16 threads)
+time fastp \
+    --in1 /home/ubuntu/stats/FASTQ/DPZw_k_R1.fastq.gz \
+    --in2 /home/ubuntu/stats/FASTQ/DPZw_k_R2.fastq.gz \
+    --out1=/home/ubuntu/pipeline/DPZw_k/DPZw_k_trimmed_R1.fastq.gz \
+    --out2=/home/ubuntu/pipeline/DPZw_k/DPZw_k_trimmed_R2.fastq.gz \
+    --verbose \
+    --thread 16 \
+    --detect_adapter_for_pe \
+    -j /home/ubuntu/pipeline/DPZw_k/DPZw_k-trim-fastp.json \
+    -h /home/ubuntu/pipeline/DPZw_k/DPZw_k-trim-fastp.html
+
+# split (fastp is limited to 16 threads, disable all quality operations)
+time fastp \
+    --in1=/home/ubuntu/pipeline/DPZw_k/DPZw_k_trimmed_R1.fastq.gz \
+    --in2=/home/ubuntu/pipeline/DPZw_k/DPZw_k_trimmed_R2.fastq.gz \
+    --out1=/home/ubuntu/pipeline/DPZw_k/DPZw_k_R1.fastq.gz \
+    --out2=/home/ubuntu/pipeline/DPZw_k/DPZw_k_R2.fastq.gz \
+    --verbose \
+    --thread 16 \
+    --split 64 \
+    --disable_adapter_trimming \
+    --disable_trim_poly_g \
+    --disable_quality_filtering \
+    --disable_length_filtering \
+    -j /home/ubuntu/pipeline/DPZw_k/DPZw_k-split-fastp.json \
+    -h /home/ubuntu/pipeline/DPZw_k/DPZw_k-split-fastp.html
+
+# align the fragments
+for i in {1..64}; do
+    SEGMENT=$(printf "%.4d" $i)
+
+    time bwa-mem2 mem \
+        -t 72 \
+        -Y \
+        -M \
+        -K 720000000 \
+        -v 2 \
+        -R "@RG\tID:DPZw_k\tPL:ILLUMINA\tPU:unspecified\tLB:DPZw_k\tSM:DPZw_k" \
+        /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+        /home/ubuntu/pipeline/DPZw_k/${SEGMENT}.DPZw_k_R1.fastq.gz \
+        /home/ubuntu/pipeline/DPZw_k/${SEGMENT}.DPZw_k_R2.fastq.gz |
+        pigz >/home/ubuntu/pipeline/DPZw_k/DPZw_k.${SEGMENT}.aligned.sam.gz
+
+    rm /home/ubuntu/pipeline/DPZw_k/${SEGMENT}.DPZw_k_R1.fastq.gz
+    rm /home/ubuntu/pipeline/DPZw_k/${SEGMENT}.DPZw_k_R2.fastq.gz
+done
+
+# sort and mark duplicates
+for i in {1..64}; do
+    SEGMENT=$(printf "%.4d" $i)
+
+    time unpigz --stdout /home/ubuntu/pipeline/DPZw_k/DPZw_k.${SEGMENT}.aligned.sam.gz |
+    bamsormadup \
+        SO=coordinate \
+        threads=72 \
+        level=6 \
+        tmpfile=/home/ubuntu/stats/temp/DPZw_k \
+        inputformat=sam \
+        indexfilename=/home/ubuntu/pipeline/DPZw_k/DPZw_k.${SEGMENT}.sorted.bam.bai \
+        M=/home/ubuntu/pipeline/DPZw_k/DPZw_k.${SEGMENT}.duplication_metrics >/home/ubuntu/pipeline/DPZw_k/DPZw_k.${SEGMENT}.sorted.bam
+done
+
+# merge the segments in a single bam per-segment
+ls -1 *.bam > bams.lst
+time \
+    samtools merge -cfp --threads 72 -b bams.lst -f -o - |
+    samtools view --threads 72 --bam --write-index --reference /home/ubuntu/reference/covid_reference.fasta --output DPZw_k.sorted.aligned.bam
+
+# create intervals
+time samtools view --threads 72 -bh /home/ubuntu/pipeline/DPZw_k/DPZw_k.sorted.aligned.bam chr3:100000001-150000000 >/home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.bam
+time samtools index -@ 72 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.bam
+
+# generate BQSR table
+time gatk BaseRecalibrator --java-options '-Xmx8g' \
+        -R /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+        -I /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.bam \
+        -O /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000_bqsr.bam.table \
+        --verbosity ERROR \
+        --preserve-qscores-less-than 6 \
+        --known-sites /home/ubuntu/reference/Homo_sapiens_assembly38.dbsnp138.vcf \
+        --known-sites /home/ubuntu/reference/Homo_sapiens_assembly38.known_indels.vcf \
+        --known-sites /home/ubuntu/reference/Mills_and_1000G_gold_standard.indels.hg38.vcf \
+        -L chr3:100000001-150000000
+
+# apply BSQR
+time gatk ApplyBQSR --java-options '-Xmx8g' \
+    -R /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+    -I /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.bam \
+    -O /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000_bqsr.bam \
+    --verbosity ERROR \
+    --emit-original-quals true \
+    --preserve-qscores-less-than 6 \
+    --static-quantized-quals 10 \
+    --static-quantized-quals 20 \
+    --static-quantized-quals 30 \
+    --bqsr-recal-file /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000_bqsr.bam.table \
+    -L chr3:100000001-150000000
+
+# index the resulting file
+time samtools index -@ 72 /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000_bqsr.bam
+
+# call variants using gatk
+time gatk HaplotypeCaller --java-options '-Xmx16g' \
+    --gatk-config-file /home/ubuntu/bin/gatk-4.2.3.0/GATKConfig.properties \
+    -R /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+    -I /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000_bqsr.bam \
+    -O /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.vcf \
+    --verbosity ERROR \
+    --dbsnp /home/ubuntu/reference/Homo_sapiens_assembly38.dbsnp138.vcf \
+    --sequence-dictionary /home/ubuntu/reference/Homo_sapiens_assembly38.dict \
+    --pairHMM FASTEST_AVAILABLE \
+    --native-pair-hmm-threads 72 \
+    --pcr-indel-model NONE \
+    --annotation AlleleFraction \
+    --annotation Coverage \
+    --annotation PossibleDeNovo \
+    --intervals chr3:100000001-150000000
+
+# time gatk SelectVariants --java-options '-Xmx16g' \
+#     --gatk-config-file /home/ubuntu/bin/gatk-4.2.3.0/GATKConfig.properties \
+#     -R /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+#     -V /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.vcf \
+#     -O /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.filtered.vcf \
+#     --verbosity ERROR \
+#     -select-type MIXED
+
+# time gatk SelectVariants --java-options '-Xmx16g' \
+#     --gatk-config-file /home/ubuntu/bin/gatk-4.2.3.0/GATKConfig.properties \
+#     -R /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+#     -V /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.vcf \
+#     -O /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.filtered.vcf \
+#     --verbosity ERROR \
+#     -xl-select-type INDEL \
+#     -xl-select-type SNP \
+#     -xl-select-type MNP \
+#     -xl-select-type SYMBOLIC \
+#     -xl-select-type MIXED 
+
+# call variants using bcftools
+time bcftools mpileup \
+        --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \
+        --max-depth 500 \
+        --no-BAQ \
+        --ignore-overlaps \
+        --seed 2601610512 \
+        --output-type u \
+        --regions chr3:100000001-150000000 \
+        --fasta-ref /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+        /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000_bqsr.bam 2>/dev/null | \
+    bcftools call \
+        --threads 72 \
+        --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \
+        --variants-only \
+        --multiallelic-caller \
+        --ploidy GRCh38 \
+        --output-type v  \
+        --output /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.vcf 2>/dev/null
+
+# annotation our interval
+time vep --dir /home/ubuntu/vep_data \
+    --cache \
+    --format vcf \
+    --vcf \
+    --merged \
+    --fork 64 \
+    --offline \
+    --use_given_ref \
+    --verbose \
+    --force_overwrite  \
+    --symbol \
+    --fasta /home/ubuntu/reference/Homo_sapiens_assembly38.fasta \
+    --input_file /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.vcf \
+    --output_file /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.annotated.vcf \
+    --stats_file /home/ubuntu/pipeline/DPZw_k/DPZw_k.chr3_100000001_150000000.annotated.vcf_summary.html
