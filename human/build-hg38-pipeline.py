@@ -117,6 +117,7 @@ def getFileNames(options: OptionsDict) -> FastaPair:
 def updateDictionary(script: TextIOWrapper, options: OptionsDict):
     reference = options["reference"]
     bin = options["bin"]
+    assembly = options["referenceAssembly"]
 
     script.write("#\n")
     script.write("# Build the reference dictionary and interval list\n")
@@ -127,38 +128,39 @@ def updateDictionary(script: TextIOWrapper, options: OptionsDict):
 
     script.write(
         """
-if [[ ! -f {REFERENCE}/Homo_sapiens_assembly38.dict ]]; then
+if [[ ! -f {REFERENCE}/{ASSEMBLY}.dict ]]; then
     java -jar {BIN}/picard.jar CreateSequenceDictionary \\
-        -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
-        -O {REFERENCE}/Homo_sapiens_assembly38.dict
+        -R {REFERENCE}/{ASSEMBLY}.fasta \\
+        -O {REFERENCE}/{ASSEMBLY}.dict
 else
-    logthis "Reference dictionary {REFERENCE}/Homo_sapiens_assembly38.dict ${{green}}already completed${{reset}}"
+    logthis "Reference dictionary {REFERENCE}/{ASSEMBLY}.dict ${{green}}already completed${{reset}}"
 fi
 
-if [[ ! -f {REFERENCE}/hg38_ref_genome_autosomal.interval_list ]]; then
+if [[ ! -f {REFERENCE}/{ASSEMBLY}_autosomal.interval_list ]]; then
     # build the interval list, this is only done in the case where we're
     # processing a partial set of chromosomes. in the typical case this would
     # be a WGS collection.
 
-    logthis "Building {REFERENCE}/hg38_ref_genome_autosomal.interval_list"
+    logthis "Building {REFERENCE}/{ASSEMBLY}.interval_list"
 
-    egrep '({REGEX})\\s' {REFERENCE}/Homo_sapiens_assembly38.fasta.fai |
+    egrep '({REGEX})\\s' {REFERENCE}/{ASSEMBLY}.fasta.fai |
         awk '{{print $1"\\t1\\t"$2"\\t+\\t"$1}}' |
-        cat {REFERENCE}/Homo_sapiens_assembly38.dict - >{REFERENCE}/hg38_ref_genome_autosomal.interval_list
+        cat {REFERENCE}/{ASSEMBLY}.dict - >{REFERENCE}/{ASSEMBLY}_autosomal.interval_list
 
-    logthis "Building {REFERENCE}/hg38_ref_genome_autosomal.interval_list finished"
+    logthis "Building {REFERENCE}/{ASSEMBLY}_autosomal.interval_list finished"
 else
-    logthis "Interval list {REFERENCE}/hg38_ref_genome_autosomal.interval_list ${{green}}already completed${{reset}}"
+    logthis "Interval list {REFERENCE}/{ASSEMBLY}_autosomal.interval_list ${{green}}already completed${{reset}}"
 fi
 
 """.format(
-            REFERENCE=reference, BIN=bin, REGEX=regex
+            REFERENCE=reference, ASSEMBLY=assembly, BIN=bin, REGEX=regex
         )
     )
 
 
 def alignAndSort(script: TextIOWrapper, r1: str, r2: str, options: OptionsDict, output: str):
     reference = options["reference"]
+    assembly = options["referenceAssembly"]
     sample = options["sample"]
     pipeline = options["pipeline"]
     threads = options["cores"]
@@ -200,7 +202,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             -M {DASHK} \\
             -v 1 \\
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
-            {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            {REFERENCE}/{ASSEMBLY}.fasta \\
             - | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
 
     status=$?
@@ -218,6 +220,7 @@ fi
                 R1=r1,
                 R2=r2,
                 REFERENCE=reference,
+                ASSEMBLY=assembly,
                 SAMPLE=sample,
                 THREADS=threads,
                 PIPELINE=pipeline,
@@ -244,7 +247,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             -Y -M {DASHK} \\
             -v 1 \\
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
-            {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            {REFERENCE}/{ASSEMBLY}.fasta \\
             {R1} \\
             {R2} \\
             | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
@@ -265,6 +268,7 @@ fi
                 R1=r1,
                 R2=r2,
                 REFERENCE=reference,
+                ASSEMBLY=assembly,
                 SAMPLE=sample,
                 THREADS=threads,
                 PIPELINE=pipeline,
@@ -347,7 +351,10 @@ fi""".format(
     )
 
 
-def genBQSR(script: TextIOWrapper, reference: str, interval: str, bam: str, bqsr: str):
+def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str, bqsr: str):
+    reference = options["reference"]
+    assembly = options["referenceAssembly"]
+
     script.write(
         """
     # run base quality score recalibration - build the bqsr table
@@ -355,13 +362,13 @@ def genBQSR(script: TextIOWrapper, reference: str, interval: str, bam: str, bqsr
         logthis "Generating {BQSR}.table"
 
         gatk BaseRecalibrator --java-options '-Xmx8g' \\
-            -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            -R {REFERENCE}/{ASSEMBLY}.fasta \\
             -I {BAM} \\
             -O {BQSR}.table \\
             --verbosity ERROR \\
             --preserve-qscores-less-than 6 \\
-            --known-sites {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
-            --known-sites {REFERENCE}/Homo_sapiens_assembly38.known_indels.vcf \\
+            --known-sites {REFERENCE}/{ASSEMBLY}.dbsnp.vcf \\
+            --known-sites {REFERENCE}/{ASSEMBLY}.known_indels.vcf \\
             --known-sites {REFERENCE}/Mills_and_1000G_gold_standard.indels.hg38.vcf \\
             -L {INTERVAL}
 
@@ -375,7 +382,7 @@ def genBQSR(script: TextIOWrapper, reference: str, interval: str, bam: str, bqsr
         logthis "Applying calibration for {BQSR}"
 
         gatk ApplyBQSR --java-options '-Xmx8g' \\
-            -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            -R {REFERENCE}/{ASSEMBLY}.fasta \\
             -I {BAM} \\
             -O {BQSR} \\
             --verbosity ERROR \\
@@ -395,12 +402,15 @@ def genBQSR(script: TextIOWrapper, reference: str, interval: str, bam: str, bqsr
         logthis "BQSR application for {INTERVAL} ${{green}}already completed${{reset}}"
     fi
 """.format(
-            REFERENCE=reference, INTERVAL=interval, BAM=bam, BQSR=bqsr
+            REFERENCE=reference, ASSEMBLY=assembly, INTERVAL=interval, BAM=bam, BQSR=bqsr
         )
     )
 
 
-def callVariants(script: TextIOWrapper, reference: str, interval: str, bqsr: str, vcf: str):
+def callVariants(script: TextIOWrapper, options: OptionsDict, interval: str, bqsr: str, vcf: str):
+    reference = options["reference"]
+    assembly = options["referenceAssembly"]
+
     script.write(
         """
     # call variants
@@ -408,11 +418,11 @@ def callVariants(script: TextIOWrapper, reference: str, interval: str, bqsr: str
         logthis "Starting variant calling for {INTERVAL}"
 
         gatk HaplotypeCaller --java-options '-Xmx8g' \\
-            -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            -R {REFERENCE}/{ASSEMBLY}.fasta \\
             -I {BQSR} \\
             -O {VCF} \\
             --verbosity ERROR \\
-            --dbsnp {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
+            --dbsnp {REFERENCE}/{ASSEMBLY}.dbsnp.vcf \\
             --pairHMM FASTEST_AVAILABLE \\
             --native-pair-hmm-threads 4 \\
             -L {INTERVAL}
@@ -422,12 +432,15 @@ def callVariants(script: TextIOWrapper, reference: str, interval: str, bqsr: str
         logthis "Variants already called for {INTERVAL}, ${{green}}already completed${{reset}}"
     fi
 """.format(
-            REFERENCE=reference, INTERVAL=interval, BQSR=bqsr, VCF=vcf
+            REFERENCE=reference, ASSEMBLY=assembly, INTERVAL=interval, BQSR=bqsr, VCF=vcf
         )
     )
 
 
-def callVariants2(script: TextIOWrapper, reference: str, interval: str, bqsr: str, vcf: str):
+def callVariants2(script: TextIOWrapper, options: OptionsDict, interval: str, bqsr: str, vcf: str):
+    reference = options["reference"]
+    assembly = options["referenceAssembly"]
+
     script.write(
         """
     # call variants
@@ -441,7 +454,7 @@ def callVariants2(script: TextIOWrapper, reference: str, interval: str, bqsr: st
             --threads 4 \\
             --output-type u \\
             --regions {INTERVAL} \\
-            --fasta-ref {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            --fasta-ref {REFERENCE}/{ASSEMBLY}.fasta \\
             {BQSR} 2>/dev/null | \\
         bcftools call \\
             --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \\
@@ -457,7 +470,7 @@ def callVariants2(script: TextIOWrapper, reference: str, interval: str, bqsr: st
         logthis "Variants already called for {INTERVAL}, ${{green}}already completed${{reset}}"
     fi
 """.format(
-            REFERENCE=reference, INTERVAL=interval, BQSR=bqsr, VCF=vcf
+            REFERENCE=reference, ASSEMBLY=assembly, INTERVAL=interval, BQSR=bqsr, VCF=vcf
         )
     )
 
@@ -471,6 +484,7 @@ def annotate(
     summary: str,
 ):
     reference = options["reference"]
+    assembly = options["referenceAssembly"]
     stats = options["stats"]
 
     script.write(
@@ -489,7 +503,7 @@ def annotate(
             --verbose \\
             --force_overwrite \\
             --symbol \\
-            --fasta {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+            --fasta {REFERENCE}/{ASSEMBLY}.fasta \\
             --input_file {INPUT} \\
             --output_file {OUTPUT} \\
             --stats_file {STATS}/{SUMMARY}
@@ -501,6 +515,7 @@ def annotate(
 """.format(
             VEP=vep,
             REFERENCE=reference,
+            ASSEMBLY=assembly,
             INPUT=input,
             OUTPUT=output,
             SUMMARY=summary,
@@ -549,13 +564,16 @@ def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
         script.write("#\n")
         script.write("(")
 
-        genBQSR(script, options["reference"], interval[0], bam, bqsr)
+        genBQSR(script, options, interval[0], bam, bqsr)
 
         if useAlternateCaller == False:
-            callVariants(script, options["reference"], interval[0], bqsr, vcf)
+            callVariants(script, options, interval[0], bqsr, vcf)
         else:
-            callVariants2(script, options["reference"], interval[0], bqsr, vcf)
+            callVariants2(script, options, interval[0], bqsr, vcf)
 
+        #
+        # this is left-over from when we would annotate variants on the individual intervals
+        #
         # annotate(
         #     script,
         #     options,
@@ -580,6 +598,7 @@ logthis "${green}Intervals processed${reset}"
 
 def generateConsensus(script: TextIOWrapper, options: OptionsDict):
     reference = options["reference"]
+    assembly = options["referenceAssembly"]
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -588,14 +607,14 @@ def generateConsensus(script: TextIOWrapper, options: OptionsDict):
 if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fasta ]]; then
     logthis "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.unannotated.vcf.gz${{reset}}"
     bcftools consensus \\
-        --fasta-ref {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+        --fasta-ref {REFERENCE}/{ASSEMBLY}.fasta \\
         {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
     | sed '/>/ s/$/ | {SAMPLE}/' >{PIPELINE}/{SAMPLE}.consensus.fasta
 else
     logthis "Consensus fasta already generated for {PIPELINE}/{SAMPLE}.consensus.fasta, ${{green}}already completed${{reset}}"
 fi
         """.format(
-            REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample
+            REFERENCE=reference, ASSEMBLY=assembly, PIPELINE=pipeline, SAMPLE=sample
         )
     )
 
@@ -646,6 +665,7 @@ logthis "${{green}}Final VCF merge completed${{reset}}"
 
 def doVariantQC(script: TextIOWrapper, options: OptionsDict):
     reference = options["reference"]
+    assembly = options["referenceAssembly"]
     pipeline = options["pipeline"]
     sample = options["sample"]
     stats = options["stats"]
@@ -663,7 +683,7 @@ logthis "Starting Variant QC processes"
 
         gatk CollectVariantCallingMetrics \\
             --VERBOSITY ERROR \\
-            --DBSNP {REFERENCE}/Homo_sapiens_assembly38.dbsnp138.vcf \\
+            --DBSNP {REFERENCE}/{ASSEMBLY}.dbsnp.vcf \\
             -I {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
             -O {STATS}/{SAMPLE}
 
@@ -711,13 +731,14 @@ job
 wait
 logthis "${{green}}Variant QC metrics completed${{reset}}"
 """.format(
-            REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+            REFERENCE=reference, ASSEMBLY=assembly, PIPELINE=pipeline, SAMPLE=sample, STATS=stats
         )
     )
 
 
 def runAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
     reference = options["reference"]
+    assembly = options["referenceAssembly"]
     pipeline = options["pipeline"]
     sample = options["sample"]
     stats = options["stats"]
@@ -744,7 +765,7 @@ if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then
 
     gatk CollectAlignmentSummaryMetrics --java-options '-Xmx8g' \\
         --VERBOSITY ERROR \\
-        -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+        -R {REFERENCE}/{ASSEMBLY}.fasta \\
         -I {SORTED} \\
         -O {STATS}/{SAMPLE}.alignment_metrics.txt &
 else
@@ -756,7 +777,7 @@ if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias
 
     gatk CollectGcBiasMetrics --java-options '-Xmx8g' \\
         --VERBOSITY ERROR \\
-        -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+        -R {REFERENCE}/{ASSEMBLY}.fasta \\
         -I {SORTED} \\
         -O {STATS}/{SAMPLE}.gc_bias_metrics.txt \\
         -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf \\
@@ -770,11 +791,11 @@ if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
 
     gatk CollectWgsMetrics --java-options '-Xmx8g' \\
         --VERBOSITY ERROR \\
-        -R {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+        -R {REFERENCE}/{ASSEMBLY}.fasta \\
         -I {SORTED} \\
         -O {STATS}/{SAMPLE}.wgs_metrics.txt \\
         --READ_LENGTH 151 \\
-        -INTERVALS {REFERENCE}/hg38_ref_genome_autosomal.interval_list \\
+        -INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list \\
         --USE_FAST_ALGORITHM \\
         --INCLUDE_BQ_HISTOGRAM &
 else
@@ -785,7 +806,7 @@ if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
     logthis "Starting samtools stats on {SAMPLE}"
 
     samtools stats -@ 8 \\
-        -r {REFERENCE}/Homo_sapiens_assembly38.fasta \\
+        -r {REFERENCE}/{ASSEMBLY}.fasta \\
         {SORTED} >{STATS}/{SAMPLE}.samstats &
 else
     logthis "samtools stats already run, ${{green}}already completed${{reset}}"
@@ -812,6 +833,7 @@ else
 fi
 """.format(
             REFERENCE=reference,
+            ASSEMBLY=assembly,
             PIPELINE=pipeline,
             SAMPLE=sample,
             STATS=stats,
@@ -1024,6 +1046,15 @@ def defineArguments() -> Namespace:
         help="Location of the reference genome files",
     )
     parser.add_argument(
+        "-R",
+        "--reference-assembly",
+        action="store",
+        metavar="REFERENCE_ASSEMBLY",
+        dest="referenceAssembly",
+        default="Homo_sapiens_assembly38",
+        help="Base name of the reference assembly",
+    )
+    parser.add_argument(
         "-p",
         "--pipeline-dir",
         action="store",
@@ -1109,7 +1140,7 @@ def defineArguments() -> Namespace:
         action="store",
         metavar="CHROME_SIZES",
         dest="chromosomeSizes",
-        default="chromosomeSizes.json",
+        default="hg38-chromosomeSizes.json",
         help="Name of JSON file containing chromosome sizes (ADVANCED)",
     )
 
