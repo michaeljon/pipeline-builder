@@ -40,6 +40,42 @@ ChromosomeList = List[Tuple[str, str]]
 OptionsDict = Dict[str, Any]
 FastaPair = Tuple[str, str]
 
+#
+# these will need to get addressed soon, but for now it'll work
+#
+def dbsnpFromReference(options: OptionsDict) -> str:
+    reference = options["reference"]
+    assembly = options["referenceAssembly"]
+
+    if assembly == "Homo_sapiens_assembly38":
+        return "{REFERENCE}/Homo_sapiens_assembly38.dbsnp.vcf".format(REFERENCE=reference)
+    else:
+        return "{REFERENCE}/chm13v2.0_dbSNPv155.vcf.gz".format(REFERENCE=reference)
+
+
+#
+# do not change the layout here, this code generates a bash
+# fragment
+def knownSitesFromReference(options: OptionsDict) -> str:
+    reference = options["reference"]
+    assembly = options["referenceAssembly"]
+
+    if assembly == "Homo_sapiens_assembly38":
+        return """\\
+            --known-sites {REFERENCE}/Homo_sapiens_assembly38.dbsnp.vcf \\
+            --known-sites {REFERENCE}/Homo_sapiens_assembly38.known_indels.vcf \\
+            --known-sites {REFERENCE}/Mills_and_1000G_gold_standard.indels.hg38.vcf \\
+            \\""".format(
+            REFERENCE=reference
+        )
+    else:
+        return """\\
+            --known-sites {REFERENCE}/chm13v2.0_dbSNPv155.vcf.gz \\
+            --known-sites {REFERENCE}/chm13v2.0_ClinVar20220313.vcf.gz \\
+            \\""".format(
+            REFERENCE=reference
+        )
+
 
 def loadIntervals(chromosomeSizes: str) -> ChromosomeSizeList:
     with open(chromosomeSizes, "r") as file:
@@ -354,6 +390,7 @@ fi""".format(
 def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str, bqsr: str):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
+    knownSites = knownSitesFromReference(options)
 
     script.write(
         """
@@ -367,9 +404,7 @@ def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str
             -O {BQSR}.table \\
             --verbosity ERROR \\
             --preserve-qscores-less-than 6 \\
-            --known-sites {REFERENCE}/{ASSEMBLY}.dbsnp.vcf \\
-            --known-sites {REFERENCE}/{ASSEMBLY}.known_indels.vcf \\
-            --known-sites {REFERENCE}/Mills_and_1000G_gold_standard.indels.hg38.vcf \\
+            {KNOWN_SITES}
             -L {INTERVAL}
 
         logthis "{BQSR}.table completed"
@@ -394,15 +429,12 @@ def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str
             --bqsr-recal-file {BQSR}.table \\
             -L {INTERVAL}
 
-        # index that file, this is our target for getting vcf
-        samtools index -@ 4 {BQSR}
-
         logthis "Calibation and indexing completed for for {BQSR}"
     else
         logthis "BQSR application for {INTERVAL} ${{green}}already completed${{reset}}"
     fi
 """.format(
-            REFERENCE=reference, ASSEMBLY=assembly, INTERVAL=interval, BAM=bam, BQSR=bqsr
+            REFERENCE=reference, ASSEMBLY=assembly, KNOWN_SITES=knownSites, INTERVAL=interval, BAM=bam, BQSR=bqsr
         )
     )
 
@@ -410,6 +442,7 @@ def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str
 def callVariants(script: TextIOWrapper, options: OptionsDict, interval: str, bqsr: str, vcf: str):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
+    dbsnp = dbsnpFromReference(options)
 
     script.write(
         """
@@ -422,7 +455,7 @@ def callVariants(script: TextIOWrapper, options: OptionsDict, interval: str, bqs
             -I {BQSR} \\
             -O {VCF} \\
             --verbosity ERROR \\
-            --dbsnp {REFERENCE}/{ASSEMBLY}.dbsnp.vcf \\
+            --dbsnp {DBSNP} \\
             --pairHMM FASTEST_AVAILABLE \\
             --native-pair-hmm-threads 4 \\
             -L {INTERVAL}
@@ -432,7 +465,7 @@ def callVariants(script: TextIOWrapper, options: OptionsDict, interval: str, bqs
         logthis "Variants already called for {INTERVAL}, ${{green}}already completed${{reset}}"
     fi
 """.format(
-            REFERENCE=reference, ASSEMBLY=assembly, INTERVAL=interval, BQSR=bqsr, VCF=vcf
+            REFERENCE=reference, ASSEMBLY=assembly, DBSNP=dbsnp, INTERVAL=interval, BQSR=bqsr, VCF=vcf
         )
     )
 
@@ -550,6 +583,7 @@ def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
     # bulk annotation (which provides a complete summary annotation)
     # working = options["working"]
     useAlternateCaller = options["alternateCaller"]
+    skipBQSR = options["skipBQSR"]
 
     intervals = computeIntervals(options)
 
@@ -564,25 +598,15 @@ def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
         script.write("#\n")
         script.write("(")
 
-        genBQSR(script, options, interval[0], bam, bqsr)
+        if skipBQSR == False:
+            genBQSR(script, options, interval[0], bam, bqsr)
+        else:
+            bqsr = bam
 
         if useAlternateCaller == False:
             callVariants(script, options, interval[0], bqsr, vcf)
         else:
             callVariants2(script, options, interval[0], bqsr, vcf)
-
-        #
-        # this is left-over from when we would annotate variants on the individual intervals
-        #
-        # annotate(
-        #     script,
-        #     options,
-        #     "{WORKING}/vep_data".format(WORKING=working),
-        #     interval[0],
-        #     vcf,
-        #     vcf.replace(".vcf", ".annotated.vcf"),
-        #     basename(vcf.replace(".vcf", ".annotated.vcf_summary.html")),
-        # )
 
         script.write(") &\n")
         script.write("\n")
@@ -653,10 +677,6 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz.tbi ]]; then
 else
     logthis "VCFs index already created, ${{green}}already completed${{reset}}"
 fi
-
-logthis "${{yellow}}Waiting for VCF merge to complete${{reset}}"
-wait
-logthis "${{green}}Final VCF merge completed${{reset}}"
     """.format(
             PIPELINE=pipeline, SAMPLE=sample
         )
@@ -666,6 +686,7 @@ logthis "${{green}}Final VCF merge completed${{reset}}"
 def doVariantQC(script: TextIOWrapper, options: OptionsDict):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
+    dbsnp = dbsnpFromReference(options)
     pipeline = options["pipeline"]
     sample = options["sample"]
     stats = options["stats"]
@@ -683,7 +704,7 @@ logthis "Starting Variant QC processes"
 
         gatk CollectVariantCallingMetrics \\
             --VERBOSITY ERROR \\
-            --DBSNP {REFERENCE}/{ASSEMBLY}.dbsnp.vcf \\
+            --dbsnp {DBSNP} \\
             -I {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
             -O {STATS}/{SAMPLE}
 
@@ -731,12 +752,12 @@ job
 wait
 logthis "${{green}}Variant QC metrics completed${{reset}}"
 """.format(
-            REFERENCE=reference, ASSEMBLY=assembly, PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+            REFERENCE=reference, ASSEMBLY=assembly, DBSNP=dbsnp, PIPELINE=pipeline, SAMPLE=sample, STATS=stats
         )
     )
 
 
-def runAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
+def startAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     pipeline = options["pipeline"]
@@ -805,9 +826,12 @@ fi
 if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
     logthis "Starting samtools stats on {SAMPLE}"
 
-    samtools stats -@ 8 \\
-        -r {REFERENCE}/{ASSEMBLY}.fasta \\
-        {SORTED} >{STATS}/{SAMPLE}.samstats &
+    ( samtools stats -@ 8 \\
+         -r {REFERENCE}/{ASSEMBLY}.fasta \\
+            {SORTED} >{STATS}/{SAMPLE}.samstats
+
+      plot-bamstats --prefix {SAMPLE}_samstats/ {STATS}/{SAMPLE}.samstats
+    ) &
 else
     logthis "samtools stats already run, ${{green}}already completed${{reset}}"
 fi
@@ -995,6 +1019,14 @@ def defineArguments() -> Namespace:
         help="Skip QC process on input and output files",
     )
     parser.add_argument(
+        "-B",
+        "--skip-bqsr",
+        action="store_true",
+        dest="skipBQSR",
+        default=False,
+        help="Skip running BQSR processing on input file(s)",
+    )
+    parser.add_argument(
         "-P",
         "--skip-fastp",
         action="store_true",
@@ -1052,6 +1084,7 @@ def defineArguments() -> Namespace:
         metavar="REFERENCE_ASSEMBLY",
         dest="referenceAssembly",
         default="Homo_sapiens_assembly38",
+        choices=["Homo_sapiens_assembly38", "Homo_sapiens_T2T_CHM13_v2"],
         help="Base name of the reference assembly",
     )
     parser.add_argument(
@@ -1292,27 +1325,36 @@ def main():
         # the alignment qc processes very early (right after we've
         # completed alignment and sorting). so, we start them here. there's
         # an overall impact on the interval runs while these qc processes
-        # are running, but we're will to deal with that since the overall
-        # qc process takes a long time
+        # are running, but we're willing to deal with that since the overall
+        # qc process takes a very long time
         #
         # in particular it's the fastqc process itself which chews up
         # so much time. it's a single-threaded limited-memory (250mb)
         # process so we're not too worried about it's impact on the rest of
         # the variant calling processes
         if options["doQC"]:
-            runAlignmentQC(script, options, sorted)
+            startAlignmentQC(script, options, sorted)
 
         runIntervals(script, options, prefix)
         gather(script, options)
 
-        annotate(
-            script,
-            options,
-            "{WORKING}/vep_data".format(WORKING=options["working"]),
-            "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
-            "{PIPELINE}/{SAMPLE}.annotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
-            "{SAMPLE}.annotated.vcf_summary.html".format(SAMPLE=options["sample"]),
-        )
+        # we can start variant qc here because it all works on the
+        # gathered interval files
+        if options["doQC"]:
+            doVariantQC(script, options)
+
+        # this pipeline can't run vep for T2T yet because we don't have the CHM13
+        # vep cache data, so no annotations are available in that case
+        assembly = options["referenceAssembly"]
+        if assembly == "Homo_sapiens_assembly38":
+            annotate(
+                script,
+                options,
+                "{WORKING}/vep_data".format(WORKING=options["working"]),
+                "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
+                "{PIPELINE}/{SAMPLE}.annotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
+                "{SAMPLE}.annotated.vcf_summary.html".format(SAMPLE=options["sample"]),
+            )
 
         # generateConsensus(script, options)
 
@@ -1320,7 +1362,6 @@ def main():
             cleanup(script, cleantarget, options)
 
         if options["doQC"]:
-            doVariantQC(script, options)
             runMultiQC(script, options)
 
         script.write(
