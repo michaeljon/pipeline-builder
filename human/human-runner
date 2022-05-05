@@ -19,13 +19,10 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
         --stats-dir ${HOME}/pipeline/${SAMPLE} \
         --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
         --temp-dir ${HOME}/stats/temp \
-        --fastq-dir ${HOME}/stats/FASTQ \
-        --align-only \
-        --clean 
+        --fastq-dir ${HOME}/stats/FASTQ 
     
     # run the pipeline
     bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner >${HOME}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
-    exit
 
     rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.aligned.sam.gz
     rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.sorted.bam
