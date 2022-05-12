@@ -344,16 +344,10 @@ if [[ ! -f {SORTED} ]]; then
         exit $status
     fi
 
+    touch {SORTED}.bai
     logthis "Sorting and marking duplicates complete for {SAMPLE}"
 else
     logthis "Sorting and duplicate marking done for {SORTED}, ${{green}}already completed${{reset}}"
-fi
-
-if [[ ! -f {SORTED}.bai ]]; then
-    logthis "Indexing {SORTED}"
-    samtools index -@ {THREADS} {SORTED}
-else
-    logthis "Indexing already completed for {SORTED}, ${{green}}already completed${{reset}}"
 fi
 
 {EXIT_IF_ALIGN_ONLY}
@@ -397,7 +391,7 @@ def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str
     fi
 
     # run base quality score recalibration - apply the bqsr table
-    if [[ ! -f {BQSR} || ! -f {BQSR}.bai ]]; then
+    if [[ ! -f {BQSR} ]]; then
         logthis "Applying calibration for {BQSR}"
 
         gatk ApplyBQSR --java-options '-Xmx8g' \\
@@ -413,9 +407,20 @@ def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str
             --bqsr-recal-file {BQSR}.table \\
             -L {INTERVAL}
 
-        logthis "Calibation and indexing completed for for {BQSR}"
+        logthis "Calibation completed for for {BQSR}"
     else
         logthis "BQSR application for {INTERVAL} ${{green}}already completed${{reset}}"
+    fi
+
+    # run base quality score recalibration - apply the bqsr table
+    if [[ ! -f {BQSR}.bai ]]; then
+        logthis "Creating index for {BQSR}"
+
+        samtools index -@ 4 {BQSR}
+
+        logthis "Indexing completed for for {BQSR}"
+    else
+        logthis "BQSR index for {INTERVAL} ${{green}}already completed${{reset}}"
     fi
 """.format(
             REFERENCE=reference, ASSEMBLY=assembly, KNOWN_SITES=knownSites, INTERVAL=interval, BAM=bam, BQSR=bqsr
@@ -544,8 +549,6 @@ def annotate(
 def scatter(script: TextIOWrapper, options: OptionsDict, prefix: str, sorted: str):
     intervals = computeIntervals(options)
 
-    script.write("declare -a interval_scattering_pids\n")
-
     for interval in intervals:
         bam = """{PREFIX}.{INTERVAL}.bam""".format(PREFIX=prefix, INTERVAL=interval[1])
 
@@ -558,17 +561,17 @@ if [[ ! -f {BAM} || ! -f {BAM}.bai ]]; then
         samtools view -@ 4 -bh {SORTED} {INTERVAL} >{BAM}
         samtools index -@ 4 {BAM}
     )&
-
-    interval_scattering_pids+=($!)
 else
     logthis "Splinter for {INTERVAL} has been computed, ${{green}}already completed${{reset}}"
-fi""".format(
+fi
+
+""".format(
                 SORTED=sorted, INTERVAL=interval[0], BAM=bam
             )
         )
 
-    script.write('logthis "${yellow}Waiting for scattering PIDs ${interval_scattering_pids[@]} to complete${reset}"\n')
-    script.write("wait ${interval_scattering_pids[@]}\n")
+    script.write('logthis "${yellow}Waiting for scattering processes to complete${reset}"\n')
+    script.write("wait\n")
     script.write('logthis "${green}Scattering completed${reset}"\n')
 
 
@@ -584,7 +587,7 @@ def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
 
     intervals = computeIntervals(options)
 
-    script.write("declare -a interval_processing_pids\n")
+    script.write("\n\ndeclare -a interval_processing_pids\n")
 
     for interval in intervals:
         bam = """{PREFIX}.{INTERVAL}.bam""".format(PREFIX=prefix, INTERVAL=interval[1])
@@ -611,9 +614,8 @@ def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
         script.write("interval_processing_pids+=($!)\n")
         script.write("\n")
 
-    script.write(
-        'logthis "${yellow}Waiting on the following interval PIDs ${interval_processing_pids[@]} to complete${reset}"\n'
-    )
+    script.write('logthis "${yellow}Waiting on the following interval PIDs to complete${reset}"\n')
+    script.write("echo ${interval_processing_pids[@]}\n")
     script.write("wait ${interval_processing_pids[@]}\n")
     script.write('logthis "${green}Intervals processed${reset}"\n')
 
@@ -696,8 +698,6 @@ def doVariantQC(script: TextIOWrapper, options: OptionsDict):
 # 
 logthis "Starting Variant QC processes"
 
-declare -a variant_qc_pids
-
 if [[ ! -f {STATS}/{SAMPLE}.variant_calling_detail_metrics ]]; then
     logthis "Collection variant calling metrics"
 
@@ -706,8 +706,6 @@ if [[ ! -f {STATS}/{SAMPLE}.variant_calling_detail_metrics ]]; then
         --DBSNP {DBSNP} \\
         -I {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
         -O {STATS}/{SAMPLE} &
-
-        variant_qc_pids+=($!)
 else
     logthis "Variant metrics already run, ${{green}}already completed${{reset}}"
 fi
@@ -719,37 +717,30 @@ logthis "Running vcftools statistics"
 
 if [[ ! -f {STATS}/{SAMPLE}.frq ]]; then
     vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --freq2 --out {STATS}/{SAMPLE} --max-alleles 2 2>/dev/null &
-    variant_qc_pids+=($!)
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.idepth ]]; then
     vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --depth --out {STATS}/{SAMPLE} 2>/dev/null &
-    variant_qc_pids+=($!)
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.ldepth.mean ]]; then
     vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --site-mean-depth --out {STATS}/{SAMPLE} 2>/dev/null &
-    variant_qc_pids+=($!)
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.lqual ]]; then
     vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --site-quality --out {STATS}/{SAMPLE} 2>/dev/null &
-    variant_qc_pids+=($!)
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.imiss ]]; then
     vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --missing-indv --out {STATS}/{SAMPLE} 2>/dev/null &
-    variant_qc_pids+=($!)
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.lmiss ]]; then
     vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --missing-site --out {STATS}/{SAMPLE} 2>/dev/null &
-    variant_qc_pids+=($!)
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.het ]]; then
     vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --het --out {STATS}/{SAMPLE} 2>/dev/null &
-    variant_qc_pids+=($!)
 fi
 
 """.format(
@@ -757,8 +748,8 @@ fi
         )
     )
 
-    script.write('logthis "${yellow}Waiting for variant QC PIDs ${variant_qc_pids[@]} to complete${reset}"\n')
-    script.write("wait ${variant_qc_pids[@]}\n")
+    script.write('logthis "${yellow}Waiting for variant QC processes to complete${reset}"\n')
+    script.write("wait\n")
     script.write('logthis "${green}Variant QC metrics completed${reset}"\n')
 
 
@@ -777,15 +768,11 @@ def startAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
 # 
 logthis "Starting QC processes"
 
-declare -a alignment_qc_pids
-
 if [[ ! -f {STATS}/{SAMPLE}.flagstat.txt ]]; then
     logthis "Starting samtools flagstat on {SAMPLE}"
 
     samtools flagstat \\
         {SORTED} >{STATS}/{SAMPLE}.flagstat.txt &
-
-    alignment_qc_pids+=($!)
 else
     logthis "samtools flagstat already run, ${{green}}already completed${{reset}}"
 fi
@@ -798,8 +785,6 @@ if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then
         -R {REFERENCE}/{ASSEMBLY}.fasta \\
         -I {SORTED} \\
         -O {STATS}/{SAMPLE}.alignment_metrics.txt &
-
-    alignment_qc_pids+=($!)
 else
     logthis "Alignment metrics already run, ${{green}}already completed${{reset}}"
 fi
@@ -814,8 +799,6 @@ if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias
         -O {STATS}/{SAMPLE}.gc_bias_metrics.txt \\
         -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf \\
         -S {STATS}/{SAMPLE}.gc_bias_summary.txt &
-
-    alignment_qc_pids+=($!)
 else
     logthis "GC bias metrics already run, ${{green}}already completed${{reset}}"
 fi
@@ -828,12 +811,13 @@ if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
         -R {REFERENCE}/{ASSEMBLY}.fasta \\
         -I {SORTED} \\
         -O {STATS}/{SAMPLE}.wgs_metrics.txt \\
+        --MINIMUM_BASE_QUALITY 20 \\
+        --MINIMUM_MAPPING_QUALITY 20 \\
+        --COVERAGE_CAP 250 \\
         --READ_LENGTH 151 \\
-        -INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list \\
+        --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list \\
         --USE_FAST_ALGORITHM \\
         --INCLUDE_BQ_HISTOGRAM &
-
-    alignment_qc_pids+=($!)
 else
     logthis "WGS metrics already run, ${{green}}already completed${{reset}}"
 fi
@@ -848,8 +832,6 @@ if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
 
         plot-bamstats --prefix {SAMPLE}_samstats/ {STATS}/{SAMPLE}.samstats
     ) &
-
-    alignment_qc_pids+=($!)
 else
     logthis "samtools stats already run, ${{green}}already completed${{reset}}"
 fi
@@ -859,10 +841,17 @@ if [[ ! -f {STATS}/{SAMPLE}.samidx ]]; then
 
     samtools idxstats -@ 8 \\
         {SORTED} >{STATS}/{SAMPLE}.samidx &
-
-    alignment_qc_pids+=($!)
 else
     logthis "samtools idxstats already run, ${{green}}already completed${{reset}}"
+fi
+
+if [[ ! -f {STATS}/{SAMPLE}.coverage ]]; then
+    logthis "Calculating coverage for {SAMPLE}"
+
+    bedtools genomecov -pc -ibam \\
+        {SORTED} >{STATS}/{SAMPLE}.coverage &
+else
+    echo "bedtools genomecov already run, ${{green}}skipping${{reset}}"
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fastqc.html ]]; then
@@ -872,8 +861,6 @@ if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fa
         --outdir {STATS} \\
         --noextract \\
         {SORTED} &
-
-    alignment_qc_pids+=($!)
 else
     logthis "FASTQC already run, ${{green}}already completed${{reset}}"
 fi
@@ -887,10 +874,6 @@ fi
             SORTED=sorted,
         )
     )
-
-    script.write('logthis "${yellow}Waiting for alignment qc PIDs ${alignment_qc_pids[@]} to complete${reset}"\n')
-    script.write("wait ${alignment_qc_pids[@]}\n")
-    script.write('logthis "${green}Alignment QC completed${reset}"\n')
 
 
 def runMultiQC(script: TextIOWrapper, options: OptionsDict):

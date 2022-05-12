@@ -13,14 +13,14 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
         --sample ${SAMPLE} \
         --work-dir ${HOME} \
         --reference-dir ${HOME}/reference \
-        --reference-assembly Homo_sapiens_T2T_CHM13_v2 \
-        --sizes ${HOME}/pipeline-builder/human/chm13-chromosomeSizes.json \
+        --reference-assembly Homo_sapiens_assembly38 \
+        --sizes ${HOME}/pipeline-builder/human/hg38-chromosomeSizes.json \
         --pipeline-dir ${HOME}/pipeline/${SAMPLE} \
         --stats-dir ${HOME}/pipeline/${SAMPLE} \
         --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
         --temp-dir ${HOME}/stats/temp \
         --fastq-dir ${HOME}/stats/FASTQ 
-    
+   
     # run the pipeline
     bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner >${HOME}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
 

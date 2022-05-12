@@ -616,11 +616,13 @@ else
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
-    (samtools stats -@ 8 \\
-        -r {REFERENCE}/covid_reference.fasta \\
-        {SORTED} >{STATS}/{SAMPLE}.samstats
+    (
+        samtools stats -@ 8 \\
+            -r {REFERENCE}/covid_reference.fasta \\
+            {SORTED} >{STATS}/{SAMPLE}.samstats
 
-    plot-bamstats --prefix {STATS}/{SAMPLE}_samstats {STATS}/{SAMPLE}.samstats) &
+        plot-bamstats --prefix {STATS}/{SAMPLE}_samstats {STATS}/{SAMPLE}.samstats
+    ) &
 else
     echo "samtools stats already run, ${{green}}skipping${{reset}}"
 fi
