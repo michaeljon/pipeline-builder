@@ -687,7 +687,7 @@ if [[ ! -d {STATS}/{SAMPLE}_multiqc_data ]]; then
     cd {STATS}/qc
 
     # Run multiqc
-    multiqc --tag RNA -f {STATS}
+    multiqc --tag DNA -f {STATS}
 
     # Save the output
     mv {STATS}/qc/multiqc_data {STATS}/{SAMPLE}_multiqc_data
