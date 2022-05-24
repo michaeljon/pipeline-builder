@@ -18,6 +18,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
         --pipeline-dir ${HOME}/pipeline/${SAMPLE} \
         --stats-dir ${HOME}/pipeline/${SAMPLE} \
         --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
+        --skip-alignment-qc \
         --temp-dir ${HOME}/stats/temp \
         --fastq-dir ${HOME}/stats/FASTQ 
    

@@ -376,7 +376,7 @@ def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str
     if [[ ! -f {BQSR}.table ]]; then
         logthis "Generating {BQSR}.table"
 
-        gatk BaseRecalibrator --java-options '-Xmx8g' \\
+        gatk BaseRecalibrator --java-options '-Xmx4g' \\
             -R {REFERENCE}/{ASSEMBLY}.fasta \\
             -I {BAM} \\
             -O {BQSR}.table \\
@@ -394,7 +394,7 @@ def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str
     if [[ ! -f {BQSR} ]]; then
         logthis "Applying calibration for {BQSR}"
 
-        gatk ApplyBQSR --java-options '-Xmx8g' \\
+        gatk ApplyBQSR --java-options '-Xmx4g' \\
             -R {REFERENCE}/{ASSEMBLY}.fasta \\
             -I {BAM} \\
             -O {BQSR} \\
@@ -439,7 +439,7 @@ def callVariants(script: TextIOWrapper, options: OptionsDict, interval: str, bqs
     if [[ ! -f {VCF} ]]; then
         logthis "Starting variant calling for {INTERVAL}"
 
-        gatk HaplotypeCaller --java-options '-Xmx8g' \\
+        gatk HaplotypeCaller --java-options '-Xmx4g' \\
             -R {REFERENCE}/{ASSEMBLY}.fasta \\
             -I {BQSR} \\
             -O {VCF} \\
@@ -780,7 +780,7 @@ fi
 if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then
     logthis "Starting alignment summary metrics on {SAMPLE}"
 
-    gatk CollectAlignmentSummaryMetrics --java-options '-Xmx8g' \\
+    gatk CollectAlignmentSummaryMetrics --java-options '-Xmx4g' \\
         --VERBOSITY ERROR \\
         -R {REFERENCE}/{ASSEMBLY}.fasta \\
         -I {SORTED} \\
@@ -792,7 +792,7 @@ fi
 if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then
     logthis "Starting GC bais metrics on {SAMPLE}"
 
-    gatk CollectGcBiasMetrics --java-options '-Xmx8g' \\
+    gatk CollectGcBiasMetrics --java-options '-Xmx4g' \\
         --VERBOSITY ERROR \\
         -R {REFERENCE}/{ASSEMBLY}.fasta \\
         -I {SORTED} \\
@@ -806,7 +806,7 @@ fi
 if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
     logthis "Starting WGS metrics on {SAMPLE}"
 
-    gatk CollectWgsMetrics --java-options '-Xmx8g' \\
+    gatk CollectWgsMetrics --java-options '-Xmx4g' \\
         --VERBOSITY ERROR \\
         -R {REFERENCE}/{ASSEMBLY}.fasta \\
         -I {SORTED} \\
@@ -854,16 +854,16 @@ else
     echo "bedtools genomecov already run, ${{green}}skipping${{reset}}"
 fi
 
-if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fastqc.html ]]; then
-    logthis "Starting fastqc for {SAMPLE}"
+# if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fastqc.html ]]; then
+#     logthis "Starting fastqc for {SAMPLE}"
 
-    fastqc \\
-        --outdir {STATS} \\
-        --noextract \\
-        {SORTED} &
-else
-    logthis "FASTQC already run, ${{green}}already completed${{reset}}"
-fi
+#     fastqc \\
+#         --outdir {STATS} \\
+#         --noextract \\
+#         {SORTED} &
+# else
+#     logthis "FASTQC already run, ${{green}}already completed${{reset}}"
+# fi
 """.format(
             REFERENCE=reference,
             ASSEMBLY=assembly,
@@ -1020,12 +1020,28 @@ def defineArguments() -> Namespace:
         help="Working directory, e.g. base for $WORKING/pipeline, $WORKING/stats",
     )
     parser.add_argument(
-        "-q",
-        "--skip-qc",
+        "-Q",
+        "--skip-multi-qc",
         action="store_false",
-        dest="doQC",
+        dest="doMultiQc",
         default=True,
-        help="Skip QC process on input and output files",
+        help="Skip running multiqc QC process on input and output files",
+    )
+    parser.add_argument(
+        "-V",
+        "--skip-variant-qc",
+        action="store_false",
+        dest="doVariantQc",
+        default=True,
+        help="Skip running variant QC process on input and output files",
+    )
+    parser.add_argument(
+        "-q",
+        "--skip-alignment-qc",
+        action="store_false",
+        dest="doAlignmentQc",
+        default=True,
+        help="Skip alignment QC process on input and output files",
     )
     parser.add_argument(
         "-B",
@@ -1341,7 +1357,7 @@ def main():
         # so much time. it's a single-threaded limited-memory (250mb)
         # process so we're not too worried about it's impact on the rest of
         # the variant calling processes
-        if options["doQC"]:
+        if options["doAlignmentQc"]:
             startAlignmentQC(script, options, sorted)
 
         runIntervals(script, options, prefix)
@@ -1349,7 +1365,7 @@ def main():
 
         # we can start variant qc here because it all works on the
         # gathered interval files
-        if options["doQC"]:
+        if options["doVariantQc"]:
             doVariantQC(script, options)
 
         # this pipeline can't run vep for T2T yet because we don't have the CHM13
@@ -1372,7 +1388,7 @@ def main():
         if options["cleanIntermediateFiles"] == True:
             cleanup(script, cleantarget, options)
 
-        if options["doQC"]:
+        if options["doMultiQc"]:
             runMultiQC(script, options)
 
         script.write(
