@@ -518,6 +518,7 @@ def annotate(
             --cache \\
             --format vcf \\
             --vcf \\
+            --compress_output gzip \\
             --merged \\
             --fork 64 \\
             --offline \\
