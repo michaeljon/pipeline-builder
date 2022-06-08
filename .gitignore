@@ -7,3 +7,7 @@ try-me
 pipeline-runner
 coverage.tsv
 *_links.tsv
+a.out
+make-variants
+make-variants.dSYM/
+*.vcf

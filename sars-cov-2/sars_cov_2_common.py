@@ -616,11 +616,13 @@ else
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
-    (samtools stats -@ 8 \\
-        -r {REFERENCE}/covid_reference.fasta \\
-        {SORTED} >{STATS}/{SAMPLE}.samstats
+    (
+        samtools stats -@ 8 \\
+            -r {REFERENCE}/covid_reference.fasta \\
+            {SORTED} >{STATS}/{SAMPLE}.samstats
 
-    plot-bamstats --prefix {STATS}/{SAMPLE}_samstats {STATS}/{SAMPLE}.samstats) &
+        plot-bamstats --prefix {STATS}/{SAMPLE}_samstats {STATS}/{SAMPLE}.samstats
+    ) &
 else
     echo "samtools stats already run, ${{green}}skipping${{reset}}"
 fi
@@ -685,7 +687,7 @@ if [[ ! -d {STATS}/{SAMPLE}_multiqc_data ]]; then
     cd {STATS}/qc
 
     # Run multiqc
-    multiqc --tag RNA -f {STATS}
+    multiqc --tag DNA -f {STATS}
 
     # Save the output
     mv {STATS}/qc/multiqc_data {STATS}/{SAMPLE}_multiqc_data

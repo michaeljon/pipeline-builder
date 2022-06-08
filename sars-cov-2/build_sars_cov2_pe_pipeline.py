@@ -106,7 +106,6 @@ if [[ ! -f {O1} || ! -f {O2} ]]; then
         --out2 {O2} \\
         {ADAPTERS} \\
         --verbose {LIMITREADS} \\
-        --stdout \\
         --thread 8 \\
         -j {STATS}/{SAMPLE}-fastp.json \\
         -h {STATS}/{SAMPLE}-fastp.html
