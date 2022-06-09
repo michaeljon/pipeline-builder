@@ -14,7 +14,7 @@ bwa-mem2 index GCF_000001405.40_GRCh38.p14_genomic.fna
 
 That command will build the BWT indexes from the reference. The filename for the reference will be used to construct the index file names: `.0123`, `.amb`, `.ann`, `.pac`, and `.bwt.2bit.64`. This last file is based on the processor installed on the EC2 instance and its support for various Intel extensions.
 
-This particular step can take upwards of an hour depending on the EC2 instance. This is why we build the files and burn them into the AMI. We can afford the download / launch costs for the instance far easier than we can the build time (plus, we can reuse these files for each alignment).
+This particular step can take upwards of an hour depending on the EC2 instance. This is why we build the files and burn them into the AMI. We can afford the download / launch costs for the instance far easier than we can the build time (plus, we can reuse these files for each alignment). The next step, creating the index for `bwa` can also take about an hour.
 
 We also create a set of index files for our "old" aligner `bwa` for comparison.
 
