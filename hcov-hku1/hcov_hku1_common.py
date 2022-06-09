@@ -24,16 +24,16 @@ else
     echo "Reference dictionary {REFERENCE}/hcov-hku1.dict ${{green}}already present${{reset}}"
 fi
 
-if [[ ! -f {REFERENCE}/sars_cov2_ref_genome_autosomal.interval_list ]]; then
+if [[ ! -f {REFERENCE}/ref_genome_autosomal.interval_list ]]; then
     # build the interval list, this is only done in the case where we're
     # processing a partial set of chromosomes. in the typical case this would
     # be a WGS collection.
 
-    egrep '(NC_045512.2)\\s' {REFERENCE}/hcov-hku1.fasta.fai |
+    egrep '(NC_006577.2)\\s' {REFERENCE}/hcov-hku1.fasta.fai |
         awk '{{print $1"\\t1\\t"$2"\\t+\\t"$1}}' |
-        cat {REFERENCE}/hcov-hku1.dict - >{REFERENCE}/sars_cov2_ref_genome_autosomal.interval_list
+        cat {REFERENCE}/hcov-hku1.dict - >{REFERENCE}/ref_genome_autosomal.interval_list
 else
-    echo "Interval list {REFERENCE}/sars_cov2_ref_genome_autosomal.interval_list ${{green}}already present${{reset}}"
+    echo "Interval list {REFERENCE}/ref_genome_autosomal.interval_list ${{green}}already present${{reset}}"
 fi
 
 """.format(
@@ -381,7 +381,7 @@ def annotate(script: TextIOWrapper, options: OptionsDict, vcf: str, annotated: s
 if [[ ! -f {PIPELINE}/{SAMPLE}.annotated.vcf ]]; then
     echo Start snpEff annotation for {VCF}
 
-    java -jar ~/bin/snpEff/snpEff.jar -htmlStats {PIPELINE}/{SAMPLE}.snpeff.html NC_045512.2 {VCF} >{ANNOTATED}
+    java -jar ~/bin/snpEff/snpEff.jar -htmlStats {PIPELINE}/{SAMPLE}.snpeff.html NC_006577.2 {VCF} >{ANNOTATED}
 
     echo snpEff annotion complete for {VCF}
 else
