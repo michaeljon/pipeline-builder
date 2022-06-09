@@ -3,6 +3,21 @@
 #include <stdlib.h>
 #include <time.h>
 
+#define EXPERIMENTAL_VCF
+
+typedef unsigned char byte;
+
+// human
+#define REF_HG38_P13 1UL
+#define REF_HG38_P14 2UL
+
+// coronovirus
+#define HCOV_229E 10UL
+#define HCOV_HKU1 11UL
+#define HCOV_NL63 12UL
+#define HCOV_OC63 13UL
+#define SARS_COV_2 15UL
+
 typedef struct _chromSize
 {
     char *chrom;
@@ -70,19 +85,55 @@ static inline char *generateIndel()
     return indel;
 }
 
-static inline void writeSNP(char *chr, long locus, char r, char a)
+static inline unsigned long chromToKey(char *chr)
 {
+    if (*chr == 'X')
+        return 22UL;
+    if (*chr == 'Y')
+        return 23UL;
+    return (unsigned long)atol(chr);
+}
+
+static inline void writeSNP(unsigned long referenceId, char *chr, long locus, char r, char a)
+{
+#ifdef EXPERIMENTAL_VCF
+    const unsigned long key =
+        referenceId << 56 |
+        chromToKey(chr) << 32 |
+        locus;
+
+    printf("%016lx\tchr%s\t%ld\t.\t%c\t%c\t0.0\tDP=0\n", key, chr, locus, r, a);
+#else
     printf("chr%s\t%ld\t.\t%c\t%c\t0.0\tDP=0\n", chr, locus, r, a);
+#endif
 }
 
-static inline void writeInsert(char *chr, long locus, char r, char *a)
+static inline void writeInsert(unsigned long referenceId, char *chr, long locus, char r, char *a)
 {
+#ifdef EXPERIMENTAL_VCF
+    const unsigned long key =
+        referenceId << 56 |
+        chromToKey(chr) << 32 |
+        locus;
+
+    printf("%016lx\tchr%s\t%ld\t.\t%c\t%s\t0.0\tINDEL;DP=0\n", key, chr, locus, r, a);
+#else
     printf("chr%s\t%ld\t.\t%c\t%s\t0.0\tINDEL;DP=0\n", chr, locus, r, a);
+#endif
 }
 
-static inline void writeDelete(char *chr, long locus, char *r, char a)
+static inline void writeDelete(unsigned long referenceId, char *chr, long locus, char *r, char a)
 {
+#ifdef EXPERIMENTAL_VCF
+    const unsigned long key =
+        referenceId << 56 |
+        chromToKey(chr) << 32 |
+        locus;
+
+    printf("%016lx\tchr%s\t%ld\t.\t%s\t%c\t0.0\tINDEL;DP=0\n", key, chr, locus, r, a);
+#else
     printf("chr%s\t%ld\t.\t%s\t%c\t0.0\tINDEL;DP=0\n", chr, locus, r, a);
+#endif
 }
 
 int variantCount = 0;
@@ -99,7 +150,7 @@ void generateVariants(char *chr, long size)
             if (randomPercent() > indelChance)
             {
                 // is snp
-                writeSNP(chr, locus, randomRead(), randomRead());
+                writeSNP(REF_HG38_P13, chr, locus, randomRead(), randomRead());
             }
             else
             {
@@ -110,12 +161,12 @@ void generateVariants(char *chr, long size)
                 if (randomPercent() > 0.5)
                 {
                     // insertion
-                    writeInsert(chr, locus, indel[0], indel);
+                    writeInsert(REF_HG38_P13, chr, locus, indel[0], indel);
                 }
                 else
                 {
                     // deletion
-                    writeDelete(chr, locus, indel, indel[0]);
+                    writeDelete(REF_HG38_P13, chr, locus, indel, indel[0]);
                 }
 
                 locus += strlen(indel);
