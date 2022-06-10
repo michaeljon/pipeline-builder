@@ -166,7 +166,7 @@ def updateDictionary(script: TextIOWrapper, options: OptionsDict):
         """
 if [[ ! -f {REFERENCE}/{ASSEMBLY}.dict ]]; then
     java -jar {BIN}/picard.jar CreateSequenceDictionary \\
-        -R {REFERENCE}/{ASSEMBLY}.fasta \\
+        -R {REFERENCE}/{ASSEMBLY}.fna \\
         -O {REFERENCE}/{ASSEMBLY}.dict
 else
     logthis "Reference dictionary {REFERENCE}/{ASSEMBLY}.dict ${{green}}already completed${{reset}}"
@@ -179,7 +179,7 @@ if [[ ! -f {REFERENCE}/{ASSEMBLY}_autosomal.interval_list ]]; then
 
     logthis "Building {REFERENCE}/{ASSEMBLY}.interval_list"
 
-    egrep '({REGEX})\\s' {REFERENCE}/{ASSEMBLY}.fasta.fai |
+    egrep '({REGEX})\\s' {REFERENCE}/{ASSEMBLY}.fna.fai |
         awk '{{print $1"\\t1\\t"$2"\\t+\\t"$1}}' |
         cat {REFERENCE}/{ASSEMBLY}.dict - >{REFERENCE}/{ASSEMBLY}_autosomal.interval_list
 
@@ -238,7 +238,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             -M {DASHK} \\
             -v 1 \\
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
-            {REFERENCE}/{ASSEMBLY}.fasta \\
+            {REFERENCE}/{ASSEMBLY}.fna \\
             - | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
 
     status=$?
@@ -283,7 +283,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
             -Y -M {DASHK} \\
             -v 1 \\
             -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
-            {REFERENCE}/{ASSEMBLY}.fasta \\
+            {REFERENCE}/{ASSEMBLY}.fna \\
             {R1} \\
             {R2} \\
             | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
@@ -377,7 +377,7 @@ def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str
         logthis "Generating {BQSR}.table"
 
         gatk BaseRecalibrator --java-options '-Xmx4g' \\
-            -R {REFERENCE}/{ASSEMBLY}.fasta \\
+            -R {REFERENCE}/{ASSEMBLY}.fna \\
             -I {BAM} \\
             -O {BQSR}.table \\
             --verbosity ERROR \\
@@ -395,7 +395,7 @@ def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str
         logthis "Applying calibration for {BQSR}"
 
         gatk ApplyBQSR --java-options '-Xmx4g' \\
-            -R {REFERENCE}/{ASSEMBLY}.fasta \\
+            -R {REFERENCE}/{ASSEMBLY}.fna \\
             -I {BAM} \\
             -O {BQSR} \\
             --verbosity ERROR \\
@@ -440,7 +440,7 @@ def callVariants(script: TextIOWrapper, options: OptionsDict, interval: str, bqs
         logthis "Starting variant calling for {INTERVAL}"
 
         gatk HaplotypeCaller --java-options '-Xmx4g' \\
-            -R {REFERENCE}/{ASSEMBLY}.fasta \\
+            -R {REFERENCE}/{ASSEMBLY}.fna \\
             -I {BQSR} \\
             -O {VCF} \\
             --verbosity ERROR \\
@@ -476,7 +476,7 @@ def callVariants2(script: TextIOWrapper, options: OptionsDict, interval: str, bq
             --threads 4 \\
             --output-type u \\
             --regions {INTERVAL} \\
-            --fasta-ref {REFERENCE}/{ASSEMBLY}.fasta \\
+            --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
             {BQSR} 2>/dev/null | \\
         bcftools call \\
             --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \\
@@ -526,7 +526,7 @@ def annotate(
             --verbose \\
             --force_overwrite \\
             --symbol \\
-            --fasta {REFERENCE}/{ASSEMBLY}.fasta \\
+            --fasta {REFERENCE}/{ASSEMBLY}.fna \\
             --input_file {INPUT} \\
             --output_file {OUTPUT} \\
             --stats_file {STATS}/{SUMMARY}
@@ -632,7 +632,7 @@ def generateConsensus(script: TextIOWrapper, options: OptionsDict):
 if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fasta ]]; then
     logthis "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.unannotated.vcf.gz${{reset}}"
     bcftools consensus \\
-        --fasta-ref {REFERENCE}/{ASSEMBLY}.fasta \\
+        --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
         {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
     | sed '/>/ s/$/ | {SAMPLE}/' >{PIPELINE}/{SAMPLE}.consensus.fasta
 else
@@ -783,7 +783,7 @@ if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then
 
     gatk CollectAlignmentSummaryMetrics --java-options '-Xmx4g' \\
         --VERBOSITY ERROR \\
-        -R {REFERENCE}/{ASSEMBLY}.fasta \\
+        -R {REFERENCE}/{ASSEMBLY}.fna \\
         -I {SORTED} \\
         -O {STATS}/{SAMPLE}.alignment_metrics.txt &
 else
@@ -795,7 +795,7 @@ if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias
 
     gatk CollectGcBiasMetrics --java-options '-Xmx4g' \\
         --VERBOSITY ERROR \\
-        -R {REFERENCE}/{ASSEMBLY}.fasta \\
+        -R {REFERENCE}/{ASSEMBLY}.fna \\
         -I {SORTED} \\
         -O {STATS}/{SAMPLE}.gc_bias_metrics.txt \\
         -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf \\
@@ -809,7 +809,7 @@ if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
 
     gatk CollectWgsMetrics --java-options '-Xmx4g' \\
         --VERBOSITY ERROR \\
-        -R {REFERENCE}/{ASSEMBLY}.fasta \\
+        -R {REFERENCE}/{ASSEMBLY}.fna \\
         -I {SORTED} \\
         -O {STATS}/{SAMPLE}.wgs_metrics.txt \\
         --MINIMUM_BASE_QUALITY 20 \\
@@ -828,7 +828,7 @@ if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
 
     ( 
         samtools stats -@ 8 \\
-            -r {REFERENCE}/{ASSEMBLY}.fasta \\
+            -r {REFERENCE}/{ASSEMBLY}.fna \\
                 {SORTED} >{STATS}/{SAMPLE}.samstats
 
         plot-bamstats --prefix {SAMPLE}_samstats/ {STATS}/{SAMPLE}.samstats

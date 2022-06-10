@@ -12,8 +12,8 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
     python ${HOME}/pipeline-builder/human/build-hg38-pipeline.py \
         --sample ${SAMPLE} \
         --work-dir ${HOME} \
-        --reference-dir ${HOME}/reference \
-        --reference-assembly Homo_sapiens_assembly38 \
+        --reference-dir ${HOME}/GRCh38.p14/reference \
+        --reference-assembly GCF_000001405.40_GRCh38.p14_genomic \
         --sizes ${HOME}/pipeline-builder/human/hg38-chromosomeSizes.json \
         --pipeline-dir ${HOME}/pipeline/${SAMPLE} \
         --stats-dir ${HOME}/pipeline/${SAMPLE} \
