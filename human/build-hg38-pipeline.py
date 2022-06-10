@@ -12,6 +12,8 @@ from math import ceil
 from os.path import exists, expandvars, basename
 from os import cpu_count, system
 
+from numpy import require
+
 # This script generates an Illumina paired-read VCF annotation pipeline.
 # There are some short-circuit options generated as part of this script,
 # but they will not normally be used in production. They are meant to
@@ -1106,11 +1108,10 @@ def defineArguments() -> Namespace:
     parser.add_argument(
         "-R",
         "--reference-assembly",
+        required=True,
         action="store",
         metavar="REFERENCE_ASSEMBLY",
         dest="referenceAssembly",
-        default="Homo_sapiens_assembly38",
-        choices=["Homo_sapiens_assembly38", "Homo_sapiens_T2T_CHM13_v2"],
         help="Base name of the reference assembly",
     )
     parser.add_argument(
