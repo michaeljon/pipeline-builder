@@ -16,6 +16,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
         --cores 72 \
         --sample ${SAMPLE} \
         --work-dir ${HOME} \
+        --reference-dir ${HOME}/reference/sars-cov-2 \
         --pipeline-dir ${HOME}/pipeline/${SAMPLE} \
         --stats-dir ${HOME}/pipeline/${SAMPLE} \
         --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \

@@ -42,43 +42,6 @@ ChromosomeList = List[Tuple[str, str]]
 OptionsDict = Dict[str, Any]
 FastaPair = Tuple[str, str]
 
-#
-# these will need to get addressed soon, but for now it'll work
-#
-def dbsnpFromReference(options: OptionsDict) -> str:
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
-
-    if assembly == "Homo_sapiens_assembly38":
-        return "{REFERENCE}/Homo_sapiens_assembly38.dbsnp.vcf".format(REFERENCE=reference)
-    else:
-        return "{REFERENCE}/chm13v2.0_dbSNPv155.vcf.gz".format(REFERENCE=reference)
-
-
-#
-# do not change the layout here, this code generates a bash
-# fragment
-def knownSitesFromReference(options: OptionsDict) -> str:
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
-
-    if assembly == "Homo_sapiens_assembly38":
-        return """\\
-            --known-sites {REFERENCE}/Homo_sapiens_assembly38.dbsnp.vcf \\
-            --known-sites {REFERENCE}/Homo_sapiens_assembly38.known_indels.vcf \\
-            --known-sites {REFERENCE}/Mills_and_1000G_gold_standard.indels.hg38.vcf \\
-            \\""".format(
-            REFERENCE=reference
-        )
-    else:
-        return """\\
-            --known-sites {REFERENCE}/chm13v2.0_dbSNPv155.vcf.gz \\
-            --known-sites {REFERENCE}/chm13v2.0_ClinVar20220313.vcf.gz \\
-            \\""".format(
-            REFERENCE=reference
-        )
-
-
 def loadIntervals(chromosomeSizes: str) -> ChromosomeSizeList:
     with open(chromosomeSizes, "r") as file:
         chromosomeSizesDict = json.load(file)
@@ -370,7 +333,7 @@ fi
 def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str, bqsr: str):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
-    knownSites = knownSitesFromReference(options)
+    knownSites = options["knownSites"]
 
     script.write(
         """
@@ -384,7 +347,7 @@ def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str
             -O {BQSR}.table \\
             --verbosity ERROR \\
             --preserve-qscores-less-than 6 \\
-            {KNOWN_SITES}
+            --known-sites {KNOWN_SITES}
             -L {INTERVAL}
 
         logthis "{BQSR}.table completed"
@@ -433,7 +396,7 @@ def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str
 def callVariants(script: TextIOWrapper, options: OptionsDict, interval: str, bqsr: str, vcf: str):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
-    dbsnp = dbsnpFromReference(options)
+    knownSites = options["knownSites"]
 
     script.write(
         """
@@ -446,7 +409,7 @@ def callVariants(script: TextIOWrapper, options: OptionsDict, interval: str, bqs
             -I {BQSR} \\
             -O {VCF} \\
             --verbosity ERROR \\
-            --dbsnp {DBSNP} \\
+            --dbsnp {KNOWN_SITES} \\
             --pairHMM FASTEST_AVAILABLE \\
             --native-pair-hmm-threads 4 \\
             -L {INTERVAL}
@@ -456,7 +419,7 @@ def callVariants(script: TextIOWrapper, options: OptionsDict, interval: str, bqs
         logthis "Variants already called for {INTERVAL}, ${{green}}already completed${{reset}}"
     fi
 """.format(
-            REFERENCE=reference, ASSEMBLY=assembly, DBSNP=dbsnp, INTERVAL=interval, BQSR=bqsr, VCF=vcf
+            REFERENCE=reference, ASSEMBLY=assembly, KNOWN_SITES=knownSites, INTERVAL=interval, BQSR=bqsr, VCF=vcf
         )
     )
 
@@ -590,8 +553,6 @@ def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
 
     intervals = computeIntervals(options)
 
-    script.write("\n\ndeclare -a interval_processing_pids\n")
-
     for interval in intervals:
         bam = """{PREFIX}.{INTERVAL}.bam""".format(PREFIX=prefix, INTERVAL=interval[1])
         bqsr = """{PREFIX}.{INTERVAL}_bqsr.bam""".format(PREFIX=prefix, INTERVAL=interval[1])
@@ -617,9 +578,8 @@ def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
         script.write("interval_processing_pids+=($!)\n")
         script.write("\n")
 
-    script.write('logthis "${yellow}Waiting on the following interval PIDs to complete${reset}"\n')
-    script.write("echo ${interval_processing_pids[@]}\n")
-    script.write("wait ${interval_processing_pids[@]}\n")
+    script.write('logthis "${yellow}Waiting on interval processing to complete${reset}"\n')
+    script.write("wait\n")
     script.write('logthis "${green}Intervals processed${reset}"\n')
 
 
@@ -689,7 +649,7 @@ fi
 def doVariantQC(script: TextIOWrapper, options: OptionsDict):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
-    dbsnp = dbsnpFromReference(options)
+    knownSites = options["knownSites"]
     pipeline = options["pipeline"]
     sample = options["sample"]
     stats = options["stats"]
@@ -706,7 +666,7 @@ if [[ ! -f {STATS}/{SAMPLE}.variant_calling_detail_metrics ]]; then
 
     gatk CollectVariantCallingMetrics \\
         --VERBOSITY ERROR \\
-        --DBSNP {DBSNP} \\
+        --DBSNP {KNOWN_SITES} \\
         -I {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
         -O {STATS}/{SAMPLE} &
 else
@@ -747,7 +707,7 @@ if [[ ! -f {STATS}/{SAMPLE}.het ]]; then
 fi
 
 """.format(
-            REFERENCE=reference, ASSEMBLY=assembly, DBSNP=dbsnp, PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+            REFERENCE=reference, ASSEMBLY=assembly, KNOWN_SITES=knownSites, PIPELINE=pipeline, SAMPLE=sample, STATS=stats
         )
     )
 
@@ -1098,14 +1058,6 @@ def defineArguments() -> Namespace:
     )
 
     parser.add_argument(
-        "-r",
-        "--reference-dir",
-        action="store",
-        metavar="REFERENCE_DIR",
-        dest="reference",
-        help="Location of the reference genome files",
-    )
-    parser.add_argument(
         "-R",
         "--reference-assembly",
         required=True,
@@ -1113,6 +1065,25 @@ def defineArguments() -> Namespace:
         metavar="REFERENCE_ASSEMBLY",
         dest="referenceAssembly",
         help="Base name of the reference assembly",
+    )
+
+    parser.add_argument(
+        "-k",
+        "--known-sites",
+        required=True,
+        action="store",
+        metavar="KNOWN_SITES",
+        dest="knownSites",
+        help="Name of the 'known sites' VCF",
+    )
+
+    parser.add_argument(
+        "-r",
+        "--reference-dir",
+        action="store",
+        metavar="REFERENCE_DIR",
+        dest="reference",
+        help="Location of the reference genome files",
     )
     parser.add_argument(
         "-p",
@@ -1373,17 +1344,16 @@ def main():
         # this pipeline can't run vep for T2T yet because we don't have the CHM13
         # vep cache data, so no annotations are available in that case
         assembly = options["referenceAssembly"]
-        if assembly == "Homo_sapiens_assembly38":
-            annotate(
-                script,
-                options,
-                "{WORKING}/vep_data".format(WORKING=options["working"]),
-                "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(
-                    PIPELINE=options["pipeline"], SAMPLE=options["sample"]
-                ),
-                "{PIPELINE}/{SAMPLE}.annotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
-                "{SAMPLE}.annotated.vcf_summary.html".format(SAMPLE=options["sample"]),
-            )
+        annotate(
+            script,
+            options,
+            "{WORKING}/vep_data".format(WORKING=options["working"]),
+            "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(
+                PIPELINE=options["pipeline"], SAMPLE=options["sample"]
+            ),
+            "{PIPELINE}/{SAMPLE}.annotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
+            "{SAMPLE}.annotated.vcf_summary.html".format(SAMPLE=options["sample"]),
+        )
 
         # generateConsensus(script, options)
 

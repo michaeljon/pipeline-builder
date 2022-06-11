@@ -14,6 +14,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
         --work-dir ${HOME} \
         --reference-dir ${HOME}/reference/GRCh38.p14 \
         --reference-assembly GCF_000001405.40_GRCh38.p14_genomic \
+        --known-sites GCF_000001405.39.gz \
         --sizes ${HOME}/pipeline-builder/human/GRCh38-p14-chromosomeSizes.json \
         --pipeline-dir ${HOME}/pipeline/${SAMPLE} \
         --stats-dir ${HOME}/pipeline/${SAMPLE} \
