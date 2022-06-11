@@ -42,6 +42,7 @@ ChromosomeList = List[Tuple[str, str]]
 OptionsDict = Dict[str, Any]
 FastaPair = Tuple[str, str]
 
+
 def loadIntervals(chromosomeSizes: str) -> ChromosomeSizeList:
     with open(chromosomeSizes, "r") as file:
         chromosomeSizesDict = json.load(file)
@@ -57,16 +58,17 @@ def loadChromosomeList(chromosomeSizes: str) -> ChromosomeNames:
 def computeIntervals(options: OptionsDict) -> ChromosomeList:
     intervals = []
 
-    chromosomeSizes = options["chromosomeSizes"]
+    rulesFile = options["chromosomeSizes"]
     segmentSize = options["segmentSize"]
     lastBlockMax = math.floor(options["segmentSize"] * options["factor"])
 
-    with open(chromosomeSizes, "r") as file:
-        chromosomeSizes = json.load(file)
+    with open(rulesFile, "r") as file:
+        rules = json.load(file)
 
-        for c in chromosomeSizes:
-            remainder = chromosomeSizes[c] - segmentSize
-            segments = ceil(chromosomeSizes[c] / segmentSize)
+        for rule in rules:
+
+            remainder = rules[rule]["length"] - segmentSize
+            segments = ceil(rules[rule]["length"] / segmentSize)
             segment = 0
 
             while remainder > lastBlockMax:
@@ -83,10 +85,10 @@ def computeIntervals(options: OptionsDict) -> ChromosomeList:
                     lower += 1
 
                 intervals.append(
-                    "chr{c}:{lower}-{upper}".format(
-                        c=c,
+                    "{accession}:{lower}-{upper}".format(
+                        c=rules[rule]["accession"],
                         lower=lower,
-                        upper=chromosomeSizes[c],
+                        upper=rules[rule]["length"],
                     )
                 )
             else:
@@ -95,10 +97,10 @@ def computeIntervals(options: OptionsDict) -> ChromosomeList:
                     lower += 1
 
                 intervals.append(
-                    "chr{c}:{lower}-{upper}".format(
-                        c=c,
+                    "{accession}:{lower}-{upper}".format(
+                        c=rules[rule]["accession"],
                         lower=lower,
-                        upper=chromosomeSizes[c],
+                        upper=rules[rule]["length"],
                     )
                 )
 
@@ -707,7 +709,12 @@ if [[ ! -f {STATS}/{SAMPLE}.het ]]; then
 fi
 
 """.format(
-            REFERENCE=reference, ASSEMBLY=assembly, KNOWN_SITES=knownSites, PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            KNOWN_SITES=knownSites,
+            PIPELINE=pipeline,
+            SAMPLE=sample,
+            STATS=stats,
         )
     )
 
@@ -1348,9 +1355,7 @@ def main():
             script,
             options,
             "{WORKING}/vep_data".format(WORKING=options["working"]),
-            "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(
-                PIPELINE=options["pipeline"], SAMPLE=options["sample"]
-            ),
+            "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
             "{PIPELINE}/{SAMPLE}.annotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
             "{SAMPLE}.annotated.vcf_summary.html".format(SAMPLE=options["sample"]),
         )
