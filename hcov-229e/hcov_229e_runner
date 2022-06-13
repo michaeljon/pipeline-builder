@@ -2,7 +2,7 @@
 
 SAMPLE=$1
 
-if [[ -n ${HOME}/pipeline/hcov-229e/${SAMPLE}.tar ]]; then
+if [[ -n ${HOME}/pipeline/hcov-229e/${SAMPLE}.tgz ]]; then
     echo Starting ${SAMPLE} run
 
     # give us a place to work
@@ -19,7 +19,7 @@ if [[ -n ${HOME}/pipeline/hcov-229e/${SAMPLE}.tar ]]; then
         --script ${HOME}/pipeline/hcov-229e/${SAMPLE}/${SAMPLE}_runner \
         --temp-dir ${HOME}/stats/temp \
         --fastq-dir ${HOME}/pipeline/FASTQ \
-        --caller bcftools \
+        --caller gatk \
         --aligner bwa \
         --preprocessor none \
         --sorter samtools
@@ -31,7 +31,7 @@ if [[ -n ${HOME}/pipeline/hcov-229e/${SAMPLE}.tar ]]; then
     # rm -f ${HOME}/pipeline/hcov-229e/${SAMPLE}/${SAMPLE}_R1.trimmed.fastq.gz
     # rm -f ${HOME}/pipeline/hcov-229e/${SAMPLE}/${SAMPLE}_R2.trimmed.fastq.gz
 
-    cd ${HOME}/pipeline/
+    cd ${HOME}/pipeline/hcov-229e/
     tar cfz ${HOME}/pipeline/hcov-229e/${SAMPLE}.tgz ./${SAMPLE}
     # rm -rf ${HOME}/pipeline/hcov-229e/${SAMPLE}
 

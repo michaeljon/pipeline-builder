@@ -7,7 +7,7 @@ if [[ ! -d $HOME/reference/sars-cov-2/nextclade-data/sars-cov-2 ]]; then
     nextclade dataset get --name='sars-cov-2' --output-dir=$HOME/reference/sars-cov-2/nextclade-data/sars-cov-2
 fi
 
-if [[ -n ${HOME}/pipeline/sars-cov-2/${SAMPLE}.tar ]]; then
+if [[ -n ${HOME}/pipeline/sars-cov-2/${SAMPLE}.tgz ]]; then
     echo Starting ${SAMPLE} run
 
     # give us a place to work
@@ -29,7 +29,6 @@ if [[ -n ${HOME}/pipeline/sars-cov-2/${SAMPLE}.tar ]]; then
         --preprocessor fastp \
         --sorter samtools
 
-    exit
     # run the pipeline
     bash ${HOME}/pipeline/sars-cov-2/${SAMPLE}/${SAMPLE}_runner >${HOME}/pipeline/sars-cov-2/${SAMPLE}/${SAMPLE}.log 2>&1
 
@@ -39,7 +38,7 @@ if [[ -n ${HOME}/pipeline/sars-cov-2/${SAMPLE}.tar ]]; then
     # rm -f ${HOME}/pipeline/sars-cov-2/${SAMPLE}/${SAMPLE}_R1.trimmed.fastq.gz
     # rm -f ${HOME}/pipeline/sars-cov-2/${SAMPLE}/${SAMPLE}_R2.trimmed.fastq.gz
 
-    cd ${HOME}/pipeline/
+    cd ${HOME}/pipeline/sars-cov-2/
     tar cfz ${HOME}/pipeline/sars-cov-2/${SAMPLE}.tgz ./${SAMPLE}
     # rm -rf ${HOME}/pipeline/sars-cov-2/${SAMPLE}
 

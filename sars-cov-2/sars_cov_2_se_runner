@@ -7,18 +7,18 @@ if [[ ! -d $HOME/reference/sars-cov-2/nextclade-data/sars-cov-2 ]]; then
     nextclade dataset get --name='sars-cov-2' --output-dir=$HOME/reference/sars-cov-2/nextclade-data/sars-cov-2
 fi
 
-if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
+if [[ -n ${HOME}/pipeline/sars-cov-2/${SAMPLE}.tgz ]]; then
     # give us a place to work
-    mkdir -p ${HOME}/pipeline/${SAMPLE}
+    mkdir -p ${HOME}/pipeline/sars-cov-2/${SAMPLE}
 
     # build the pipeline
     python ${HOME}/pipeline-builder/sars-cov-2/build_sars_cov2_pipeline.py \
         --cores 8 \
         --sample ${SAMPLE} \
         --work-dir ${HOME} \
-        --pipeline-dir ${HOME}/pipeline/${SAMPLE} \
-        --stats-dir ${HOME}/pipeline/${SAMPLE} \
-        --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
+        --pipeline-dir ${HOME}/pipeline/sars-cov-2/${SAMPLE} \
+        --stats-dir ${HOME}/pipeline/sars-cov-2/${SAMPLE} \
+        --script ${HOME}/pipeline/sars-cov-2/${SAMPLE}/${SAMPLE}_runner \
         --temp-dir ${HOME}/stats/temp \
         --fastq-dir ${HOME}/pipeline/FASTQ \
         --preprocessor trimmomatic \
@@ -28,15 +28,15 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
         --alternate-consensus
 
     # run the pipeline
-    bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner
+    bash ${HOME}/pipeline/sars-cov-2/${SAMPLE}/${SAMPLE}_runner
 
     # pack up the stuff and clean house
-    rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.combined_lanes.fastq.gz
-    rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.aligned.sam
+    rm -f ${HOME}/pipeline/sars-cov-2/${SAMPLE}/${SAMPLE}.combined_lanes.fastq.gz
+    rm -f ${HOME}/pipeline/sars-cov-2/${SAMPLE}/${SAMPLE}.aligned.sam
 
-    cd ${HOME}/pipeline/
-    tar -cf ${HOME}/pipeline/${SAMPLE}.tar ./${SAMPLE}
-    # rm -rf ${HOME}/pipeline/${SAMPLE}
+    cd ${HOME}/pipeline/sars-cov-2/
+    tar cvf ${HOME}/pipeline/sars-cov-2/${SAMPLE}.tgz ./${SAMPLE}
+    # rm -rf ${HOME}/pipeline/sars-cov-2/${SAMPLE}
 else
     echo "We have already processed sample ${SAMPLE}"
 fi
