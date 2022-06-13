@@ -2,7 +2,10 @@
 
 SAMPLE=$1
 
-echo ${SAMPLE}
+# download the reference data
+if [[ ! -d $HOME/reference/sars-cov-2/nextclade-data/sars-cov-2 ]]; then
+    nextclade dataset get --name='sars-cov-2' --output-dir=$HOME/reference/sars-cov-2/nextclade-data/sars-cov-2
+fi
 
 if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
     # give us a place to work
@@ -18,7 +21,10 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
         --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
         --temp-dir ${HOME}/stats/temp \
         --fastq-dir ${HOME}/pipeline/FASTQ \
-        --alternate-caller \
+        --preprocessor trimmomatic \
+        --aligner hisat2 \
+        --sorter samtools \
+        --caller bcftools \
         --alternate-consensus
 
     # run the pipeline

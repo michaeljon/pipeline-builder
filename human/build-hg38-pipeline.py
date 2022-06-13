@@ -9,10 +9,8 @@ from argparse import Namespace
 from typing import Dict, Tuple, Sequence, List, Any
 from datetime import datetime
 from math import ceil
-from os.path import exists, expandvars, basename
+from os.path import exists, expandvars
 from os import cpu_count, system
-
-from numpy import require
 
 # This script generates an Illumina paired-read VCF annotation pipeline.
 # There are some short-circuit options generated as part of this script,
@@ -36,26 +34,17 @@ from numpy import require
 # skips fastp processing
 # only runs the alignment steps
 
-ChromosomeSizeList = Dict[str, str]
-ChromosomeNames = List[str]
-ChromosomeList = List[Tuple[str, str]]
 OptionsDict = Dict[str, Any]
 FastaPair = Tuple[str, str]
 
 
-def loadIntervals(chromosomeSizes: str) -> ChromosomeSizeList:
-    with open(chromosomeSizes, "r") as file:
-        chromosomeSizesDict = json.load(file)
-        return chromosomeSizesDict
+def loadIntervals(rulesFile: str):
+    with open(rulesFile, "r") as file:
+        chromosomeSizes = json.load(file)
+        return chromosomeSizes
 
 
-def loadChromosomeList(chromosomeSizes: str) -> ChromosomeNames:
-    with open(chromosomeSizes, "r") as file:
-        chromosomeSizesDict = json.load(file)
-        return chromosomeSizesDict.keys()
-
-
-def computeIntervals(options: OptionsDict) -> ChromosomeList:
+def computeIntervals(options: OptionsDict):
     intervals = []
 
     rulesFile = options["chromosomeSizes"]
@@ -66,15 +55,14 @@ def computeIntervals(options: OptionsDict) -> ChromosomeList:
         rules = json.load(file)
 
         for rule in rules:
-
-            remainder = rules[rule]["length"] - segmentSize
-            segments = ceil(rules[rule]["length"] / segmentSize)
+            remainder = rule["length"] - segmentSize
+            segments = ceil(rule["length"] / segmentSize)
             segment = 0
 
             while remainder > lastBlockMax:
                 lower = segment * segmentSize + 1
                 upper = (segment + 1) * segmentSize
-                intervals.append("chr{c}:{lower}-{upper}".format(c=c, lower=lower, upper=upper))
+                intervals.append("{accession}:{lower}-{upper}".format(accession=rule["accession"], lower=lower, upper=upper))
 
                 segment += 1
                 remainder -= segmentSize
@@ -86,9 +74,9 @@ def computeIntervals(options: OptionsDict) -> ChromosomeList:
 
                 intervals.append(
                     "{accession}:{lower}-{upper}".format(
-                        c=rules[rule]["accession"],
+                        accession=rule["accession"],
                         lower=lower,
-                        upper=rules[rule]["length"],
+                        upper=rule["length"],
                     )
                 )
             else:
@@ -98,9 +86,9 @@ def computeIntervals(options: OptionsDict) -> ChromosomeList:
 
                 intervals.append(
                     "{accession}:{lower}-{upper}".format(
-                        c=rules[rule]["accession"],
+                        accession=rule["accession"],
                         lower=lower,
-                        upper=rules[rule]["length"],
+                        upper=rule["length"],
                     )
                 )
 
@@ -126,7 +114,7 @@ def updateDictionary(script: TextIOWrapper, options: OptionsDict):
     script.write("# Build the reference dictionary and interval list\n")
     script.write("#\n")
 
-    chromosomes = ["chr" + str(c) for c in loadChromosomeList(options["chromosomeSizes"])]
+    chromosomes = [c["accession"] for c in loadIntervals(options["chromosomeSizes"])]
     regex = "|".join(chromosomes)
 
     script.write(
@@ -146,7 +134,7 @@ if [[ ! -f {REFERENCE}/{ASSEMBLY}_autosomal.interval_list ]]; then
 
     logthis "Building {REFERENCE}/{ASSEMBLY}.interval_list"
 
-    egrep '({REGEX})\\s' {REFERENCE}/{ASSEMBLY}.fna.fai |
+    egrep '^({REGEX})\\s' {REFERENCE}/{ASSEMBLY}.fna.fai |
         awk '{{print $1"\\t1\\t"$2"\\t+\\t"$1}}' |
         cat {REFERENCE}/{ASSEMBLY}.dict - >{REFERENCE}/{ASSEMBLY}_autosomal.interval_list
 
@@ -621,7 +609,9 @@ def gather(script: TextIOWrapper, options: OptionsDict):
 # 
 if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
     logthis "Building merge list for {SAMPLE}"
-    /bin/ls -1 {PIPELINE}/{SAMPLE}.chr[0-9MXY]*.vcf | sort -k1,1V >{PIPELINE}/{SAMPLE}.merge.list
+
+    # for now this is hard-coded, but we need to get this from the json rules
+    /bin/ls -1 {PIPELINE}/{SAMPLE}.NC_*.vcf | sort -k1,1V >{PIPELINE}/{SAMPLE}.merge.list
 
     logthis "Concatenating intermediate VCFs into final {PIPELINE}/{SAMPLE}.unannotated.vcf.gz"
 
@@ -889,7 +879,7 @@ def cleanup(script: TextIOWrapper, prefix: str, options: OptionsDict):
     script.write("# Clean up all intermediate interval files\n")
     script.write("#\n")
 
-    script.write("rm -f {PREFIX}/{SAMPLE}.chr*\n".format(PREFIX=prefix, SAMPLE=sample))
+    script.write("rm -f {PREFIX}/{SAMPLE}.NC_*\n".format(PREFIX=prefix, SAMPLE=sample))
 
 
 def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastaPair):
@@ -910,8 +900,8 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastaPai
     script.write("#\n")
     script.write("# Assumed chromosome sizes (from {SIZES})\n".format(SIZES=options["chromosomeSizes"]))
     intervals = loadIntervals(options["chromosomeSizes"])
-    for interval in intervals.keys():
-        script.write("#   {CHROME} = {SIZE}\n".format(CHROME=interval, SIZE=intervals[interval]))
+    for interval in intervals:
+        script.write("#   {CHROME} => {ACCESSION} {SIZE}\n".format(CHROME=interval["chromosome"], ACCESSION=interval["accession"], SIZE=interval["length"]))
     script.write("#\n")
 
     script.write("#\n")

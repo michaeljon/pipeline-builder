@@ -24,7 +24,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tar ]]; then
         --fastq-dir ${HOME}/pipeline/FASTQ 
    
     # run the pipeline
-    bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner >${HOME}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
+    # bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner >${HOME}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
 
     # rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.aligned.sam.gz
     # rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.sorted.bam

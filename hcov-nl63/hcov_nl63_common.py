@@ -267,7 +267,7 @@ def produceConsensusUsingBcftools(
 ):
     script.write(
         """
-# call variants
+# produce consensus using bcftools
 if [[ ! -f {CONSENSUS} ]]; then
     echo Creating consensus for {VCF}
 
@@ -300,11 +300,11 @@ def produceConsensusUsingIvar(
 ):
     script.write(
         """
-# call variants
+# produce consensus using ivar
 if [[ ! -f {CONSENSUS} ]]; then
     echo Creating consensus for {BAM}
 
-    samtools mpileup \\
+    bcftools mpileup \\
         -aa \\
         -A \\
         --max-depth 0 \\
@@ -347,7 +347,7 @@ if [[ ! -f {PILEUP} ]]; then
         echo '* * * * 1' >{PLOIDY}
     fi
 
-    samtools mpileup \\
+    bcftools mpileup \\
         -aa \\
         -A \\
         --max-depth 0 \\
@@ -426,10 +426,10 @@ def runPipeline(script: TextIOWrapper, options: OptionsDict, prefix: str):
     producePileup(script, options["reference"], bam, pileup, ploidy)
     annotate(script, options, vcf, annotated)
 
-    if useAlternateConsensus == False:
-        produceConsensusUsingBcftools(script, options["reference"], sample, consensus, vcf)
-    else:
+    if useAlternateConsensus == True:
         produceConsensusUsingIvar(script, options["reference"], sample, consensus, bam)
+    else:
+        produceConsensusUsingBcftools(script, options["reference"], sample, consensus, vcf)
 
     script.write(
         """
@@ -492,16 +492,14 @@ echo "Starting Variant QC processes"
 #
 # we need to quiet vcftools here because it's stupid chatty and doesn't have an option to quiet
 #
-vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --freq2 --out {STATS}/{SAMPLE}_vcfstats --max-alleles 2 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --depth --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --site-mean-depth --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --site-quality --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --missing-indv --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --missing-site --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null &
-vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --het --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null &
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --freq2 --out {STATS}/{SAMPLE}_vcfstats --max-alleles 2 2>/dev/null
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --depth --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --site-mean-depth --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --site-quality --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --missing-indv --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --missing-site --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null
+vcftools --vcf {PIPELINE}/{SAMPLE}.vcf --het --out {STATS}/{SAMPLE}_vcfstats 2>/dev/null
 
-echo "Waiting for VCF QC processed to complete"
-wait
 echo "VCF QC processes complete"
 
 #
@@ -564,11 +562,13 @@ else
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
-    (samtools stats -@ 8 \\
-        -r {REFERENCE}/hcov-nl63.fasta \\
-        {SORTED} >{STATS}/{SAMPLE}.samstats
+    (
+        samtools stats -@ 8 \\
+            -r {REFERENCE}/hcov-nl63.fasta \\
+            {SORTED} >{STATS}/{SAMPLE}.samstats
 
-    plot-bamstats --prefix {STATS}/{SAMPLE}_samstats {STATS}/{SAMPLE}.samstats) &
+        plot-bamstats --prefix {STATS}/{SAMPLE}_samstats {STATS}/{SAMPLE}.samstats
+    ) &
 else
     echo "samtools stats already run, ${{green}}skipping${{reset}}"
 fi
@@ -580,11 +580,18 @@ else
     echo "samtools idxstats already run, ${{green}}skipping${{reset}}"
 fi
 
-if [[ ! -f {STATS}/{SAMPLE}.coverage ]]; then
-    bedtools genomecov -d -ibam \\
-        {SORTED} >{STATS}/{SAMPLE}.coverage &
+if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then
+    bedtools genomecov -d -ibam {SORTED} >{STATS}/{SAMPLE}.bedtools.coverage &
 else
     echo "bedtools genomecov already run, ${{green}}skipping${{reset}}"
+fi
+
+if [[ ! -f {STATS}/{SAMPLE}.samtools.coverage ]]; then
+    samtools coverage -d 0 \\
+        --reference {REFERENCE}/hcov-nl63.fasta \\
+        {SORTED} >{STATS}/{SAMPLE}.samtools.coverage &
+else
+    echo "samtools coverage already run, ${{green}}skipping${{reset}}"
 fi
 
 if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fastqc.html ]]; then
@@ -633,7 +640,7 @@ if [[ ! -d {STATS}/{SAMPLE}_multiqc_data ]]; then
     cd {STATS}/qc
 
     # Run multiqc
-    multiqc --tag RNA -f {STATS}
+    multiqc --tag DNA -f {STATS}
 
     # Save the output
     mv {STATS}/qc/multiqc_data {STATS}/{SAMPLE}_multiqc_data

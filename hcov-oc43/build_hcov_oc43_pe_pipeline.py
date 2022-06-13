@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from hcov_229e_common import (
+from hcov_oc43_common import (
     OptionsDict,
     updateDictionary,
     sortAlignedAndMappedData,
@@ -31,8 +31,8 @@ def getFileNames(options: OptionsDict) -> FastqSet:
     fastq_dir = options["fastq_dir"]
 
     return (
-        "{FASTQ_DIR}/{SAMPLE}_R1.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
-        "{FASTQ_DIR}/{SAMPLE}_R2.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        "{FASTQ_DIR}/{SAMPLE}_R1_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        "{FASTQ_DIR}/{SAMPLE}_R2_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
     )
 
 
