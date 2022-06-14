@@ -106,9 +106,13 @@ def sortWithSamtools(script: TextIOWrapper, options: OptionsDict, output: str):
 #
 # sort and mark duplicates
 #
-if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
+if [[ ! -f {UNMARKED} ]]; then
     samtools sort {PIPELINE}/{SAMPLE}.aligned.bam -o {UNMARKED}
+else
+    echo "{UNMARKED}, index, and metrics found, ${{green}}skipping${{reset}}"
+fi
 
+if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
     java -Xmx8g -jar {BIN}/picard.jar MarkDuplicates \\
         --TAGGING_POLICY All \\
         --REFERENCE_SEQUENCE {REFERENCE}/hcov-229e.fasta \\
@@ -640,7 +644,7 @@ if [[ ! -d {STATS}/{SAMPLE}_multiqc_data ]]; then
     cd {STATS}/qc
 
     # Run multiqc
-    multiqc --tag DNA -f {STATS}
+    multiqc -f {STATS}
 
     # Save the output
     mv {STATS}/qc/multiqc_data {STATS}/{SAMPLE}_multiqc_data

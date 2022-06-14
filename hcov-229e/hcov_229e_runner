@@ -21,7 +21,7 @@ if [[ -n ${HOME}/pipeline/hcov-229e/${SAMPLE}.tgz ]]; then
         --fastq-dir ${HOME}/pipeline/FASTQ \
         --caller gatk \
         --aligner bwa \
-        --preprocessor none \
+        --preprocessor fastp \
         --sorter samtools
 
     # run the pipeline
