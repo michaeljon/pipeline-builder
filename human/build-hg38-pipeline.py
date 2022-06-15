@@ -943,13 +943,18 @@ else
     logthis "samtools idxstats already run, ${{green}}already completed${{reset}}"
 fi
 
-if [[ ! -f {STATS}/{SAMPLE}.coverage ]]; then
-    logthis "Calculating coverage for {SAMPLE}"
-
-    bedtools genomecov -pc -ibam \\
-        {SORTED} >{STATS}/{SAMPLE}.coverage &
+if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then
+    bedtools genomecov -d -ibam {SORTED} >{STATS}/{SAMPLE}.bedtools.coverage &
 else
     echo "bedtools genomecov already run, ${{green}}skipping${{reset}}"
+fi
+
+if [[ ! -f {STATS}/{SAMPLE}.samtools.coverage ]]; then
+    samtools coverage -d 0 \\
+        --reference {REFERENCE}/{ASSEMBLY}.fna \\
+        {SORTED} >{STATS}/{SAMPLE}.samtools.coverage &
+else
+    echo "samtools coverage already run, ${{green}}skipping${{reset}}"
 fi
 
 # if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fastqc.html ]]; then
