@@ -1,0 +1,14 @@
+#!/bin/bin/env bash
+
+SAMPLE=zr5654_4_S1
+DISEASES=$(tail -n +2 ~/diseases.csv | cut -d, -f1 | sort | uniq)
+
+for DISEASE in $DISEASES; do
+    echo $DISEASE
+
+    RSS=$(grep $DISEASE ~/diseases.csv | cut -d, -f3 | sort -n -k1.3 | uniq)
+    EXP=$(echo $RSS | tr ' ' '|')
+
+    # for RS in $RSS; do echo $RS; done
+    zcat ~/pipeline/${SAMPLE}/${SAMPLE}.unannotated.vcf.gz | awk -v SAMPLE=${SAMPLE} "\$3 ~ /^($EXP)\$/ {print SAMPLE, \$1, \$2, \$4, \$5}" 
+done    
