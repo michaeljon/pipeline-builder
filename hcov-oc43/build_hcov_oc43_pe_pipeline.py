@@ -60,8 +60,8 @@ def runIdentityPreprocessor(
 # run the fastp preprocessor
 #
 if [[ ! -f {O1} || ! -f {O2} ]]; then
-    cp {R1} {O1}
-    cp {R2} {O2}
+    ln -s {R1} {O1}
+    ln -s {R2} {O2}
 else
     echo "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
@@ -185,8 +185,6 @@ def preprocessFASTQ(
     else:
         print("Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(PREPROCESSOR=preprocessor))
         quit(1)
-
-    pass
 
 
 def runBwaAligner(
