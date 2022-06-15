@@ -80,7 +80,7 @@ def runIdentityPreprocessor(
 # run the fastp preprocessor
 #
 if [[ ! -f {O1} ]]; then
-    cp {R1} {O1}
+    ln -s {R1} {O1}
 else
     echo "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
