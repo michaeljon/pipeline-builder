@@ -35,7 +35,7 @@ from os import cpu_count, system
 # only runs the alignment steps
 
 OptionsDict = Dict[str, Any]
-FastaPair = Tuple[str, str]
+FastqSet = Tuple[str, str]
 
 
 def loadIntervals(rulesFile: str):
@@ -107,19 +107,27 @@ def writeMergeList(options: OptionsDict):
         ml.truncate()
         for interval in intervals:
             ml.write(
-                "{PIPELINE}/{SAMPLE}.{INTERVAL}.vcf\n".format(
-                    INTERVAL=interval[1], PIPELINE=pipeline, SAMPLE=sample
-                )
+                "{PIPELINE}/{SAMPLE}.{INTERVAL}.vcf\n".format(INTERVAL=interval[1], PIPELINE=pipeline, SAMPLE=sample)
             )
 
 
-def getFileNames(options: OptionsDict) -> FastaPair:
+def getFileNames(options: OptionsDict) -> FastqSet:
     sample = options["sample"]
     fastq_dir = options["fastq_dir"]
 
     return (
         "{FASTQ_DIR}/{SAMPLE}_R1.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
         "{FASTQ_DIR}/{SAMPLE}_R2.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+    )
+
+
+def getTrimmedFileNames(options: OptionsDict) -> FastqSet:
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+
+    return (
+        "{PIPELINE}/{SAMPLE}_R1.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
+        "{PIPELINE}/{SAMPLE}_R2.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
     )
 
 
@@ -167,175 +175,282 @@ fi
     )
 
 
-def alignAndSort(script: TextIOWrapper, r1: str, r2: str, options: OptionsDict, output: str):
+def runIdentityPreprocessor(script: TextIOWrapper, r1: str, r2: str, o1: str, o2: str):
+    script.write(
+        """
+#
+# run the identity preprocessor
+#
+if [[ ! -f {O1} || ! -f {O2} ]]; then
+    ln -s {R1} {O1}
+    ln -s {R2} {O2}
+else
+    echo "Preprocessor already run, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            R1=r1,
+            R2=r2,
+            O1=o1,
+            O2=o2,
+        )
+    )
+
+
+def runFastpPreprocessor(
+    script: TextIOWrapper,
+    r1: str,
+    r2: str,
+    o1: str,
+    o2: str,
+    options: OptionsDict,
+):
+    reference = options["reference"]
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    adapters = options["adapters"]
+    threads = options["cores"]
+    stats = options["stats"]
+    bin = options["bin"]
+    readLimit = int(options["read-limit"])
+
+    script.write(
+        """
+#
+# run the fastp preprocessor
+#
+if [[ ! -f {O1} || ! -f {O2} ]]; then
+    LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+    fastp \\
+        --report_title "fastp report for sample {SAMPLE}" \\
+        --in1 {R1} \\
+        --in2 {R2} \\
+        --out1 {O1} \\
+        --out2 {O2} \\
+        {ADAPTERS} \\
+        --verbose {LIMITREADS} \\
+        --thread 8 \\
+        -j {STATS}/{SAMPLE}-fastp.json \\
+        -h {STATS}/{SAMPLE}-fastp.html
+else
+    echo "Preprocessor already run, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            R1=r1,
+            R2=r2,
+            O1=o1,
+            O2=o2,
+            REFERENCE=reference,
+            ADAPTERS="--adapter_fasta " + adapters if adapters != "" else "--detect_adapter_for_pe",
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            STATS=stats,
+            BIN=bin,
+            LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
+        )
+    )
+
+
+def preprocessFASTQ(
+    script: TextIOWrapper,
+    r1: str,
+    r2: str,
+    o1: str,
+    o2: str,
+    options: OptionsDict,
+):
+    preprocessor = options["preprocessor"]
+
+    if preprocessor == "none":
+        runIdentityPreprocessor(script, r1, r2, o1, o2)
+    elif preprocessor == "fastp":
+        runFastpPreprocessor(script, r1, r2, o1, o2, options)
+    else:
+        print("Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(PREPROCESSOR=preprocessor))
+        quit(1)
+
+
+def runBwaAligner(
+    script: TextIOWrapper,
+    o1: str,
+    o2: str,
+    options: OptionsDict,
+):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     sample = options["sample"]
     pipeline = options["pipeline"]
     threads = options["cores"]
-    timeout = options["watchdog"]
+    nonRepeatable = options["non-repeatable"]
+
+    script.write(
+        """
+#
+# align the input files
+#
+if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
+    bwa-mem2 mem -t {THREADS} \\
+        -Y -M {DASHK} \\
+        -v 1 \\
+        -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+        {REFERENCE}/{ASSEMBLY}.fna \\
+        {O1} \\
+        {O2} | 
+    samtools view -Sb - >{PIPELINE}/{SAMPLE}.aligned.bam
+else
+    echo "{PIPELINE}/{SAMPLE}.aligned.bam, aligned temp file found, ${{green}}skipping${{reset}}"
+fi
+
+""".format(
+            O1=o1,
+            O2=o2,
+            REFERENCE=reference,
+            ASSEMBLY=assembly, 
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * int(threads))),
+        )
+    )
+
+
+def alignFASTQ(
+    script: TextIOWrapper,
+    o1: str,
+    o2: str,
+    options: OptionsDict,
+):
+    aligner = options["aligner"]
+
+    if aligner == "bwa":
+        runBwaAligner(script, o1, o2, options)
+    else:
+        print("Unexpected value {ALIGNER} given for the --aligner option".format(ALIGNER=aligner))
+        quit(1)
+
+    pass
+
+
+def sortWithBiobambam(script: TextIOWrapper, options: OptionsDict, output: str):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    threads = options["cores"]
     stats = options["stats"]
     bin = options["bin"]
     temp = options["temp"]
-    nonRepeatable = options["non-repeatable"]
-    readLimit = int(options["read-limit"])
-    skipPreprocess = options["skipPreprocess"]
+
     alignOnly = options["alignOnly"]
 
-    script.write("#\n")
-    script.write("# Align, sort, and mark duplicates\n")
-    script.write("#\n")
-
-    if skipPreprocess == False:
-        script.write(
-            """
-#
-# align the input files
-#
-if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
-    logthis "Running fastp and bwa-mem on {SAMPLE}"
-
-    timeout {TIMEOUT}m bash -c \\
-        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-        fastp \\
-            --in1 {R1} \\
-            --in2 {R2} \\
-            --verbose {LIMITREADS} \\
-            --stdout \\
-            --thread 8 \\
-            --detect_adapter_for_pe \\
-            -j {STATS}/{SAMPLE}-fastp.json \\
-            -h {STATS}/{SAMPLE}-fastp.html | \\
-        bwa-mem2 mem -t {THREADS} \\
-            -Y \\
-            -M {DASHK} \\
-            -v 1 \\
-            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
-            {REFERENCE}/{ASSEMBLY}.fna \\
-            - | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
-
-    status=$?
-    if [ $status -ne 0 ]; then
-        logthis "Watchdog timer killed alignment process errno = $status"
-        rm -f {SAMPLE}.aligned.sam.gz
-        exit $status
-    fi
-
-    logthis "fastp and bwa-mem run complete on {SAMPLE}"
-else
-    logthis "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}already completed${{reset}}"
-fi
-""".format(
-                R1=r1,
-                R2=r2,
-                REFERENCE=reference,
-                ASSEMBLY=assembly,
-                SAMPLE=sample,
-                THREADS=threads,
-                PIPELINE=pipeline,
-                TIMEOUT=timeout,
-                STATS=stats,
-                BIN=bin,
-                TEMP=temp,
-                DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * int(threads))),
-                LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
-            )
-        )
-    else:
-        script.write(
-            """
-#
-# align the input files
-#
-if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.sam.gz ]]; then
-    logthis "Running bwa-mem on {SAMPLE}"
-
-    timeout {TIMEOUT}m bash -c \\
-        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-        bwa-mem2 mem -t {THREADS} \\
-            -Y -M {DASHK} \\
-            -v 1 \\
-            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
-            {REFERENCE}/{ASSEMBLY}.fna \\
-            {R1} \\
-            {R2} \\
-            | pigz >{PIPELINE}/{SAMPLE}.aligned.sam.gz'
-
-    status=$?
-    if [ $status -ne 0 ]; then
-        logthis "Watchdog timer killed alignment process errno = $status"
-        rm -f {SAMPLE}.aligned.sam.gz
-        exit $status
-    fi
-
-    logthis "bwa-mem run complete on {SAMPLE}"
-else
-    logthis "{PIPELINE}/{SAMPLE}.aligned.sam.gz, aligned temp file found, ${{green}}already completed${{reset}}"
-fi
-
-""".format(
-                R1=r1,
-                R2=r2,
-                REFERENCE=reference,
-                ASSEMBLY=assembly,
-                SAMPLE=sample,
-                THREADS=threads,
-                PIPELINE=pipeline,
-                TIMEOUT=timeout,
-                BIN=bin,
-                DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * int(threads))),
-            )
-        )
-
-    # this is one of the more time-consuming operations, so, if we've already
-    # done the alignment operation for this sample, we'll skip this
     script.write(
         """
 #
 # sort and mark duplicates
 #
-if [[ ! -f {SORTED} ]]; then
-    logthis "Sorting and marking duplicates for {SAMPLE}"
+if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
+    bamsormadup \\
+        SO=coordinate \\
+        threads={THREADS} \\
+        level=6 \\
+        tmpfile={TEMP}/{SAMPLE} \\
+        inputformat=bam \\
+        indexfilename={SORTED}.bai \\
+        M={STATS}/{SAMPLE}.duplication_metrics <{PIPELINE}/{SAMPLE}.aligned.bam >{SORTED}
 
-    timeout {TIMEOUT}m bash -c \\
-        'LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-        unpigz --stdout {PIPELINE}/{SAMPLE}.aligned.sam.gz |
-        bamsormadup \\
-            SO=coordinate \\
-            threads={THREADS} \\
-            level=6 \\
-            tmpfile={TEMP}/{SAMPLE} \\
-            inputformat=sam \\
-            indexfilename={SORTED}.bai \\
-            M={STATS}/{SAMPLE}.duplication_metrics >{SORTED}'
-
-    status=$?
-    if [ $status -ne 0 ]; then
-        logthis "Watchdog timer killed sort / dup process errno = $status"
-        rm -f {SORTED}
-        rm -f {SORTED}.bai
-        exit $status
-    fi
-
+    # force the index to look "newer" than its source
     touch {SORTED}.bai
-    logthis "Sorting and marking duplicates complete for {SAMPLE}"
 else
-    logthis "Sorting and duplicate marking done for {SORTED}, ${{green}}already completed${{reset}}"
+    echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
 fi
-
-{EXIT_IF_ALIGN_ONLY}
-""".format(
+    {EXIT_IF_ALIGN_ONLY}
+    """.format(
             SAMPLE=sample,
             THREADS=threads,
             SORTED=output,
             PIPELINE=pipeline,
-            TIMEOUT=timeout,
             STATS=stats,
             BIN=bin,
             TEMP=temp,
             EXIT_IF_ALIGN_ONLY="exit" if alignOnly == True else "",
         )
     )
+
+    pass
+
+
+def sortWithSamtools(script: TextIOWrapper, options: OptionsDict, output: str):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    reference = options["reference"]
+    threads = options["cores"]
+    stats = options["stats"]
+    bin = options["bin"]
+    temp = options["temp"]
+
+    alignOnly = options["alignOnly"]
+
+    unmarked = "{PIPELINE}/{SAMPLE}.unmarked.bam".format(PIPELINE=pipeline, SAMPLE=sample)
+
+    script.write(
+        """
+#
+# sort and mark duplicates
+#
+if [[ ! -f {UNMARKED} ]]; then
+    samtools sort {PIPELINE}/{SAMPLE}.aligned.bam -o {UNMARKED}
+else
+    echo "{UNMARKED}, index, and metrics found, ${{green}}skipping${{reset}}"
+fi
+
+if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
+    java -Xmx8g -jar {BIN}/picard.jar MarkDuplicates \\
+        --TAGGING_POLICY All \\
+        --REFERENCE_SEQUENCE {REFERENCE}/hcov-oc43.fasta \\
+        -I {UNMARKED} \\
+        -O {SORTED} \\
+        -M {STATS}/{SAMPLE}_marked_dup_metrics.txt    
+
+    # generate an index on the result
+    samtools index -b {SORTED} {SORTED}.bai
+else
+    echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
+fi
+    {EXIT_IF_ALIGN_ONLY}
+    """.format(
+            REFERENCE=reference,
+            SAMPLE=sample,
+            THREADS=threads,
+            UNMARKED=unmarked,
+            SORTED=output,
+            PIPELINE=pipeline,
+            STATS=stats,
+            BIN=bin,
+            TEMP=temp,
+            EXIT_IF_ALIGN_ONLY="exit" if alignOnly == True else "",
+        )
+    )
+
+
+def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output: str):
+    sorter = options["sorter"]
+
+    if sorter == "biobambam":
+        sortWithBiobambam(script, options, output)
+    else:
+        sortWithSamtools(script, options, output)
+
+
+def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
+    filenames = getFileNames(options)
+    trimmedFilenames = getTrimmedFileNames(options)
+
+    script.write("#\n")
+    script.write("# Align, sort, and mark duplicates\n")
+    script.write("#\n")
+
+    preprocessFASTQ(script, filenames[0], filenames[1], trimmedFilenames[0], trimmedFilenames[1], options)
+    alignFASTQ(script, trimmedFilenames[0], trimmedFilenames[1], options)
+
+    sortAlignedAndMappedData(script, options, output)
 
 
 def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str, bqsr: str):
@@ -401,7 +516,7 @@ def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str
     )
 
 
-def callVariants(script: TextIOWrapper, options: OptionsDict, interval: str, bqsr: str, vcf: str):
+def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict, interval: str, bqsr: str, vcf: str):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     knownSites = options["knownSites"]
@@ -432,7 +547,7 @@ def callVariants(script: TextIOWrapper, options: OptionsDict, interval: str, bqs
     )
 
 
-def callVariants2(script: TextIOWrapper, options: OptionsDict, interval: str, bqsr: str, vcf: str):
+def callVariantsUsingBcftools(script: TextIOWrapper, options: OptionsDict, interval: str, bqsr: str, vcf: str):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
 
@@ -556,7 +671,7 @@ def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
     # just keep the individual region's calls for later merging and
     # bulk annotation (which provides a complete summary annotation)
     # working = options["working"]
-    useAlternateCaller = options["alternateCaller"]
+    caller = options["caller"]
     skipBQSR = options["skipBQSR"]
 
     intervals = computeIntervals(options)
@@ -577,10 +692,13 @@ def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
         else:
             bqsr = bam
 
-        if useAlternateCaller == False:
-            callVariants(script, options, interval[0], bqsr, vcf)
+        if caller == "gatk":
+            callVariantsUsingGatk(script, options, interval[0], bqsr, vcf)
+        elif caller == "bcftools":
+            callVariantsUsingBcftools(script, options, interval[0], bqsr, vcf)
         else:
-            callVariants2(script, options, interval[0], bqsr, vcf)
+            print("Unexpected value {CALLER} given for the --caller option".format(CALLER=caller))
+            quit(1)
 
         script.write(") &\n")
         script.write("interval_processing_pids+=($!)\n")
@@ -909,7 +1027,7 @@ def cleanup(script: TextIOWrapper, prefix: str, options: OptionsDict):
     script.write("\n")
 
 
-def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastaPair):
+def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastqSet):
     script.write("#\n")
     script.write("# generated at {TIME}\n".format(TIME=datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     script.write("#\n")
@@ -1019,7 +1137,6 @@ def defineArguments() -> Namespace:
         help="Skip running multiqc QC process on input and output files",
     )
     parser.add_argument(
-        "-V",
         "--skip-variant-qc",
         action="store_false",
         dest="doVariantQc",
@@ -1027,7 +1144,6 @@ def defineArguments() -> Namespace:
         help="Skip running variant QC process on input and output files",
     )
     parser.add_argument(
-        "-q",
         "--skip-alignment-qc",
         action="store_false",
         dest="doAlignmentQc",
@@ -1035,21 +1151,53 @@ def defineArguments() -> Namespace:
         help="Skip alignment QC process on input and output files",
     )
     parser.add_argument(
-        "-B",
         "--skip-bqsr",
         action="store_true",
         dest="skipBQSR",
         default=False,
         help="Skip running BQSR processing on input file(s)",
     )
+
     parser.add_argument(
         "-P",
-        "--skip-fastp",
-        action="store_true",
-        dest="skipPreprocess",
-        default=False,
-        help="Skip running fastp on input file(s)",
+        "--preprocessor",
+        action="store",
+        dest="preprocessor",
+        default="none",
+        choices=["trimmomatic", "fastp", "none"],
+        help="Optionally run a FASTQ preprocessor",
     )
+
+    parser.add_argument(
+        "-A",
+        "--aligner",
+        action="store",
+        dest="aligner",
+        default="bwa",
+        choices=["bwa", "hisat2"],
+        help="Use 'bwa' or 'hisat2' as the aligner.",
+    )
+
+    parser.add_argument(
+        "-S",
+        "--sorter",
+        action="store",
+        dest="sorter",
+        default="biobambam",
+        choices=["biobambam", "samtools"],
+        help="Use 'biobambam' or 'samtools' as the sorter.",
+    )
+
+    parser.add_argument(
+        "-V",
+        "--caller",
+        action="store",
+        dest="caller",
+        default="bcftools",
+        choices=["bcftools", "gatk"],
+        help="Use `bcftools` or `gatk` as the variant caller",
+    )
+
     parser.add_argument(
         "-F",
         "--fastq-dir",
@@ -1068,21 +1216,12 @@ def defineArguments() -> Namespace:
     )
 
     parser.add_argument(
-        "-a",
+        "-X",
         "--align-only",
         action="store_true",
         dest="alignOnly",
         default=False,
         help="Only run alignment and sorting processes",
-    )
-
-    parser.add_argument(
-        "-A",
-        "--alternate-caller",
-        action="store_true",
-        dest="alternateCaller",
-        default=False,
-        help="Use alternate caller bcftools",
     )
 
     parser.add_argument(
@@ -1324,13 +1463,7 @@ def main():
         updateDictionary(script, options)
         filenames = getFileNames(options)
 
-        alignAndSort(
-            script,
-            filenames[0],
-            filenames[1],
-            options,
-            sorted,
-        )
+        alignAndSort(script, options, sorted)
 
         # the order of the next two operations is important in this script
         # because scatter does its job but waits on all the background
@@ -1342,12 +1475,7 @@ def main():
         # completed while we're waiting to scatter intervals around
         #
         # this makes scatter a standalone process for now
-        scatter(
-            script,
-            options,
-            prefix,
-            sorted,
-        )
+        scatter(script, options, prefix, sorted)
 
         # if we've been asked to run qc at all we can actually start
         # the alignment qc processes very early (right after we've
