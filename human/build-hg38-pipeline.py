@@ -62,7 +62,9 @@ def computeIntervals(options: OptionsDict):
             while remainder > lastBlockMax:
                 lower = segment * segmentSize + 1
                 upper = (segment + 1) * segmentSize
-                intervals.append("{accession}:{lower}-{upper}".format(accession=rule["accession"], lower=lower, upper=upper))
+                intervals.append(
+                    "{accession}:{lower}-{upper}".format(accession=rule["accession"], lower=lower, upper=upper)
+                )
 
                 segment += 1
                 remainder -= segmentSize
@@ -93,6 +95,22 @@ def computeIntervals(options: OptionsDict):
                 )
 
     return [(interval, interval.replace(":", "_").replace("-", "_")) for interval in intervals]
+
+
+def writeMergeList(options: OptionsDict):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+    intervals = computeIntervals(options)
+
+    mergeList = "{PIPELINE}/{SAMPLE}.merge.list".format(PIPELINE=pipeline, SAMPLE=sample)
+    with open(mergeList, "w") as ml:
+        ml.truncate()
+        for interval in intervals:
+            ml.write(
+                "{PIPELINE}/{SAMPLE}.{INTERVAL}.vcf\n".format(
+                    INTERVAL=interval[1], PIPELINE=pipeline, SAMPLE=sample
+                )
+            )
 
 
 def getFileNames(options: OptionsDict) -> FastaPair:
@@ -337,7 +355,7 @@ def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str
             -O {BQSR}.table \\
             --verbosity ERROR \\
             --preserve-qscores-less-than 6 \\
-            --known-sites {KNOWN_SITES}
+            --known-sites {REFERENCE}/{KNOWN_SITES} \\
             -L {INTERVAL}
 
         logthis "{BQSR}.table completed"
@@ -399,7 +417,7 @@ def callVariants(script: TextIOWrapper, options: OptionsDict, interval: str, bqs
             -I {BQSR} \\
             -O {VCF} \\
             --verbosity ERROR \\
-            --dbsnp {KNOWN_SITES} \\
+            --dbsnp {REFERENCE}/{KNOWN_SITES} \\
             --pairHMM FASTEST_AVAILABLE \\
             --native-pair-hmm-threads 4 \\
             -L {INTERVAL}
@@ -658,9 +676,11 @@ if [[ ! -f {STATS}/{SAMPLE}.variant_calling_detail_metrics ]]; then
 
     gatk CollectVariantCallingMetrics \\
         --VERBOSITY ERROR \\
-        --DBSNP {KNOWN_SITES} \\
-        -I {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
-        -O {STATS}/{SAMPLE} &
+        --REFERENCE_SEQUENCE {REFERENCE}/{ASSEMBLY}.fna \\
+        --SEQUENCE_DICTIONARY {REFERENCE}/{ASSEMBLY}.dict \\
+        --DBSNP {REFERENCE}/{KNOWN_SITES} \\
+        --INPUT {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
+        --OUTPUT {STATS}/{SAMPLE}.variant_calling_detail_metrics &
 else
     logthis "Variant metrics already run, ${{green}}already completed${{reset}}"
 fi
@@ -872,14 +892,21 @@ logthis "MultiQC for {SAMPLE} is complete"
 
 
 def cleanup(script: TextIOWrapper, prefix: str, options: OptionsDict):
+    pipeline = options["pipeline"]
     sample = options["sample"]
+    intervals = computeIntervals(options)
 
     script.write("\n")
     script.write("#\n")
     script.write("# Clean up all intermediate interval files\n")
     script.write("#\n")
 
-    script.write("rm -f {PREFIX}/{SAMPLE}.NC_*\n".format(PREFIX=prefix, SAMPLE=sample))
+    for interval in intervals:
+        script.write(
+            "rm -f {PIPELINE}/{SAMPLE}.{INTERVAL}*\n".format(INTERVAL=interval[1], PIPELINE=pipeline, SAMPLE=sample)
+        )
+
+    script.write("\n")
 
 
 def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastaPair):
@@ -901,7 +928,11 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastaPai
     script.write("# Assumed chromosome sizes (from {SIZES})\n".format(SIZES=options["chromosomeSizes"]))
     intervals = loadIntervals(options["chromosomeSizes"])
     for interval in intervals:
-        script.write("#   {CHROME} => {ACCESSION} {SIZE}\n".format(CHROME=interval["chromosome"], ACCESSION=interval["accession"], SIZE=interval["length"]))
+        script.write(
+            "#   {CHROME} => {ACCESSION} {SIZE}\n".format(
+                CHROME=interval["chromosome"], ACCESSION=interval["accession"], SIZE=interval["length"]
+            )
+        )
     script.write("#\n")
 
     script.write("#\n")
@@ -1276,6 +1307,8 @@ def main():
     prefix = "{PIPELINE}/{SAMPLE}".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
     cleantarget = options["pipeline"]
 
+    writeMergeList(options)
+
     with open(options["script"], "w+") as script:
         script.truncate(0)
 
@@ -1333,14 +1366,12 @@ def main():
         runIntervals(script, options, prefix)
         gather(script, options)
 
-        # we can start variant qc here because it all works on the
-        # gathered interval files
+        # we can start variant qc here because we're going to run against
+        # the unannotated vcf (we'll get the same metrics either way), and
+        # parts of this process take a long time
         if options["doVariantQc"]:
             doVariantQC(script, options)
 
-        # this pipeline can't run vep for T2T yet because we don't have the CHM13
-        # vep cache data, so no annotations are available in that case
-        assembly = options["referenceAssembly"]
         annotate(
             script,
             options,

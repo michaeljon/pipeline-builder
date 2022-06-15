@@ -8,6 +8,8 @@ Repeat this for both sets. You will get two `tar` files. Un-tar them, then navig
 
 - GRCh38.p13 - https://www.ncbi.nlm.nih.gov/assembly/GCF_000001405.39/
 - GRCh38.p14 - https://www.ncbi.nlm.nih.gov/assembly/GCF_000001405.40/
+- CHM13v2.0 - https://www.ncbi.nlm.nih.gov/assembly/GCF_009914755.1
+
 
 ## Reference "Known sites" VCF
 
