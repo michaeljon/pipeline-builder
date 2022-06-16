@@ -22,7 +22,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
         --skip-alignment-qc \
         --temp-dir ${HOME}/stats/temp \
         --fastq-dir ${HOME}/pipeline/FASTQ \
-        --preprocessor none \
+        --preprocessor fastp \
         --aligner bwa \
         --sorter biobambam \
         --caller gatk \

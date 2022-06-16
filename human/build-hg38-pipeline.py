@@ -211,7 +211,6 @@ def runFastpPreprocessor(
     reference = options["reference"]
     sample = options["sample"]
     pipeline = options["pipeline"]
-    adapters = options["adapters"]
     threads = options["cores"]
     stats = options["stats"]
     bin = options["bin"]
@@ -232,7 +231,7 @@ if [[ ! -f {O1} || ! -f {O2} ]]; then
         --in2 {R2} \\
         --out1 {O1} \\
         --out2 {O2} \\
-        {ADAPTERS} \\
+        --detect_adapter_for_pe \\
         --verbose {LIMITREADS} \\
         --thread 8 \\
         -j {STATS}/{SAMPLE}-fastp.json \\
@@ -246,7 +245,6 @@ fi
             O1=o1,
             O2=o2,
             REFERENCE=reference,
-            ADAPTERS="--adapter_fasta " + adapters if adapters != "" else "--detect_adapter_for_pe",
             SAMPLE=sample,
             THREADS=threads,
             PIPELINE=pipeline,
