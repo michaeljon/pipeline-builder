@@ -146,6 +146,8 @@ def updateDictionary(script: TextIOWrapper, options: OptionsDict):
     script.write(
         """
 if [[ ! -f {REFERENCE}/{ASSEMBLY}.dict ]]; then
+    logthis "${{yellow}}Creating sequence dictionary${{reset}}"
+
     java -jar {BIN}/picard.jar CreateSequenceDictionary \\
         -R {REFERENCE}/{ASSEMBLY}.fna \\
         -O {REFERENCE}/{ASSEMBLY}.dict
@@ -182,6 +184,8 @@ def runIdentityPreprocessor(script: TextIOWrapper, r1: str, r2: str, o1: str, o2
 # run the identity preprocessor
 #
 if [[ ! -f {O1} || ! -f {O2} ]]; then
+    logthis "${{yellow}}Running identity preprocessor${{reset}}"
+
     ln -s {R1} {O1}
     ln -s {R2} {O2}
 else
@@ -219,6 +223,8 @@ def runFastpPreprocessor(
 # run the fastp preprocessor
 #
 if [[ ! -f {O1} || ! -f {O2} ]]; then
+    logthis "${{yellow}}Running fastp preprocessor${{reset}}"
+
     LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
     fastp \\
         --report_title "fastp report for sample {SAMPLE}" \\
@@ -289,6 +295,8 @@ def runBwaAligner(
 # align the input files
 #
 if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
+    logthis "${{yellow}}Running aligner${{reset}}"
+
     bwa-mem2 mem -t {THREADS} \\
         -Y -M {DASHK} \\
         -v 1 \\
@@ -339,14 +347,14 @@ def sortWithBiobambam(script: TextIOWrapper, options: OptionsDict, output: str):
     bin = options["bin"]
     temp = options["temp"]
 
-    alignOnly = options["alignOnly"]
-
     script.write(
         """
 #
 # sort and mark duplicates
 #
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
+    logthis "${{yellow}}Sorting and marking duplicates${{reset}}"
+
     bamsormadup \\
         SO=coordinate \\
         threads={THREADS} \\
@@ -361,7 +369,6 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
 else
     echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
 fi
-    {EXIT_IF_ALIGN_ONLY}
     """.format(
             SAMPLE=sample,
             THREADS=threads,
@@ -370,7 +377,6 @@ fi
             STATS=stats,
             BIN=bin,
             TEMP=temp,
-            EXIT_IF_ALIGN_ONLY="exit" if alignOnly == True else "",
         )
     )
 
@@ -386,8 +392,6 @@ def sortWithSamtools(script: TextIOWrapper, options: OptionsDict, output: str):
     bin = options["bin"]
     temp = options["temp"]
 
-    alignOnly = options["alignOnly"]
-
     unmarked = "{PIPELINE}/{SAMPLE}.unmarked.bam".format(PIPELINE=pipeline, SAMPLE=sample)
 
     script.write(
@@ -396,12 +400,16 @@ def sortWithSamtools(script: TextIOWrapper, options: OptionsDict, output: str):
 # sort and mark duplicates
 #
 if [[ ! -f {UNMARKED} ]]; then
+    logthis "${{yellow}}Sorting aligned file${{reset}}"
+
     samtools sort {PIPELINE}/{SAMPLE}.aligned.bam -o {UNMARKED}
 else
     echo "{UNMARKED}, index, and metrics found, ${{green}}skipping${{reset}}"
 fi
 
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
+    logthis "${{yellow}}Marking duplicates${{reset}}"
+
     java -Xmx8g -jar {BIN}/picard.jar MarkDuplicates \\
         --TAGGING_POLICY All \\
         --REFERENCE_SEQUENCE {REFERENCE}/hcov-oc43.fasta \\
@@ -414,7 +422,6 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
 else
     echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
 fi
-    {EXIT_IF_ALIGN_ONLY}
     """.format(
             REFERENCE=reference,
             SAMPLE=sample,
@@ -425,7 +432,6 @@ fi
             STATS=stats,
             BIN=bin,
             TEMP=temp,
-            EXIT_IF_ALIGN_ONLY="exit" if alignOnly == True else "",
         )
     )
 
@@ -438,10 +444,45 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output
     else:
         sortWithSamtools(script, options, output)
 
+def extractUmappedReads(script: TextIOWrapper, options: OptionsDict, bam: str):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
+    script.write(
+        """
+#
+# extract unmapped reads
+#
+if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped.fastq ]]; then
+    logthis "${{yellow}}Extracting unmapped reads into initial FASTQ${{reset}}"
+
+    samtools fastq -f 4 {BAM} >{PIPELINE}/{SAMPLE}_unmapped.fastq
+else
+    echo "Unmapped reads extracted to initial FASTQ, ${{green}}skipping${{reset}}"
+fi
+
+if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped_R1.fastq || ! -f {PIPELINE}/{SAMPLE}_unmapped_R2.fastq ]]; then
+    logthis "${{yellow}}Extracting unmapped reads into paired FASTQ R1 / R2${{reset}}"
+
+    paste - - - - - - - - <{PIPELINE}/{SAMPLE}_unmapped.fastq \\
+        | tee >(cut -f 1-4 | tr "\\t" "\\n" > {PIPELINE}/{SAMPLE}_unmapped_R1.fastq) \\
+        | cut -f 5-8 | tr "\\t" "\\n" > {PIPELINE}/{SAMPLE}_unmapped_R2.fastq
+else
+    echo "Unmapped reads extracted to initial R1/R2 FASTQ, ${{green}}skipping${{reset}}"
+fi
+    """.format(
+            SAMPLE=sample,
+            PIPELINE=pipeline,
+            BAM=bam
+        )
+    )
+
 
 def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
+    processUnmapped = options["processUnmapped"]
     filenames = getFileNames(options)
     trimmedFilenames = getTrimmedFileNames(options)
+    alignOnly = options["alignOnly"]
 
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
@@ -451,6 +492,17 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
     alignFASTQ(script, trimmedFilenames[0], trimmedFilenames[1], options)
 
     sortAlignedAndMappedData(script, options, output)
+
+    if processUnmapped == True:
+        extractUmappedReads(script, options, output)
+
+    if alignOnly == True:
+        script.write("""
+
+# align-only flag set
+logthis "align-only set, exiting pipeline early"
+exit
+""")
 
 
 def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str, bqsr: str):
@@ -1218,6 +1270,15 @@ def defineArguments() -> Namespace:
         dest="cleanIntermediateFiles",
         default=False,
         help="Clean up the mess we make",
+    )
+
+    parser.add_argument(
+        "-u",
+        "--unmapped",
+        action="store_true",
+        dest="processUnmapped",
+        default=False,
+        help="Extract unmapped reads into secondary _R1 and _R2 FASTQ files",
     )
 
     parser.add_argument(

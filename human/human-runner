@@ -26,6 +26,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
         --aligner bwa \
         --sorter biobambam \
         --caller gatk \
+        --unmapped \
         --align-only
 
     # run the pipeline
