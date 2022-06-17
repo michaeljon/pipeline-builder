@@ -454,19 +454,14 @@ def extractUmappedReads(script: TextIOWrapper, options: OptionsDict, bam: str):
 if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped.fastq ]]; then
     logthis "${{yellow}}Extracting unmapped reads into initial FASTQ${{reset}}"
 
-    samtools fastq -f 4 {BAM} >{PIPELINE}/{SAMPLE}_unmapped.fastq
+    samtools fastq -N -f 4 \\
+        -0 {PIPELINE}/{SAMPLE}_unmapped_other.fastq \\
+        -s {PIPELINE}/{SAMPLE}_unmapped_singleton.fastq \\
+        -1 {PIPELINE}/{SAMPLE}_unmapped_R1.fastq \\
+        -2 {PIPELINE}/{SAMPLE}_unmapped_R2.fastq \\
+        {BAM}
 else
     echo "Unmapped reads extracted to initial FASTQ, ${{green}}skipping${{reset}}"
-fi
-
-if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped_R1.fastq || ! -f {PIPELINE}/{SAMPLE}_unmapped_R2.fastq ]]; then
-    logthis "${{yellow}}Extracting unmapped reads into paired FASTQ R1 / R2${{reset}}"
-
-    paste - - - - - - - - <{PIPELINE}/{SAMPLE}_unmapped.fastq \\
-        | tee >(cut -f 1-4 | tr "\\t" "\\n" > {PIPELINE}/{SAMPLE}_unmapped_R1.fastq) \\
-        | cut -f 5-8 | tr "\\t" "\\n" > {PIPELINE}/{SAMPLE}_unmapped_R2.fastq
-else
-    echo "Unmapped reads extracted to initial R1/R2 FASTQ, ${{green}}skipping${{reset}}"
 fi
     """.format(
             SAMPLE=sample,
