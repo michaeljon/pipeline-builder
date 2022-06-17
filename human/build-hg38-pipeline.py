@@ -442,7 +442,7 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output
     else:
         sortWithSamtools(script, options, output)
 
-def extractUmappedReads(script: TextIOWrapper, options: OptionsDict, bam: str):
+def extractUmappedReads(script: TextIOWrapper, options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -459,14 +459,13 @@ if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped_R1.fastq || ! -f {PIPELINE}/{SAMPLE}_unm
         -s {PIPELINE}/{SAMPLE}_unmapped_singleton.fastq \\
         -1 {PIPELINE}/{SAMPLE}_unmapped_R1.fastq \\
         -2 {PIPELINE}/{SAMPLE}_unmapped_R2.fastq \\
-        {BAM}
+        {PIPELINE}/{SAMPLE}.aligned.bam
 else
     echo "Unmapped reads extracted to initial FASTQ, ${{green}}skipping${{reset}}"
 fi
     """.format(
             SAMPLE=sample,
             PIPELINE=pipeline,
-            BAM=bam
         )
     )
 
@@ -487,7 +486,7 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
     sortAlignedAndMappedData(script, options, output)
 
     if processUnmapped == True:
-        extractUmappedReads(script, options, output)
+        extractUmappedReads(script, options)
 
     if alignOnly == True:
         script.write("""
