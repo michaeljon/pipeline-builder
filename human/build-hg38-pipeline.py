@@ -451,7 +451,7 @@ def extractUmappedReads(script: TextIOWrapper, options: OptionsDict, bam: str):
 #
 # extract unmapped reads
 #
-if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped.fastq ]]; then
+if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped_R1.fastq || ! -f {PIPELINE}/{SAMPLE}_unmapped_R2.fastq ]]; then
     logthis "${{yellow}}Extracting unmapped reads into initial FASTQ${{reset}}"
 
     samtools fastq -N -f 4 \\
