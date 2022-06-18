@@ -17,15 +17,15 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
         --known-sites GCF_000001405.39.gz \
         --sizes ${HOME}/pipeline-builder/human/GRCh38-p14-chromosomeSizes.json \
         --pipeline-dir ${HOME}/pipeline/${SAMPLE} \
-        --stats-dir ${HOME}/pipeline/${SAMPLE} \
+        --stats-dir ${HOME}/stats/${SAMPLE} \
         --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
-        --skip-alignment-qc \
         --temp-dir ${HOME}/stats/temp \
         --fastq-dir ${HOME}/pipeline/FASTQ \
         --preprocessor fastp \
         --aligner bwa \
         --sorter biobambam \
         --caller gatk \
+        --skip-interval-processing \
         --unmapped
 
     # run the pipeline

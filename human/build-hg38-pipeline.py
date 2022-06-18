@@ -311,7 +311,7 @@ fi
             O1=o1,
             O2=o2,
             REFERENCE=reference,
-            ASSEMBLY=assembly, 
+            ASSEMBLY=assembly,
             SAMPLE=sample,
             THREADS=threads,
             PIPELINE=pipeline,
@@ -442,6 +442,7 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output
     else:
         sortWithSamtools(script, options, output)
 
+
 def extractUmappedReads(script: TextIOWrapper, options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
@@ -489,12 +490,14 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
         extractUmappedReads(script, options)
 
     if alignOnly == True:
-        script.write("""
+        script.write(
+            """
 
 # align-only flag set
 logthis "align-only set, exiting pipeline early"
 exit
-""")
+"""
+        )
 
 
 def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str, bqsr: str):
@@ -643,30 +646,30 @@ def annotate(
 
     script.write(
         """
-    if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
-        logthis "Starting annotation"
-        
-        vep --dir {VEP} \\
-            --cache \\
-            --format vcf \\
-            --vcf \\
-            --compress_output gzip \\
-            --merged \\
-            --fork 64 \\
-            --offline \\
-            --use_given_ref \\
-            --verbose \\
-            --force_overwrite \\
-            --symbol \\
-            --fasta {REFERENCE}/{ASSEMBLY}.fna \\
-            --input_file {INPUT} \\
-            --output_file {OUTPUT} \\
-            --stats_file {STATS}/{SUMMARY}
+if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
+    logthis "Starting annotation"
+    
+    vep --dir {VEP} \\
+        --cache \\
+        --format vcf \\
+        --vcf \\
+        --compress_output gzip \\
+        --merged \\
+        --fork 64 \\
+        --offline \\
+        --use_given_ref \\
+        --verbose \\
+        --force_overwrite \\
+        --symbol \\
+        --fasta {REFERENCE}/{ASSEMBLY}.fna \\
+        --input_file {INPUT} \\
+        --output_file {OUTPUT} \\
+        --stats_file {STATS}/{SUMMARY}
 
-        logthis "Completed annotation"
-    else
-        logthis "Annotations already completed, ${{green}}already completed${{reset}}"
-    fi
+    logthis "Completed annotation"
+else
+    logthis "Annotations already completed, ${{green}}already completed${{reset}}"
+fi
 """.format(
             VEP=vep,
             REFERENCE=reference,
@@ -763,6 +766,7 @@ def generateConsensus(script: TextIOWrapper, options: OptionsDict):
         """
 if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fasta ]]; then
     logthis "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.unannotated.vcf.gz${{reset}}"
+
     bcftools consensus \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
         {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
@@ -833,19 +837,24 @@ def doVariantQC(script: TextIOWrapper, options: OptionsDict):
 # 
 logthis "Starting Variant QC processes"
 
-if [[ ! -f {STATS}/{SAMPLE}.variant_calling_detail_metrics ]]; then
-    logthis "Collection variant calling metrics"
+#
+# this is commented out right now because CollectVariantCallingMetrics crashes while reading
+# the variants after about 45 minutes. i'll ping my contact at the broad to check if it's a
+# known issue and get it resolved
+#
+# if [[ ! -f {STATS}/{SAMPLE}.variant_calling_detail_metrics ]]; then
+#     logthis "Collection variant calling metrics"
 
-    gatk CollectVariantCallingMetrics \\
-        --VERBOSITY ERROR \\
-        --REFERENCE_SEQUENCE {REFERENCE}/{ASSEMBLY}.fna \\
-        --SEQUENCE_DICTIONARY {REFERENCE}/{ASSEMBLY}.dict \\
-        --DBSNP {REFERENCE}/{KNOWN_SITES} \\
-        --INPUT {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
-        --OUTPUT {STATS}/{SAMPLE}.variant_calling_detail_metrics &
-else
-    logthis "Variant metrics already run, ${{green}}already completed${{reset}}"
-fi
+#     gatk CollectVariantCallingMetrics \\
+#         --VERBOSITY ERROR \\
+#         --REFERENCE_SEQUENCE {REFERENCE}/{ASSEMBLY}.fna \\
+#         --SEQUENCE_DICTIONARY {REFERENCE}/{ASSEMBLY}.dict \\
+#         --DBSNP {REFERENCE}/{KNOWN_SITES} \\
+#         --INPUT {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
+#         --OUTPUT {STATS}/{SAMPLE}.variant_calling_detail_metrics &
+# else
+#     logthis "Variant metrics already run, ${{green}}already completed${{reset}}"
+# fi
 
 #
 # we need to quiet vcftools here because it's stupid chatty and doesn't have an option to quiet
@@ -880,6 +889,18 @@ if [[ ! -f {STATS}/{SAMPLE}.het ]]; then
     vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --het --out {STATS}/{SAMPLE} 2>/dev/null &
 fi
 
+echo "VCF QC processes complete"
+
+#
+# run some other stats on the vcf file
+#
+if [[ ! -d {STATS}/{SAMPLE}_bcfstats ]]; then
+    bcftools stats --fasta-ref {REFERENCE}/{ASSEMBLY}.fna {PIPELINE}/{SAMPLE}.unannotated.vcf.gz > {STATS}/{SAMPLE}.chk
+    plot-vcfstats --prefix {STATS}/{SAMPLE}_bcfstats {STATS}/{SAMPLE}.chk
+else
+    echo "bcftools stats and plots already run, ${{green}}skipping${{reset}}"
+fi
+
 """.format(
             REFERENCE=reference,
             ASSEMBLY=assembly,
@@ -889,10 +910,6 @@ fi
             STATS=stats,
         )
     )
-
-    script.write('logthis "${yellow}Waiting for variant QC processes to complete${reset}"\n')
-    script.write("wait\n")
-    script.write('logthis "${green}Variant QC metrics completed${reset}"\n')
 
 
 def startAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
@@ -987,8 +1004,9 @@ else
     logthis "samtools idxstats already run, ${{green}}already completed${{reset}}"
 fi
 
-if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then
-    bedtools genomecov -d -ibam {SORTED} >{STATS}/{SAMPLE}.bedtools.coverage &
+if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage.gz ]]; then
+    bedtools genomecov -d -ibam {SORTED} \\
+        | gzip >{STATS}/{SAMPLE}.bedtools.coverage.gz &
 else
     echo "bedtools genomecov already run, ${{green}}skipping${{reset}}"
 fi
@@ -1070,7 +1088,10 @@ def cleanup(script: TextIOWrapper, prefix: str, options: OptionsDict):
 
     for interval in intervals:
         script.write(
-            "rm -f {PIPELINE}/{SAMPLE}.{INTERVAL}*\n".format(INTERVAL=interval[1], PIPELINE=pipeline, SAMPLE=sample)
+            """
+rm -f {PIPELINE}/{SAMPLE}.{INTERVAL}*
+rm -f {PIPELINE}/{SAMPLE}.merge.list
+""".format(INTERVAL=interval[1], PIPELINE=pipeline, SAMPLE=sample)
         )
 
     script.write("\n")
@@ -1150,7 +1171,7 @@ export LD_LIBRARY_PATH={WORKING}/bin:/usr/lib64:/usr/local/lib/:$LB_LIBRARY_PATH
 export LD_PRELOAD={WORKING}/bin/libz.so.1.2.11.zlib-ng
 
 # handy path
-export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.2.3.0:{WORKING}/bin:$PATH\n""".format(
+export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.2.6.1:{WORKING}/bin:$PATH\n""".format(
             WORKING=options["working"]
         )
     )
@@ -1205,6 +1226,13 @@ def defineArguments() -> Namespace:
         dest="skipBQSR",
         default=False,
         help="Skip running BQSR processing on input file(s)",
+    )
+    parser.add_argument(
+        "--skip-interval-processing",
+        action="store_true",
+        dest="skipIntervalProcessing",
+        default=False,
+        help="Skip all interval processing (scatter, call, gather)",
     )
 
     parser.add_argument(
@@ -1504,7 +1532,10 @@ def main():
     prefix = "{PIPELINE}/{SAMPLE}".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
     cleantarget = options["pipeline"]
 
-    writeMergeList(options)
+    skipIntervalProcessing = options["skipIntervalProcessing"]
+
+    if skipIntervalProcessing == False:
+        writeMergeList(options)
 
     with open(options["script"], "w+") as script:
         script.truncate(0)
@@ -1532,8 +1563,10 @@ def main():
         # in the background, we would start them and then block until they
         # completed while we're waiting to scatter intervals around
         #
-        # this makes scatter a standalone process for now
-        scatter(script, options, prefix, sorted)
+
+        if skipIntervalProcessing == False:
+            # this makes scatter a standalone process for now
+            scatter(script, options, prefix, sorted)
 
         # if we've been asked to run qc at all we can actually start
         # the alignment qc processes very early (right after we've
@@ -1546,16 +1579,23 @@ def main():
         # so much time. it's a single-threaded limited-memory (250mb)
         # process so we're not too worried about it's impact on the rest of
         # the variant calling processes
-        if options["doAlignmentQc"]:
+        if options["doAlignmentQc"] == True:
             startAlignmentQC(script, options, sorted)
 
-        runIntervals(script, options, prefix)
-        gather(script, options)
+        if skipIntervalProcessing == False:
+            # process the intervals
+            runIntervals(script, options, prefix)
+            gather(script, options)
+
+            # and cleanup the interval files so we have some space
+            if options["cleanIntermediateFiles"] == True:
+                cleanup(script, cleantarget, options)
+
 
         # we can start variant qc here because we're going to run against
         # the unannotated vcf (we'll get the same metrics either way), and
         # parts of this process take a long time
-        if options["doVariantQc"]:
+        if options["doVariantQc"] == True:
             doVariantQC(script, options)
 
         annotate(
@@ -1567,17 +1607,18 @@ def main():
             "{SAMPLE}.annotated.vcf_summary.html".format(SAMPLE=options["sample"]),
         )
 
-        # generateConsensus(script, options)
+        generateConsensus(script, options)
 
-        if options["cleanIntermediateFiles"] == True:
-            cleanup(script, cleantarget, options)
+        # we'll wait here to make sure all the background stuff is done before we
+        # run multiqc and cleanup
+        script.write('logthis "${yellow}Waiting for background processes to complete.${reset}"\n')
+        script.write("wait\n")
+        script.write('logthis "${green}Done processing${reset}"\n')
 
-        if options["doMultiQc"]:
+        if options["doMultiQc"] == True:
             runMultiQC(script, options)
 
-        script.write(
-            'logthis "${yellow}Waiting for any outstanding processes to complete, this might return immediately, it might not.${reset}"\n'
-        )
+        script.write('logthis "${yellow}Waiting for any outstanding processes to complete.${reset}"\n')
         script.write("wait\n")
         script.write('logthis "${green}Done processing${reset}"\n')
 
