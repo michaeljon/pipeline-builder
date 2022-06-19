@@ -1004,12 +1004,17 @@ else
     logthis "samtools idxstats already run, ${{green}}already completed${{reset}}"
 fi
 
-if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage.gz ]]; then
-    bedtools genomecov -d -ibam {SORTED} \\
-        | gzip >{STATS}/{SAMPLE}.bedtools.coverage.gz &
-else
-    echo "bedtools genomecov already run, ${{green}}skipping${{reset}}"
-fi
+# 
+# we'll bring this back in when it makes sense. for human sequences this
+# generates a file that's enormous and likely can't be processed by anything
+# anyway, so..
+#
+# if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage.gz ]]; then
+#     bedtools genomecov -d -ibam {SORTED} \\
+#         | gzip >{STATS}/{SAMPLE}.bedtools.coverage.gz &
+# else
+#     echo "bedtools genomecov already run, ${{green}}skipping${{reset}}"
+# fi
 
 if [[ ! -f {STATS}/{SAMPLE}.samtools.coverage ]]; then
     samtools coverage -d 0 \\
