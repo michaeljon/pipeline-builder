@@ -989,7 +989,7 @@ if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
             -r {REFERENCE}/{ASSEMBLY}.fna \\
                 {SORTED} >{STATS}/{SAMPLE}.samstats
 
-        plot-bamstats --prefix {SAMPLE}_samstats/ {STATS}/{SAMPLE}.samstats
+        plot-bamstats --prefix {STATS}/{SAMPLE}_samstats/ {STATS}/{SAMPLE}.samstats
     ) &
 else
     logthis "samtools stats already run, ${{green}}already completed${{reset}}"
