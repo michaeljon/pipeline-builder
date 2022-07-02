@@ -1,0 +1,246 @@
+#!/usr/bin/env bash
+
+echo "This script uses a handful of, well, interesting build components that "
+echo "do not come standard on MacOS. So, before you get started you'll want to"
+echo ""
+echo "brew install cmake jsoncpp gcc boost yasm"
+echo ""
+
+ROOT=$(pwd)
+
+mkdir -p src
+mkdir -p pipeline
+mkdir -p bin
+mkdir -p stats
+mkdir -p components
+mkdir -p tmp
+mkdir -p perl5
+
+mkdir -p \
+    reference/human \
+    reference/sars-cov-2 \
+    reference/hcov-229e \
+    reference/hcov-nl63 \
+    reference/hcov-oc43 \
+    reference/hcov-hku1 \
+    reference/vep-data
+
+# get a couple of tools for later
+cd ${ROOT}/bin
+
+curl -L -O http://xrl.us/cpanm >cpanm
+chmod 755 cpanm
+
+# download and unpack
+cd ${ROOT}/components
+
+echo "Downloading SAMTOOLS components"
+if [[ ! -f samtools-1.15.1.tar.bz2 ]]; then
+    curl --silent https://github.com/samtools/samtools/releases/download/1.15.1/samtools-1.15.1.tar.bz2 --location -O
+fi
+
+if [[ ! -f bcftools-1.15.1.tar.bz2 ]]; then
+    curl --silent https://github.com/samtools/bcftools/releases/download/1.15.1/bcftools-1.15.1.tar.bz2 --location -O
+fi
+
+if [[ ! -f htslib-1.15.1.tar.bz2 ]]; then
+    curl --silent https://github.com/samtools/htslib/releases/download/1.15.1/htslib-1.15.1.tar.bz2 --location -O
+fi
+
+echo "Downloading BAMTOOLS components"
+if [[ ! -f bamtools.tgz ]]; then
+    curl --silent https://github.com/pezmaster31/bamtools/archive/refs/tags/v2.5.2.tar.gz --location -o bamtools.tgz
+fi
+
+echo "Downloading BWA & BWA-MEM2"
+if [[ ! -f bwa-0.7.17.tar.bz2 ]]; then
+    curl --silent https://github.com/lh3/bwa/releases/download/v0.7.17/bwa-0.7.17.tar.bz2 --location -O
+fi
+
+if [[ ! -f ${ROOT}/src/bwa-mem2 ]]; then
+    git clone https://github.com/bwa-mem2/bwa-mem2 ${ROOT}/bwa-mem2
+fi
+
+echo "Downloading GATK and picard"
+if [[ ! -f picard.jar ]]; then
+    curl --silent https://github.com/broadinstitute/picard/releases/download/2.27.4/picard.jar --location -O
+fi
+
+if [[ ! -f gatk-4.2.6.1.zip ]]; then
+    curl --silent https://github.com/broadinstitute/gatk/releases/download/4.2.6.1/gatk-4.2.6.1.zip --location -O
+fi
+
+echo "Downloading FASTQC"
+if [[ ! -f fastqc_v0.11.9.zip ]]; then
+    curl --silent https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.9.zip --location -O
+fi
+
+echo "Downloading BIOBAMBAM components"
+if [[ ! -f libmaus2-2.0.810-release-20220216151520.tar.gz ]]; then
+    curl --silent https://gitlab.com/german.tischler/libmaus2/-/archive/2.0.810-release-20220216151520/libmaus2-2.0.810-release-20220216151520.tar.gz --location -O
+fi
+
+if [[ ! -f biobambam2-2.0.183-release-20210802180148.tar.gz ]]; then
+    curl --silent https://gitlab.com/german.tischler/biobambam2/-/archive/2.0.183-release-20210802180148/biobambam2-2.0.183-release-20210802180148.tar.gz --location -O
+fi
+
+echo "Downloading trimgalore"
+if [[ ! -f trim_galore.tgz ]]; then
+    curl --silent https://github.com/FelixKrueger/TrimGalore/archive/refs/tags/0.6.7.tar.gz --location -o trim_galore.tgz
+fi
+
+echo "Downloading compression utilities"
+if [[ ! -f zlib-ng.tgz ]]; then
+    curl --silent https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.0.6.tar.gz --location -o zlib-ng.tgz
+fi
+
+if [[ ! -f pigz.tgz ]]; then
+    curl --silent https://github.com/madler/pigz/archive/refs/tags/v2.7.tar.gz --location -o pigz.tgz
+fi
+
+if [[ ! -f zlib-1.2.12.tar.gz ]]; then
+    curl --silent https://zlib.net/zlib-1.2.12.tar.gz --location -O
+fi
+
+echo "Downloading vcftools"
+if [[ ! -f vcftools-0.1.16.tar.gz ]]; then
+    curl --silent https://github.com/vcftools/vcftools/releases/download/v0.1.16/vcftools-0.1.16.tar.gz --location -O
+fi
+
+echo "Unpacking source code"
+cd ${ROOT}/src
+for t in ../components/*.tgz ../components/*.tar.gz ../components/*.tar.bz2; do
+    tar xzf $t
+done
+
+for z in ../components/*.zip; do
+    unzip -o -qq $z
+done
+
+echo "Building SAMTOOLS components"
+cd ${ROOT}/src/htslib-1.15.1
+autoreconf -i
+./configure --prefix=${ROOT} --exec-prefix=${ROOT}
+make
+make install
+
+cd ${ROOT}/src/samtools-1.15.1
+autoheader
+autoreconf -Wno-syntax
+./configure --prefix=${ROOT} --exec-prefix=${ROOT} --with-htslib=${ROOT}
+make
+make install
+
+cd ${ROOT}/src/bcftools-1.15.1
+autoheader
+autoconf
+./configure --enable-libgsl --enable-perl-filters --prefix=${ROOT} --exec-prefix=${ROOT} --with-htslib=${ROOT}
+make
+make install
+
+echo "Building BAMTOOLS components"
+cd ${ROOT}/bamtools/bamtools-2.5.2
+mkdir -p build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX=${ROOT} ..
+make
+make install
+
+echo "Build BWA components"
+cd ${ROOT}/bwa-0.7.17
+make
+cp bwa ${ROOT}/bin
+
+echo "Build BWA-MEM components"
+echo "Note: if this fails to build properly you need to apply the patch to ext/strsafelib first"
+echo "Note: you must apply the bwa-mem2.patch before compiling this"
+cd ${ROOT}/bwa-mem2
+git submodule init
+git submodule update
+
+echo "TODO: apply bwa-mem2.patch"
+echo "TODO: apply strsafelib.patch"
+echo "TODO: make"
+echo "TODO: cp bwa-* ${ROOT}/bin"
+
+echo "Build zlib, zlib-ng, and pigz components"
+cd ${ROOT}/zlib-ng
+./configure --zlib-compat --native
+make
+make install prefix=${ROOT}
+
+cd ${ROOT}/zlib-1.2.12
+./configure --prefix=${ROOT} --eprefix=${ROOT}
+make
+make install prefix=${ROOT}
+
+cd ${ROOT}/pigz-2.7
+make
+cp pigz ${ROOT}/bin
+cp unpigz ${ROOT}/bin
+
+echo "Building vcftools"
+cd ${ROOT}/vcftools-0.1.16
+./configure --prefix=${ROOT} --exec-prefix=${ROOT}
+make
+make install
+
+echo "Building BIOBAMBAM and components - this'll take a while"
+export CC=/usr/local/bin/gcc-11
+export CXX=/usr/local/bin/g++-11
+export CXXCPP=/usr/local/bin/cpp-11
+export CFLAGS="-I/usr/local/include"
+export CXXFLAGS="-I/usr/local/include"
+export LDFLAGS="-L/usr/local/lib"
+
+cd ${ROOT}/libmaus2-2.0.810-release-20220216151520
+./configure --prefix=${ROOT} --exec-prefix=${ROOT} --enable-native --enable-shared-libmaus2
+make
+make install
+
+cd ${ROOT}/biobambam2-2.0.183-release-20210802180148
+./configure --prefix=${ROOT} --exec-prefix=${ROOT} --with-libmaus2=${ROOT}
+make
+make install
+
+# Building fastp (requires isa-l and libdeflate)
+cd ${ROOT}/src
+git clone https://github.com/intel/isa-l.git
+cd ${ROOT}/src/isa-l
+./autogen.sh
+./configure --prefix=${ROOT} --exec-prefix=${ROOT}
+make
+make install
+
+git clone https://github.com/ebiggers/libdeflate.git
+make
+make install PREFIX=${ROOT}
+
+git clone https://github.com/OpenGene/fastp.git
+export CXXFLAGS="-I${ROOT}/include -I/usr/local/include"
+export LD_FLAGS="-I${ROOT}/lib -L/usr/local/lib"
+make PREFIX=${ROOT}
+
+echo "Installing FASTQC, TrimGalore, GATK and picard"
+cp -r ${ROOT}/components/FastQC ${ROOT}/bin/FastQC
+chmod 755 ${ROOT}/bin/FastQC/fastqc
+cp ${ROOT}/components/picard.jar ${ROOT}/bin
+cp ${ROOT}/components/gatk-4.2.6.1 {HOME}/bin/gatk-4.2.6.1
+cp ${ROOT}/components/TrimGalore-0.6.7/trim_galore ${ROOT}/bin
+
+echo "Downloading and installing VEP"
+cd ${ROOT}/bin
+git clone https://github.com/Ensembl/ensembl-vep.git
+
+cd ensembl-vep
+export PERL5LIB=$PERL5LIB:${ROOT}/cpanm/lib/perl5
+${ROOT}/bin/cpanm -l ${ROOT}/perl5 --installdeps .
+
+perl INSTALL.pl \
+    --CACHEDIR ${ROOT}/reference/vep-data \
+    --ASSEMBLY GRCh38 \
+    --AUTO aclfa \
+    --PLUGINS all \
+    --NO_HTSLIB \
+    --NO_TEST \
+    --SPECIES homo_sapiens_merged

@@ -1,0 +1,276 @@
+diff --git a/README.md b/README.md
+index 0b31e1c..c10da10 100644
+--- a/README.md
++++ b/README.md
+@@ -21,7 +21,7 @@ LIST OF PRIMARY FUNCTIONS:
+ * memcmp_s()
+ * memcpy_s()
+ * memmove_s()
+-* memset_s()
++* memset8_s()
+ * memzero_s()
+ 
+ * stpcpy_s()
+diff --git a/include/safe_mem_lib.h b/include/safe_mem_lib.h
+index 162efd2..41c3193 100644
+--- a/include/safe_mem_lib.h
++++ b/include/safe_mem_lib.h
+@@ -97,7 +97,7 @@ extern errno_t wmemmove_s(wchar_t *dest, rsize_t dmax,
+ 
+ 
+ /* set bytes */
+-extern errno_t memset_s(void *dest, rsize_t dmax, uint8_t value);
++extern errno_t memset8_s(void *dest, rsize_t dmax, uint8_t value);
+ 
+ /* set uint16_t */
+ extern errno_t memset16_s(uint16_t *dest, rsize_t dmax, uint16_t value);
+diff --git a/makefile b/makefile
+index f7cc268..f72aac3 100644
+--- a/makefile
++++ b/makefile
+@@ -1,7 +1,7 @@
+ IDIR = include
+ MKDIR_P = mkdir -p
+ CC=gcc
+-CFLAGS=-I$(IDIR) -fstack-protector-strong -fPIE -fPIC -O2 -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security
++CFLAGS=-I$(IDIR) -fstack-protector-strong -fPIE -fPIC -O2 -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Wno-unused-command-line-argument -DSTDC_HEADERS
+ LDFLAGS=-z noexecstack -z relo -z now
+ 
+ ODIR=obj
+diff --git a/safeclib/memset16_s.c b/safeclib/memset16_s.c
+index a7372d2..9a763fa 100644
+--- a/safeclib/memset16_s.c
++++ b/safeclib/memset16_s.c
+@@ -74,7 +74,7 @@
+  *    ESLEMAX    length exceeds max limit
+  *
+  * ALSO SEE
+- *    memset_s(), memset32_s()
++ *    memset8_s(), memset32_s()
+  *
+  */
+ errno_t
+diff --git a/safeclib/memset32_s.c b/safeclib/memset32_s.c
+index 0e8fb2e..eb3d4d6 100644
+--- a/safeclib/memset32_s.c
++++ b/safeclib/memset32_s.c
+@@ -74,7 +74,7 @@
+  *    ESLEMAX    length exceeds max limit
+  *
+  * ALSO SEE
+- *    memset_s(), memset16_s()
++ *    memset8_s(), memset16_s()
+  *
+  */
+ errno_t
+diff --git a/safeclib/memset_s.c b/safeclib/memset_s.c
+index f19717d..ce93d42 100644
+--- a/safeclib/memset_s.c
++++ b/safeclib/memset_s.c
+@@ -37,12 +37,12 @@
+ 
+ /**
+  * NAME
+- *    memset_s
++ *    memset8_s
+  *
+  * SYNOPSIS
+  *    #include "safe_mem_lib.h"
+  *    errno_t
+- *    memset_s(void *dest, rsize_t len, uint8_t value)
++ *    memset8_s(void *dest, rsize_t len, uint8_t value)
+  *
+  * DESCRIPTION
+  *    Sets len bytes starting at dest to the specified value.
+@@ -78,22 +78,22 @@
+  *
+  */
+ errno_t
+-memset_s (void *dest, rsize_t len, uint8_t value)
++memset8_s (void *dest, rsize_t len, uint8_t value)
+ {
+     if (dest == NULL) {
+-        invoke_safe_mem_constraint_handler("memset_s: dest is null",
++        invoke_safe_mem_constraint_handler("memset8_s: dest is null",
+                    NULL, ESNULLP);
+         return (RCNEGATE(ESNULLP));
+     }
+ 
+     if (len == 0) {
+-        invoke_safe_mem_constraint_handler("memset_s: len is 0",
++        invoke_safe_mem_constraint_handler("memset8_s: len is 0",
+                    NULL, ESZEROL);
+         return (RCNEGATE(ESZEROL));
+     }
+ 
+     if (len > RSIZE_MAX_MEM) {
+-        invoke_safe_mem_constraint_handler("memset_s: len exceeds max",
++        invoke_safe_mem_constraint_handler("memset8_s: len exceeds max",
+                    NULL, ESLEMAX);
+         return (RCNEGATE(ESLEMAX));
+     }
+@@ -102,4 +102,4 @@ memset_s (void *dest, rsize_t len, uint8_t value)
+ 
+     return (RCNEGATE(EOK));
+ }
+-EXPORT_SYMBOL(memset_s)
++EXPORT_SYMBOL(memset8_s)
+diff --git a/safeclib/wmemset_s.c b/safeclib/wmemset_s.c
+index 3350584..e1d5b45 100644
+--- a/safeclib/wmemset_s.c
++++ b/safeclib/wmemset_s.c
+@@ -74,7 +74,7 @@
+  *    ESLEMAX    length exceeds max limit
+  *
+  * ALSO SEE
+- *    memset_s, memset16_s(), memset32_s()
++ *    memset8_s, memset16_s(), memset32_s()
+  *
+  */
+ errno_t
+diff --git a/unittests/test_memset_s.c b/unittests/test_memset_s.c
+index a701c39..58101a2 100644
+--- a/unittests/test_memset_s.c
++++ b/unittests/test_memset_s.c
+@@ -24,7 +24,7 @@ int test_memset_s (void)
+ 
+     value = 34;
+ 
+-    rc = memset_s(NULL, LEN, value);
++    rc = memset8_s(NULL, LEN, value);
+     if (rc != ESNULLP) {
+         debug_printf("%s %u   Error rc=%u \n",
+                      __FUNCTION__, __LINE__, rc);
+@@ -34,7 +34,7 @@ int test_memset_s (void)
+ 
+     value = 34;
+ 
+-    rc = memset_s(mem1, 0, value);
++    rc = memset8_s(mem1, 0, value);
+     if (rc != ESZEROL) {
+         debug_printf("%s %u   Error rc=%u \n",
+                      __FUNCTION__, __LINE__, rc);
+@@ -47,7 +47,7 @@ int test_memset_s (void)
+     len = 1;
+     value = 34;
+ 
+-    rc = memset_s(mem1, len, value);
++    rc = memset8_s(mem1, len, value);
+     if (rc != EOK) {
+         debug_printf("%s %u   Error rc=%u \n",
+                      __FUNCTION__, __LINE__, rc);
+@@ -67,7 +67,7 @@ int test_memset_s (void)
+     len = 2;
+     value = 34;
+ 
+-    rc = memset_s(mem1, len, value);
++    rc = memset8_s(mem1, len, value);
+     if (rc != EOK) {
+         debug_printf("%s %u   Error rc=%u \n",
+                      __FUNCTION__, __LINE__, rc);
+@@ -87,7 +87,7 @@ int test_memset_s (void)
+     len = 12;
+     value = 34;
+ 
+-    rc = memset_s(mem1, len, value);
++    rc = memset8_s(mem1, len, value);
+     if (rc != EOK) {
+         debug_printf("%s %u   Error rc=%u \n",
+                      __FUNCTION__, __LINE__, rc);
+@@ -107,7 +107,7 @@ int test_memset_s (void)
+     len = 31;
+     value = 34;
+ 
+-    rc = memset_s(mem1, len, value);
++    rc = memset8_s(mem1, len, value);
+     if (rc != EOK) {
+         debug_printf("%s %u   Error rc=%u \n",
+                      __FUNCTION__, __LINE__, rc);
+@@ -127,7 +127,7 @@ int test_memset_s (void)
+     len = 133;
+     value = 34;
+ 
+-    rc = memset_s(mem1, len, value);
++    rc = memset8_s(mem1, len, value);
+     if (rc != EOK) {
+         debug_printf("%s %u   Error rc=%u \n",
+                      __FUNCTION__, __LINE__, rc);
+diff --git a/unittests/test_stpncpy_s.c b/unittests/test_stpncpy_s.c
+index f8d288a..74a5c9d 100644
+--- a/unittests/test_stpncpy_s.c
++++ b/unittests/test_stpncpy_s.c
+@@ -320,7 +320,7 @@ printf("Test #%d:\n", ++testno);
+ /* 10  Test for copying NULL string over existing string */
+     printf("Test #%d:\n", ++testno);
+ 
+-    memset_s(str1, '\0', 5);
++    memset8_s(str1, '\0', 5);
+     strcpy(&str2[0], "keep it simple");
+ 
+     ret = stpncpy_s(str2, LEN, str1, 5, &rc);
+@@ -342,7 +342,7 @@ printf("Test #%d:\n", ++testno);
+ /* 11  Test copying string to end of NULL string         */
+     printf("Test #%d:\n", ++testno);
+ 
+-    memset_s(str1, '\0', 50);
++    memset8_s(str1, '\0', 50);
+     strcpy(&str2[0], "keep it simple");
+ 
+     sz = strnlen_s(str2, LEN);
+diff --git a/unittests/test_wcpcpy_s.c b/unittests/test_wcpcpy_s.c
+index 317c8f8..c4716b8 100644
+--- a/unittests/test_wcpcpy_s.c
++++ b/unittests/test_wcpcpy_s.c
+@@ -320,7 +320,7 @@ printf("Test #%d:\n", ++testno);
+ 
+     wcscpy_s(str1, LEN, L"keep it simple");
+ 
+-    memset_s(str2, '\0', 30);
++    memset8_s(str2, '\0', 30);
+ 
+     ret = wcpcpy_s(str2, LEN, str1, &rc);
+     if (rc != EOK) {
+@@ -343,7 +343,7 @@ printf("Test #%d:\n", ++testno);
+ /* 11  Test copying string over the NULL string         */
+     printf("Test #%d:\n", ++testno);
+ 
+-    memset_s(str1, '\0', 50);
++    memset8_s(str1, '\0', 50);
+     wcscpy_s(&str2[0], LEN, L"keep it simple");
+ 
+     sz = wcsnlen_s(str2, LEN);
+diff --git a/unittests/test_wcscpy_s.c b/unittests/test_wcscpy_s.c
+index 294c168..1d0d22b 100644
+--- a/unittests/test_wcscpy_s.c
++++ b/unittests/test_wcscpy_s.c
+@@ -271,7 +271,7 @@ printf("Test #%d:\n", ++testno);
+ 
+ 	wmemcpy_s(str1, LEN, L"keep it simple--keep it simple--keep it simple", 47);
+ 	sz = wcsnlen_s(str1, LEN);
+-    memset_s(str2, '\0', 30);
++    memset8_s(str2, '\0', 30);
+ 
+     rc = wcscpy_s(str2, LEN, str1);
+     if (rc != EOK) {
+@@ -290,7 +290,7 @@ printf("Test #%d:\n", ++testno);
+ /* 11  Test copying string over the NULL string         */
+     printf("Test #%d:\n", ++testno);
+ 
+-    memset_s(str1, '\0', 50);
++    memset8_s(str1, '\0', 50);
+ 	wmemcpy_s(str2, LEN, L"keep it simple--keep it simple--keep it simple", 47);
+ 	sz = wcsnlen_s(str2, LEN);
+ 
+diff --git a/unittests/test_wcsnlen_s.c b/unittests/test_wcsnlen_s.c
+index 755adee..cbc0070 100644
+--- a/unittests/test_wcsnlen_s.c
++++ b/unittests/test_wcsnlen_s.c
+@@ -129,7 +129,7 @@ printf("Test #%d:\n", ++testno);
+ /* 6  Test for single character string         */
+     printf("Test #%d:\n", ++testno);
+ 
+-    memset_s(str1, '\0', 50);
++    memset8_s(str1, '\0', 50);
+ 	str1[0] = L'A';
+ 
+ 	rc = wcsnlen_s(str1, LEN);
