@@ -10,7 +10,7 @@ int main(int argc, char **argv)
     size_t linecap = 16384;
     ssize_t linelen;
 
-    char *fname = argc == 0 ? "zr5654_10_S6_sample_R1.fastq" : argv[1];
+    char *fname = argc == 0 ? "zr5654_4_S1_sample_R1.fastq" : argv[1];
     FILE *fp = fopen(fname, "w+");
 
     int cur = 0;

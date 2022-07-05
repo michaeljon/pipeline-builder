@@ -7,6 +7,7 @@ echo ${SAMPLE}
 if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
     # give us a place to work
     mkdir -p ${HOME}/pipeline/${SAMPLE}
+    mkdir -p ${HOME}/stats/${SAMPLE}
 
     # build the pipeline
     python ${HOME}/pipeline-builder/human/build-hg38-pipeline.py \
@@ -25,7 +26,6 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
         --aligner bwa \
         --sorter biobambam \
         --caller gatk \
-        --skip-interval-processing \
         --unmapped
 
     # run the pipeline

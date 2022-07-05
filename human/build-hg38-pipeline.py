@@ -111,6 +111,20 @@ def writeMergeList(options: OptionsDict):
             )
 
 
+def writeIntervalList(options: OptionsDict):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+    intervals = computeIntervals(options)
+
+    mergeList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
+    with open(mergeList, "w") as il:
+        il.truncate()
+        il.write("interval\troot\n")
+
+        for interval in intervals:
+            il.write("{INTERVAL}\t{ROOT}\n".format(INTERVAL=interval[0], ROOT=interval[1]))
+
+
 def getFileNames(options: OptionsDict) -> FastqSet:
     sample = options["sample"]
     fastq_dir = options["fastq_dir"]
@@ -148,9 +162,7 @@ def updateDictionary(script: TextIOWrapper, options: OptionsDict):
 if [[ ! -f {REFERENCE}/{ASSEMBLY}.dict ]]; then
     logthis "${{yellow}}Creating sequence dictionary${{reset}}"
 
-    java -jar {BIN}/picard.jar CreateSequenceDictionary \\
-        -R {REFERENCE}/{ASSEMBLY}.fna \\
-        -O {REFERENCE}/{ASSEMBLY}.dict
+    java -jar {BIN}/picard.jar CreateSequenceDictionary -R {REFERENCE}/{ASSEMBLY}.fna -O {REFERENCE}/{ASSEMBLY}.dict
 else
     logthis "Reference dictionary {REFERENCE}/{ASSEMBLY}.dict ${{green}}already completed${{reset}}"
 fi
@@ -500,134 +512,204 @@ exit
         )
 
 
-def genBQSR(script: TextIOWrapper, options: OptionsDict, interval: str, bam: str, bqsr: str):
+def genBQSRTables(script: TextIOWrapper, options: OptionsDict):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     knownSites = options["knownSites"]
 
+    intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
+
     script.write(
         """
-    # run base quality score recalibration - build the bqsr table
-    if [[ ! -f {BQSR}.table ]]; then
-        logthis "Generating {BQSR}.table"
-
-        gatk BaseRecalibrator --java-options '-Xmx4g' \\
+logthis "${{yellow}}Generating BQSR tables${{reset}}"
+parallel --joblog {PIPELINE}/{SAMPLE}.bqsr.log --header --colsep $'\\t' \\
+    'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}_bqsr.table ]]; then
+        gatk BaseRecalibrator --java-options -Xmx4g \\
             -R {REFERENCE}/{ASSEMBLY}.fna \\
-            -I {BAM} \\
-            -O {BQSR}.table \\
+            -I {PIPELINE}/{SAMPLE}.{{root}}.bam \\
+            -O {PIPELINE}/{SAMPLE}.{{root}}_bqsr.table \\
             --verbosity ERROR \\
             --preserve-qscores-less-than 6 \\
             --known-sites {REFERENCE}/{KNOWN_SITES} \\
-            -L {INTERVAL}
+            -L {{interval}}
+     fi' :::: {INTERVAL_LIST}
+logthis "${{green}}BQSR table generation complete${{reset}}"
+""".format(
+            PIPELINE=pipeline,
+            SAMPLE=sample,
+            INTERVAL_LIST=intervalList,
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            KNOWN_SITES=knownSites,
+        )
+    )
 
-        logthis "{BQSR}.table completed"
-    else
-        logthis "BQSR table generation for {INTERVAL} ${{green}}already completed${{reset}}"
-    fi
 
-    # run base quality score recalibration - apply the bqsr table
-    if [[ ! -f {BQSR} ]]; then
-        logthis "Applying calibration for {BQSR}"
+def applyBQSRTables(script: TextIOWrapper, options: OptionsDict):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
 
-        gatk ApplyBQSR --java-options '-Xmx4g' \\
+    reference = options["reference"]
+    assembly = options["referenceAssembly"]
+
+    intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
+
+    script.write(
+        """
+logthis "${{yellow}}Applying BQSR calibration${{reset}}"
+parallel --joblog {PIPELINE}/{SAMPLE}.calibrate.log --header --colsep $'\\t' \\
+    'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}_bqsr.bam ]]; then
+        gatk ApplyBQSR --java-options -Xmx4g \\
             -R {REFERENCE}/{ASSEMBLY}.fna \\
-            -I {BAM} \\
-            -O {BQSR} \\
+            -I {PIPELINE}/{SAMPLE}.{{root}}.bam \\
+            -O {PIPELINE}/{SAMPLE}.{{root}}_bqsr.bam \\
             --verbosity ERROR \\
             --emit-original-quals true \\
             --preserve-qscores-less-than 6 \\
             --static-quantized-quals 10 \\
             --static-quantized-quals 20 \\
             --static-quantized-quals 30 \\
-            --bqsr-recal-file {BQSR}.table \\
-            -L {INTERVAL}
-
-        logthis "Calibation completed for for {BQSR}"
-    else
-        logthis "BQSR application for {INTERVAL} ${{green}}already completed${{reset}}"
-    fi
-
-    # run base quality score recalibration - apply the bqsr table
-    if [[ ! -f {BQSR}.bai ]]; then
-        logthis "Creating index for {BQSR}"
-
-        samtools index -@ 4 {BQSR}
-
-        logthis "Indexing completed for for {BQSR}"
-    else
-        logthis "BQSR index for {INTERVAL} ${{green}}already completed${{reset}}"
-    fi
+            --bqsr-recal-file {PIPELINE}/{SAMPLE}.{{root}}_bqsr.table \\
+            -L {{interval}}
+     fi' :::: {INTERVAL_LIST}
+logthis "${{green}}BQSR calibration completed${{reset}}"
 """.format(
-            REFERENCE=reference, ASSEMBLY=assembly, KNOWN_SITES=knownSites, INTERVAL=interval, BAM=bam, BQSR=bqsr
+            PIPELINE=pipeline,
+            SAMPLE=sample,
+            INTERVAL_LIST=intervalList,
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
         )
     )
 
 
-def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict, interval: str, bqsr: str, vcf: str):
+def indexBQSRBAM(script: TextIOWrapper, options: OptionsDict):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
+    intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
+
+    script.write(
+        """
+logthis "${{yellow}}Re-indexing BQSR BAM${{reset}}"
+parallel --joblog {PIPELINE}/{SAMPLE}.index.log --header --colsep $'\\t' \\
+    'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}_bqsr.bam.bai ]]; then
+        samtools index {PIPELINE}/{SAMPLE}.{{root}}_bqsr.bam
+     fi' :::: {INTERVAL_LIST}
+logthis "${{green}}BQSR BAM re-indexing completed${{reset}}"
+""".format(
+            PIPELINE=pipeline,
+            SAMPLE=sample,
+            INTERVAL_LIST=intervalList,
+        )
+    )
+
+
+def genBQSR(script: TextIOWrapper, options: OptionsDict):
+    genBQSRTables(script, options)
+    applyBQSRTables(script, options)
+    indexBQSRBAM(script, options)
+
+
+def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+    intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
+
+    # HaplotypeCaller actually uses threads, so we limit the number of jobs,
+    # otherwise we're going to thrash the CPU and spend a bunch of time
+    # context switching and swapping
+    cores = options["--cores"]
+    threads = 4
+    jobs = int(cores / threads)
+
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     knownSites = options["knownSites"]
 
     script.write(
         """
-    # call variants
-    if [[ ! -f {VCF} ]]; then
-        logthis "Starting variant calling for {INTERVAL}"
+logthis "Calling variants using GATK"
 
-        gatk HaplotypeCaller --java-options '-Xmx4g' \\
+parallel -n {JOBS} --joblog {PIPELINE}/{SAMPLE}.call.log --header --colsep $'\\t' \\
+    'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}.vcf ]]; then
+        gatk HaplotypeCaller --java-options -Xmx4g \\
             -R {REFERENCE}/{ASSEMBLY}.fna \\
-            -I {BQSR} \\
-            -O {VCF} \\
+            -I {PIPELINE}/{SAMPLE}.{{root}}_bqsr.bam \\
+            -O {PIPELINE}/{SAMPLE}.{{root}}.vcf \\
             --verbosity ERROR \\
             --dbsnp {REFERENCE}/{KNOWN_SITES} \\
             --pairHMM FASTEST_AVAILABLE \\
-            --native-pair-hmm-threads 4 \\
-            -L {INTERVAL}
+            --native-pair-hmm-threads {THREADS} \\
+            -L {{interval}}
+    fi' :::: {INTERVAL_LIST}
 
-        logthis "Completed variant calling for {INTERVAL}"
-    else
-        logthis "Variants already called for {INTERVAL}, ${{green}}already completed${{reset}}"
-    fi
+logthis "GATK variant calling completed"
 """.format(
-            REFERENCE=reference, ASSEMBLY=assembly, KNOWN_SITES=knownSites, INTERVAL=interval, BQSR=bqsr, VCF=vcf
+            JOBS=jobs,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            SAMPLE=sample,
+            INTERVAL_LIST=intervalList,
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            KNOWN_SITES=knownSites,
         )
     )
 
 
-def callVariantsUsingBcftools(script: TextIOWrapper, options: OptionsDict, interval: str, bqsr: str, vcf: str):
+def callVariantsUsingBcftools(script: TextIOWrapper, options: OptionsDict):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+    intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
+
     reference = options["reference"]
     assembly = options["referenceAssembly"]
 
+    # bcftools uses threads, so we limit the number of jobs, in this case
+    # we'll assign the number of threads equally to each part of the pipeline
+    # and limit the number of jobs to account for 2x those threads being in use
+    cores = options["--cores"]
+    threads = 4
+    jobs = int(cores / (threads * 2))
+
     script.write(
         """
-    # call variants
-    if [[ ! -f {VCF} ]]; then
-        logthis "Starting variant calling for {INTERVAL}"
+logthis "Calling variants using BCFTOOLS"
 
+parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.call.log --header --colsep $'\\t' \\
+    'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}.vcf ]]; then
         bcftools mpileup \\
             --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \\
             --max-depth 500 \\
             --no-BAQ \\
-            --threads 4 \\
+            --threads {THREADS} \\
             --output-type u \\
-            --regions {INTERVAL} \\
+            --regions {{interval}} \\
             --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
-            {BQSR} 2>/dev/null | \\
+            {PIPELINE}/{SAMPLE}.{{root}}_bqsr.bam 2>/dev/null | \\
         bcftools call \\
             --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \\
             --variants-only \\
             --multiallelic-caller \\
             --ploidy GRCh38 \\
-            --threads 4 \\
+            --threads {THREADS} \\
             --output-type v  \\
-            --output {VCF} 2>/dev/null
+            --output {PIPELINE}/{SAMPLE}.{{root}}.vcf 2>/dev/null
+    fi' :::: {INTERVAL_LIST}
 
-        logthis "Completed variant calling for {INTERVAL}"
-    else
-        logthis "Variants already called for {INTERVAL}, ${{green}}already completed${{reset}}"
-    fi
+logthis "BCFTOOLS variant calling completed"
 """.format(
-            REFERENCE=reference, ASSEMBLY=assembly, INTERVAL=interval, BQSR=bqsr, VCF=vcf
+            JOBS=jobs,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            SAMPLE=sample,
+            INTERVAL_LIST=intervalList,
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
         )
     )
 
@@ -644,6 +726,12 @@ def annotate(
     assembly = options["referenceAssembly"]
     stats = options["stats"]
 
+    # vep is an interesting beast when it comes to threading. it spends a ton
+    # of time forking and waiting on processes that are then waiting on I/O
+    # so, we grab the number of cores and double it, then assign that to vep
+    cores = options["--cores"]
+    forks = int(cores * 2)
+
     script.write(
         """
 if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
@@ -655,7 +743,7 @@ if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
         --vcf \\
         --compress_output gzip \\
         --merged \\
-        --fork 64 \\
+        --fork {FORKS} \\
         --offline \\
         --use_given_ref \\
         --verbose \\
@@ -671,6 +759,7 @@ else
     logthis "Annotations already completed, ${{green}}already completed${{reset}}"
 fi
 """.format(
+            FORKS=forks,
             VEP=vep,
             REFERENCE=reference,
             ASSEMBLY=assembly,
@@ -682,77 +771,47 @@ fi
     )
 
 
-def scatter(script: TextIOWrapper, options: OptionsDict, prefix: str, sorted: str):
-    intervals = computeIntervals(options)
+def scatter(script: TextIOWrapper, options: OptionsDict, sorted: str):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+    intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
 
-    for interval in intervals:
-        bam = """{PREFIX}.{INTERVAL}.bam""".format(PREFIX=prefix, INTERVAL=interval[1])
+    script.write(
+        """
+logthis "${{yellow}}Waiting for scattering processes to complete${{reset}}"
 
-        script.write(
-            """
-\n# Scatter interval {INTERVAL}        
-if [[ ! -f {BAM} || ! -f {BAM}.bai ]]; then
-    logthis "Creating interval {INTERVAL}"
-    (
-        samtools view -@ 4 -bh {SORTED} {INTERVAL} >{BAM}
-        samtools index -@ 4 {BAM}
-    )&
-else
-    logthis "Splinter for {INTERVAL} has been computed, ${{green}}already completed${{reset}}"
-fi
+parallel --joblog {PIPELINE}/{SAMPLE}.scatter.log --header --colsep $'\\t' \\
+    'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}.bam ]]; then
+        samtools view -bh {SORTED} {{interval}} --output {PIPELINE}/{SAMPLE}.{{root}}.bam
+     fi' :::: {INTERVAL_LIST}
 
+parallel --joblog {PIPELINE}/{SAMPLE}.scatindex.log --header --colsep $'\\t' \\
+    'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}.bam.bai ]]; then
+        samtools index {PIPELINE}/{SAMPLE}.{{root}}.bam
+     fi' :::: {INTERVAL_LIST}
+
+logthis "${{green}}Scattering completed${{reset}}"
 """.format(
-                SORTED=sorted, INTERVAL=interval[0], BAM=bam
-            )
+            PIPELINE=pipeline, SAMPLE=sample, SORTED=sorted, INTERVAL_LIST=intervalList
         )
-
-    script.write('logthis "${yellow}Waiting for scattering processes to complete${reset}"\n')
-    script.write("wait\n")
-    script.write('logthis "${green}Scattering completed${reset}"\n')
+    )
 
 
 def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
-    #
-    # for now commenting out individual region annotation as there's
-    # really no downstream consumer of that data. instead we'll
-    # just keep the individual region's calls for later merging and
-    # bulk annotation (which provides a complete summary annotation)
-    # working = options["working"]
     caller = options["caller"]
-    skipBQSR = options["skipBQSR"]
 
-    intervals = computeIntervals(options)
+    script.write('logthis "${yellow}Processing intervals${reset}"\n')
 
-    for interval in intervals:
-        bam = """{PREFIX}.{INTERVAL}.bam""".format(PREFIX=prefix, INTERVAL=interval[1])
-        bqsr = """{PREFIX}.{INTERVAL}_bqsr.bam""".format(PREFIX=prefix, INTERVAL=interval[1])
-        vcf = """{PREFIX}.{INTERVAL}.vcf""".format(PREFIX=prefix, INTERVAL=interval[1])
+    genBQSR(script, options)
 
-        script.write("\n")
-        script.write("#\n")
-        script.write("# Run interval {INTERVAL}\n".format(INTERVAL=interval[0]))
-        script.write("#\n")
-        script.write("(")
+    if caller == "gatk":
+        callVariantsUsingGatk(script, options)
+    elif caller == "bcftools":
+        callVariantsUsingBcftools(script, options)
+    else:
+        print("Unexpected value {CALLER} given for the --caller option".format(CALLER=caller))
+        quit(1)
 
-        if skipBQSR == False:
-            genBQSR(script, options, interval[0], bam, bqsr)
-        else:
-            bqsr = bam
-
-        if caller == "gatk":
-            callVariantsUsingGatk(script, options, interval[0], bqsr, vcf)
-        elif caller == "bcftools":
-            callVariantsUsingBcftools(script, options, interval[0], bqsr, vcf)
-        else:
-            print("Unexpected value {CALLER} given for the --caller option".format(CALLER=caller))
-            quit(1)
-
-        script.write(") &\n")
-        script.write("interval_processing_pids+=($!)\n")
-        script.write("\n")
-
-    script.write('logthis "${yellow}Waiting on interval processing to complete${reset}"\n')
-    script.write("wait\n")
     script.write('logthis "${green}Intervals processed${reset}"\n')
 
 
@@ -830,84 +889,92 @@ def doVariantQC(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
     stats = options["stats"]
 
+    # this is commented out right now because CollectVariantCallingMetrics crashes while reading
+    # the variants after about 45 minutes. i'll ping my contact at The Broad to check if it's a
+    # known issue and get it resolved
+    cvcm = """if [[ ! -f {STATS}/{SAMPLE}.variant_calling_detail_metrics ]]; then gatk CollectVariantCallingMetrics --VERBOSITY ERROR --REFERENCE_SEQUENCE {REFERENCE}/{ASSEMBLY}.fna --SEQUENCE_DICTIONARY {REFERENCE}/{ASSEMBLY}.dict --DBSNP {REFERENCE}/{KNOWN_SITES} --INPUT {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --OUTPUT {STATS}/{SAMPLE}.variant_calling_detail_metrics; fi""".format(
+        REFERENCE=reference,
+        ASSEMBLY=assembly,
+        KNOWN_SITES=knownSites,
+        PIPELINE=pipeline,
+        SAMPLE=sample,
+        STATS=stats,
+    )
+
+    s1 = """if [[ ! -f {STATS}/{SAMPLE}.frq ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --freq2 --out {STATS}/{SAMPLE} --max-alleles 2 2>/dev/null; fi""".format(
+        PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+    )
+
+    s2 = """if [[ ! -f {STATS}/{SAMPLE}.idepth ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --depth --out {STATS}/{SAMPLE} 2>/dev/null; fi""".format(
+        PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+    )
+
+    s3 = """if [[ ! -f {STATS}/{SAMPLE}.ldepth.mean ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --site-mean-depth --out {STATS}/{SAMPLE} 2>/dev/null; fi""".format(
+        PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+    )
+
+    s4 = """if [[ ! -f {STATS}/{SAMPLE}.lqual ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --site-quality --out {STATS}/{SAMPLE} 2>/dev/null; fi""".format(
+        PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+    )
+
+    s5 = """if [[ ! -f {STATS}/{SAMPLE}.imiss ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --missing-indv --out {STATS}/{SAMPLE} 2>/dev/null; fi""".format(
+        PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+    )
+
+    s6 = """if [[ ! -f {STATS}/{SAMPLE}.lmiss ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --missing-site --out {STATS}/{SAMPLE} 2>/dev/null; fi""".format(
+        PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+    )
+
+    s7 = """if [[ ! -f {STATS}/{SAMPLE}.het ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --het --out {STATS}/{SAMPLE} 2>/dev/null; fi""".format(
+        PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+    )
+
+    bcfstats = """if [[ ! -d {STATS}/{SAMPLE}_bcfstats ]]; then bcftools stats --fasta-ref {REFERENCE}/{ASSEMBLY}.fna {PIPELINE}/{SAMPLE}.unannotated.vcf.gz > {STATS}/{SAMPLE}.chk; fi
+    """.format(
+        REFERENCE=reference,
+        ASSEMBLY=assembly,
+        KNOWN_SITES=knownSites,
+        PIPELINE=pipeline,
+        SAMPLE=sample,
+        STATS=stats,
+    )
+
+    plot = """plot-vcfstats --prefix {STATS}/{SAMPLE}_bcfstats {STATS}/{SAMPLE}.chk""".format(
+        SAMPLE=sample,
+        STATS=stats,
+    )
+
     script.write(
         """
 #
-# RUN Variant QC process
+# RUN variant QC process
 # 
-logthis "Starting Variant QC processes"
+logthis "Starting QC processes"
+parallel --joblog {PIPELINE}/{SAMPLE}.vqc.log ::: \\
+             '{S1}' \\
+             '{S2}' \\
+             '{S3}' \\
+             '{S4}' \\
+             '{S5}' \\
+             '{S6}' \\
+             '{S7}' \\
+             '{BCFSTATS}'
 
-#
-# this is commented out right now because CollectVariantCallingMetrics crashes while reading
-# the variants after about 45 minutes. i'll ping my contact at the broad to check if it's a
-# known issue and get it resolved
-#
-# if [[ ! -f {STATS}/{SAMPLE}.variant_calling_detail_metrics ]]; then
-#     logthis "Collection variant calling metrics"
-
-#     gatk CollectVariantCallingMetrics \\
-#         --VERBOSITY ERROR \\
-#         --REFERENCE_SEQUENCE {REFERENCE}/{ASSEMBLY}.fna \\
-#         --SEQUENCE_DICTIONARY {REFERENCE}/{ASSEMBLY}.dict \\
-#         --DBSNP {REFERENCE}/{KNOWN_SITES} \\
-#         --INPUT {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
-#         --OUTPUT {STATS}/{SAMPLE}.variant_calling_detail_metrics &
-# else
-#     logthis "Variant metrics already run, ${{green}}already completed${{reset}}"
-# fi
-
-#
-# we need to quiet vcftools here because it's stupid chatty and doesn't have an option to quiet
-#
-logthis "Running vcftools statistics"
-
-if [[ ! -f {STATS}/{SAMPLE}.frq ]]; then
-    vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --freq2 --out {STATS}/{SAMPLE} --max-alleles 2 2>/dev/null &
-fi
-
-if [[ ! -f {STATS}/{SAMPLE}.idepth ]]; then
-    vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --depth --out {STATS}/{SAMPLE} 2>/dev/null &
-fi
-
-if [[ ! -f {STATS}/{SAMPLE}.ldepth.mean ]]; then
-    vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --site-mean-depth --out {STATS}/{SAMPLE} 2>/dev/null &
-fi
-
-if [[ ! -f {STATS}/{SAMPLE}.lqual ]]; then
-    vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --site-quality --out {STATS}/{SAMPLE} 2>/dev/null &
-fi
-
-if [[ ! -f {STATS}/{SAMPLE}.imiss ]]; then
-    vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --missing-indv --out {STATS}/{SAMPLE} 2>/dev/null &
-fi
-
-if [[ ! -f {STATS}/{SAMPLE}.lmiss ]]; then
-    vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --missing-site --out {STATS}/{SAMPLE} 2>/dev/null &
-fi
-
-if [[ ! -f {STATS}/{SAMPLE}.het ]]; then
-    vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --het --out {STATS}/{SAMPLE} 2>/dev/null &
-fi
-
-echo "VCF QC processes complete"
-
-#
-# run some other stats on the vcf file
-#
-if [[ ! -d {STATS}/{SAMPLE}_bcfstats ]]; then
-    bcftools stats --fasta-ref {REFERENCE}/{ASSEMBLY}.fna {PIPELINE}/{SAMPLE}.unannotated.vcf.gz > {STATS}/{SAMPLE}.chk
-    plot-vcfstats --prefix {STATS}/{SAMPLE}_bcfstats {STATS}/{SAMPLE}.chk
-else
-    echo "bcftools stats and plots already run, ${{green}}skipping${{reset}}"
-fi
-
+# can't run plot-bamstats until the statistics files are run above
+{PLOT}
 """.format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
-            KNOWN_SITES=knownSites,
             PIPELINE=pipeline,
             SAMPLE=sample,
-            STATS=stats,
+            CVCM=cvcm,
+            S1=s1,
+            S2=s2,
+            S3=s3,
+            S4=s4,
+            S5=s5,
+            S6=s6,
+            S7=s7,
+            BCFSTATS=bcfstats,
+            PLOT=plot,
         )
     )
 
@@ -920,128 +987,109 @@ def startAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
     stats = options["stats"]
     threads = options["cores"]
 
+    filenames = getTrimmedFileNames(options)
+
+    flagstat = """if [[ ! -f {STATS}/{SAMPLE}.flagstat.txt ]]; then samtools flagstat -@ 8 {SORTED} >{STATS}/{SAMPLE}.flagstat.txt; fi""".format(
+        SAMPLE=sample,
+        STATS=stats,
+        SORTED=sorted,
+    )
+
+    casm = """if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then gatk CollectAlignmentSummaryMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.alignment_metrics.txt; fi""".format(
+        REFERENCE=reference,
+        ASSEMBLY=assembly,
+        PIPELINE=pipeline,
+        SAMPLE=sample,
+        STATS=stats,
+        THREADS=threads,
+        SORTED=sorted,
+    )
+
+    cgcbm = """if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then gatk CollectGcBiasMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.gc_bias_metrics.txt -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf -S {STATS}/{SAMPLE}.gc_bias_summary.txt; fi""".format(
+        REFERENCE=reference,
+        ASSEMBLY=assembly,
+        PIPELINE=pipeline,
+        SAMPLE=sample,
+        STATS=stats,
+        THREADS=threads,
+        SORTED=sorted,
+    )
+
+    cwm = """if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then gatk CollectWgsMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.wgs_metrics.txt --MINIMUM_BASE_QUALITY 20 --MINIMUM_MAPPING_QUALITY 20 --COVERAGE_CAP 250 --READ_LENGTH 151 --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list --USE_FAST_ALGORITHM --INCLUDE_BQ_HISTOGRAM; fi""".format(
+        REFERENCE=reference,
+        ASSEMBLY=assembly,
+        PIPELINE=pipeline,
+        SAMPLE=sample,
+        STATS=stats,
+        THREADS=threads,
+        SORTED=sorted,
+    )
+
+    samstats = """if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then samtools stats -@ 8 -r {REFERENCE}/{ASSEMBLY}.fna {SORTED} >{STATS}/{SAMPLE}.samstats; fi""".format(
+        REFERENCE=reference,
+        ASSEMBLY=assembly,
+        SAMPLE=sample,
+        STATS=stats,
+        SORTED=sorted,
+    )
+
+    # this doesn't have a test, it's fast enough that we can afford to run it
+    plot = """plot-bamstats --prefix {STATS}/{SAMPLE}_samstats/ {STATS}/{SAMPLE}.samstats""".format(
+        SAMPLE=sample,
+        STATS=stats,
+    )
+
+    idxstats = """if [[ ! -f {STATS}/{SAMPLE}.samidx ]]; then samtools idxstats -@ 8 {SORTED} >{STATS}/{SAMPLE}.samidx; fi""".format(
+        SAMPLE=sample,
+        STATS=stats,
+        SORTED=sorted,
+    )
+
+    coverage = """if [[ ! -f {STATS}/{SAMPLE}.samtools.coverage ]]; then samtools coverage -d 0 --reference {REFERENCE}/{ASSEMBLY}.fna {SORTED} >{STATS}/{SAMPLE}.samtools.coverage; fi""".format(
+        REFERENCE=reference,
+        ASSEMBLY=assembly,
+        SAMPLE=sample,
+        STATS=stats,
+        SORTED=sorted,
+    )
+
+    # this is commented out until we can make it fast enough by either partitioning the input
+    # or randomly selecting some partition
+    fastqc = """if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi""".format(
+        SAMPLE=sample,
+        STATS=stats,
+        R1=filenames[0],
+        R2=filenames[1],
+    )
+
     script.write(
         """
 #
 # RUN QC process
 # 
 logthis "Starting QC processes"
+parallel --joblog {PIPELINE}/{SAMPLE}.qc.log ::: \\
+             '{FLAGSTAT}' \\
+             '{CASM}' \\
+             '{CGCBM}' \\
+             '{CWM}' \\
+             '{SAMSTATS}' \\
+             '{IDXSTATS}' \\
+             '{COVERAGE}'
 
-if [[ ! -f {STATS}/{SAMPLE}.flagstat.txt ]]; then
-    logthis "Starting samtools flagstat on {SAMPLE}"
-
-    samtools flagstat \\
-        {SORTED} >{STATS}/{SAMPLE}.flagstat.txt &
-else
-    logthis "samtools flagstat already run, ${{green}}already completed${{reset}}"
-fi
-
-if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then
-    logthis "Starting alignment summary metrics on {SAMPLE}"
-
-    gatk CollectAlignmentSummaryMetrics --java-options '-Xmx4g' \\
-        --VERBOSITY ERROR \\
-        -R {REFERENCE}/{ASSEMBLY}.fna \\
-        -I {SORTED} \\
-        -O {STATS}/{SAMPLE}.alignment_metrics.txt &
-else
-    logthis "Alignment metrics already run, ${{green}}already completed${{reset}}"
-fi
-
-if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then
-    logthis "Starting GC bais metrics on {SAMPLE}"
-
-    gatk CollectGcBiasMetrics --java-options '-Xmx4g' \\
-        --VERBOSITY ERROR \\
-        -R {REFERENCE}/{ASSEMBLY}.fna \\
-        -I {SORTED} \\
-        -O {STATS}/{SAMPLE}.gc_bias_metrics.txt \\
-        -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf \\
-        -S {STATS}/{SAMPLE}.gc_bias_summary.txt &
-else
-    logthis "GC bias metrics already run, ${{green}}already completed${{reset}}"
-fi
-
-if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then
-    logthis "Starting WGS metrics on {SAMPLE}"
-
-    gatk CollectWgsMetrics --java-options '-Xmx4g' \\
-        --VERBOSITY ERROR \\
-        -R {REFERENCE}/{ASSEMBLY}.fna \\
-        -I {SORTED} \\
-        -O {STATS}/{SAMPLE}.wgs_metrics.txt \\
-        --MINIMUM_BASE_QUALITY 20 \\
-        --MINIMUM_MAPPING_QUALITY 20 \\
-        --COVERAGE_CAP 250 \\
-        --READ_LENGTH 151 \\
-        --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list \\
-        --USE_FAST_ALGORITHM \\
-        --INCLUDE_BQ_HISTOGRAM &
-else
-    logthis "WGS metrics already run, ${{green}}already completed${{reset}}"
-fi
-
-if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then
-    logthis "Starting samtools stats on {SAMPLE}"
-
-    ( 
-        samtools stats -@ 8 \\
-            -r {REFERENCE}/{ASSEMBLY}.fna \\
-                {SORTED} >{STATS}/{SAMPLE}.samstats
-
-        plot-bamstats --prefix {STATS}/{SAMPLE}_samstats/ {STATS}/{SAMPLE}.samstats
-    ) &
-else
-    logthis "samtools stats already run, ${{green}}already completed${{reset}}"
-fi
-
-if [[ ! -f {STATS}/{SAMPLE}.samidx ]]; then
-    logthis "Starting samtools idxstats on {SAMPLE}"
-
-    samtools idxstats -@ 8 \\
-        {SORTED} >{STATS}/{SAMPLE}.samidx &
-else
-    logthis "samtools idxstats already run, ${{green}}already completed${{reset}}"
-fi
-
-# 
-# we'll bring this back in when it makes sense. for human sequences this
-# generates a file that's enormous and likely can't be processed by anything
-# anyway, so..
-#
-# if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage.gz ]]; then
-#     bedtools genomecov -d -ibam {SORTED} \\
-#         | gzip >{STATS}/{SAMPLE}.bedtools.coverage.gz &
-# else
-#     echo "bedtools genomecov already run, ${{green}}skipping${{reset}}"
-# fi
-
-if [[ ! -f {STATS}/{SAMPLE}.samtools.coverage ]]; then
-    samtools coverage -d 0 \\
-        --reference {REFERENCE}/{ASSEMBLY}.fna \\
-        {SORTED} >{STATS}/{SAMPLE}.samtools.coverage &
-else
-    echo "samtools coverage already run, ${{green}}skipping${{reset}}"
-fi
-
-# if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fastqc.html ]]; then
-#     logthis "Starting fastqc for {SAMPLE}"
-
-#     fastqc \\
-#         --outdir {STATS} \\
-#         --noextract \\
-#         {SORTED} &
-# else
-#     logthis "FASTQC already run, ${{green}}already completed${{reset}}"
-# fi
+# can't run plot-bamstats until the statistics files are run above
+{PLOT}             
 """.format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
             PIPELINE=pipeline,
             SAMPLE=sample,
-            STATS=stats,
-            THREADS=threads,
-            SORTED=sorted,
+            FLAGSTAT=flagstat,
+            CASM=casm,
+            CGCBM=cgcbm,
+            CWM=cwm,
+            SAMSTATS=samstats,
+            PLOT=plot,
+            IDXSTATS=idxstats,
+            COVERAGE=coverage,
         )
     )
 
@@ -1096,7 +1144,9 @@ def cleanup(script: TextIOWrapper, prefix: str, options: OptionsDict):
             """
 rm -f {PIPELINE}/{SAMPLE}.{INTERVAL}*
 rm -f {PIPELINE}/{SAMPLE}.merge.list
-""".format(INTERVAL=interval[1], PIPELINE=pipeline, SAMPLE=sample)
+""".format(
+                INTERVAL=interval[1], PIPELINE=pipeline, SAMPLE=sample
+            )
         )
 
     script.write("\n")
@@ -1224,13 +1274,6 @@ def defineArguments() -> Namespace:
         dest="doAlignmentQc",
         default=True,
         help="Skip alignment QC process on input and output files",
-    )
-    parser.add_argument(
-        "--skip-bqsr",
-        action="store_true",
-        dest="skipBQSR",
-        default=False,
-        help="Skip running BQSR processing on input file(s)",
     )
     parser.add_argument(
         "--skip-interval-processing",
@@ -1542,10 +1585,13 @@ def main():
     if skipIntervalProcessing == False:
         writeMergeList(options)
 
+    writeIntervalList(options)
+
     with open(options["script"], "w+") as script:
         script.truncate(0)
 
         script.write("#!/usr/bin/env bash\n")
+        script.write("set -ep\n")
         writeHeader(script, options, filenames)
         writeVersions(script)
         writeEnvironment(script, options)
@@ -1571,7 +1617,7 @@ def main():
 
         if skipIntervalProcessing == False:
             # this makes scatter a standalone process for now
-            scatter(script, options, prefix, sorted)
+            scatter(script, options, sorted)
 
         # if we've been asked to run qc at all we can actually start
         # the alignment qc processes very early (right after we've
@@ -1596,7 +1642,6 @@ def main():
             if options["cleanIntermediateFiles"] == True:
                 cleanup(script, cleantarget, options)
 
-
         # we can start variant qc here because we're going to run against
         # the unannotated vcf (we'll get the same metrics either way), and
         # parts of this process take a long time
@@ -1616,15 +1661,11 @@ def main():
 
         # we'll wait here to make sure all the background stuff is done before we
         # run multiqc and cleanup
-        script.write('logthis "${yellow}Waiting for background processes to complete.${reset}"\n')
-        script.write("wait\n")
         script.write('logthis "${green}Done processing${reset}"\n')
 
         if options["doMultiQc"] == True:
             runMultiQC(script, options)
 
-        script.write('logthis "${yellow}Waiting for any outstanding processes to complete.${reset}"\n')
-        script.write("wait\n")
         script.write('logthis "${green}Done processing${reset}"\n')
 
         script.write("\n")

@@ -11,3 +11,6 @@ a.out
 make-variants
 *.dSYM/
 *.vcf
+
+split/fastqrand
+split/fastqsplit

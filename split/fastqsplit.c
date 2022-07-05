@@ -14,7 +14,7 @@ int main(int argc, char **argv)
     for (int n = 0; n < SPLITS; n++)
     {
         char fname[256];
-        sprintf(fname, "zr5654_10_S6_R1_%03d.fastq", n + 1);
+        sprintf(fname, "zr5654_4_S1_R1_%03d.fastq", n + 1);
 
         splits[n] = fopen(fname, "w+");
     }
