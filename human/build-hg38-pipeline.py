@@ -622,7 +622,7 @@ def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
     # HaplotypeCaller actually uses threads, so we limit the number of jobs,
     # otherwise we're going to thrash the CPU and spend a bunch of time
     # context switching and swapping
-    cores = options["--cores"]
+    cores = options["cores"]
     threads = 4
     jobs = int(cores / threads)
 
@@ -672,7 +672,7 @@ def callVariantsUsingBcftools(script: TextIOWrapper, options: OptionsDict):
     # bcftools uses threads, so we limit the number of jobs, in this case
     # we'll assign the number of threads equally to each part of the pipeline
     # and limit the number of jobs to account for 2x those threads being in use
-    cores = options["--cores"]
+    cores = options["cores"]
     threads = 4
     jobs = int(cores / (threads * 2))
 
@@ -729,7 +729,7 @@ def annotate(
     # vep is an interesting beast when it comes to threading. it spends a ton
     # of time forking and waiting on processes that are then waiting on I/O
     # so, we grab the number of cores and double it, then assign that to vep
-    cores = options["--cores"]
+    cores = options["cores"]
     forks = int(cores * 2)
 
     script.write(
