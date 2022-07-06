@@ -15,25 +15,14 @@ namespace Ovation.Pipeline.FastqProcessor
                     config.AutoVersion = true;
                     config.CaseInsensitiveEnumValues = true;
                     config.EnableDashDash = false;
+                    config.HelpWriter = Console.Error;
                 }
             );
 
-            var parserResult =
-                parser.ParseArguments<SplitOptions, SampleOptions>(args);
-
-            parserResult.MapResult(
-                (SplitOptions o) => RunSplitsDriver(o),
-                (SampleOptions o) => RunSamplesDriver(o),
-
-                errors =>
-                {
-                    foreach (var error in errors)
-                    {
-                        Console.Error.WriteLine(error.ToString());
-                    }
-
-                    return 1;
-                });
+            parser.ParseArguments<SplitOptions, SampleOptions>(args)
+                .WithParsed<SplitOptions>((SplitOptions o) => RunSplitsDriver(o))
+                .WithParsed<SampleOptions>((SampleOptions o) => RunSamplesDriver(o))
+                .WithNotParsed(errors => {});
         }
 
         private static int RunSplitsDriver(SplitOptions o)
