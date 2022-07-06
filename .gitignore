@@ -14,3 +14,7 @@ make-variants
 
 split/fastqrand
 split/fastqsplit
+
+tools/fq/bin
+tools/fq/obj
+tools/fq/tmp
