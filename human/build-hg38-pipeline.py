@@ -130,8 +130,8 @@ def getFileNames(options: OptionsDict) -> FastqSet:
     fastq_dir = options["fastq_dir"]
 
     return (
-        "{FASTQ_DIR}/{SAMPLE}_R1.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
-        "{FASTQ_DIR}/{SAMPLE}_R2.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        "{FASTQ_DIR}/{SAMPLE}_R1_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        "{FASTQ_DIR}/{SAMPLE}_R2_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
     )
 
 
@@ -741,7 +741,7 @@ if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
         --cache \\
         --format vcf \\
         --vcf \\
-        --compress_output gzip \\
+        --compress_output bgzip \\
         --merged \\
         --fork {FORKS} \\
         --offline \\
@@ -749,10 +749,15 @@ if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
         --verbose \\
         --force_overwrite \\
         --symbol \\
+        --hgvs \\
+        --protein \\
+        --af \\
         --fasta {REFERENCE}/{ASSEMBLY}.fna \\
         --input_file {INPUT} \\
         --output_file {OUTPUT} \\
         --stats_file {STATS}/{SUMMARY}
+
+    tabix -p vcf {OUTPUT}
 
     logthis "Completed annotation"
 else
@@ -829,6 +834,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fasta ]]; then
     bcftools consensus \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
         {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
+        --sample {SAMPLE} \\
     | sed '/>/ s/$/ | {SAMPLE}/' >{PIPELINE}/{SAMPLE}.consensus.fasta
 else
     logthis "Consensus fasta already generated for {PIPELINE}/{SAMPLE}.consensus.fasta, ${{green}}already completed${{reset}}"
@@ -1055,7 +1061,7 @@ def startAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
 
     # this is commented out until we can make it fast enough by either partitioning the input
     # or randomly selecting some partition
-    fastqc = """if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi""".format(
+    fastqc = """if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi""".format(
         SAMPLE=sample,
         STATS=stats,
         R1=filenames[0],
@@ -1075,7 +1081,8 @@ parallel --joblog {PIPELINE}/{SAMPLE}.qc.log ::: \\
              '{CWM}' \\
              '{SAMSTATS}' \\
              '{IDXSTATS}' \\
-             '{COVERAGE}'
+             '{COVERAGE}' \\
+             '{FASTQC}'
 
 # can't run plot-bamstats until the statistics files are run above
 {PLOT}             
@@ -1090,6 +1097,7 @@ parallel --joblog {PIPELINE}/{SAMPLE}.qc.log ::: \\
             PLOT=plot,
             IDXSTATS=idxstats,
             COVERAGE=coverage,
+            FASTQC=fastqc,
         )
     )
 
@@ -1199,15 +1207,29 @@ def writeVersions(script: TextIOWrapper):
 
 
 def writeEnvironment(script: TextIOWrapper, options: OptionsDict):
+    noColor = options["noColor"]
+
     script.write("#\n")
-    script.write(
-        """
-# color shortcuts
+
+    if noColor == True:
+        script.write("""
+# color shortcuts disabled
+red=$(echo -n "")
+green=$(echo -n "")
+yellow=$(echo -n "")
+reset=$(echo -n "")
+""")
+    else:
+        script.write("""
+# color shortcuts enabled
 red=$(tput setaf 1)
 green=$(tput setaf 2)
 yellow=$(tput setaf 3)
 reset=$(tput sgr0)
+""")
 
+    script.write(
+        """
 function logthis() {{
   NOW=$(date "+%Y-%m-%d %H:%M:%S")
   echo -e "[${{NOW}}] ${{1}}"
@@ -1281,6 +1303,14 @@ def defineArguments() -> Namespace:
         dest="skipIntervalProcessing",
         default=False,
         help="Skip all interval processing (scatter, call, gather)",
+    )
+
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        dest="noColor",
+        default=False,
+        help="Turn off colorized log output",
     )
 
     parser.add_argument(

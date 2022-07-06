@@ -11,6 +11,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
 
     # build the pipeline
     python ${HOME}/pipeline-builder/human/build-hg38-pipeline.py \
+        --no-color \
         --sample ${SAMPLE} \
         --work-dir ${HOME} \
         --reference-dir ${HOME}/reference/GRCh38.p14 \
@@ -21,7 +22,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
         --stats-dir ${HOME}/stats/${SAMPLE} \
         --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
         --temp-dir ${HOME}/stats/temp \
-        --fastq-dir ${HOME}/pipeline/FASTQ \
+        --fastq-dir ${HOME}/pipeline/EXP \
         --preprocessor fastp \
         --aligner bwa \
         --sorter biobambam \
