@@ -236,11 +236,19 @@ cd ensembl-vep
 export PERL5LIB=$PERL5LIB:${ROOT}/cpanm/lib/perl5
 ${ROOT}/bin/cpanm -l ${ROOT}/perl5 --installdeps .
 
+git checkout release/106
+
 perl INSTALL.pl \
-    --CACHEDIR ${ROOT}/reference/vep-data \
+    --CACHEDIR ${ROOT}/vep-data \
     --ASSEMBLY GRCh38 \
-    --AUTO aclfa \
+    --AUTO aclfp \
     --PLUGINS all \
     --NO_HTSLIB \
     --NO_TEST \
     --SPECIES homo_sapiens_merged
+
+# perl INSTALL.pl \
+#     --CACHEDIR ${HOME}/vep-data \
+#     --PLUGINSDIR ${HOME}/vep-data/Plugins \
+#     --AUTO p \
+#     --PLUGINS all
