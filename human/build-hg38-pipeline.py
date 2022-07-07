@@ -1086,7 +1086,7 @@ mkdir -p {STATS}/qc
 cd {STATS}/qc
 
 # Run multiqc
-multiqc --tag DNA --verbose -f {STATS}
+multiqc --tag DNA --verbose -f {STATS} --cl_config 'custom_logo: "{STATS}/ovationlogo.png"' --cl_config 'custom_logo_url: "https://www.ovation.io"' --cl_config 'custom_logo_title: "Ovation"'
 
 # Save the output
 mv {STATS}/qc/multiqc_data {STATS}/{SAMPLE}_multiqc_data
