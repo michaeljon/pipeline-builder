@@ -974,6 +974,7 @@ def startAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
     sample = options["sample"]
     stats = options["stats"]
     threads = options["cores"]
+    skipFastQc = options["skipFastQc"]
 
     filenames = getTrimmedFileNames(options)
 
@@ -1051,16 +1052,15 @@ def startAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
         )
     )
 
-    # this is commented out until we can make it fast enough by either partitioning the input
-    # or randomly selecting some partition
-    checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
-            SAMPLE=sample,
-            STATS=stats,
-            R1=filenames[0],
-            R2=filenames[1],
+    if skipFastQc == False:
+        checks.append(
+            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
+                SAMPLE=sample,
+                STATS=stats,
+                R1=filenames[0],
+                R2=filenames[1],
+            )
         )
-    )
 
     return checks
 
@@ -1320,6 +1320,13 @@ def defineArguments() -> Namespace:
         dest="doAlignmentQc",
         default=True,
         help="Skip alignment QC process on input and output files",
+    )
+    parser.add_argument(
+        "--skip-fastqc",
+        action="store_true",
+        dest="skipFastQc",
+        default=False,
+        help="Skip running FASTQC statistics",
     )
     parser.add_argument(
         "--skip-interval-processing",
