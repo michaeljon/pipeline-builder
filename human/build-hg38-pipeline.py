@@ -183,6 +183,8 @@ if [[ ! -f {REFERENCE}/{ASSEMBLY}.dict ]]; then
     logthis "${{yellow}}Creating sequence dictionary${{reset}}"
 
     java -jar {BIN}/picard.jar CreateSequenceDictionary -R {REFERENCE}/{ASSEMBLY}.fna -O {REFERENCE}/{ASSEMBLY}.dict
+
+    logthis "Sequence dictionary completed"
 else
     logthis "Reference dictionary {REFERENCE}/{ASSEMBLY}.dict ${{green}}already completed${{reset}}"
 fi
@@ -192,7 +194,7 @@ if [[ ! -f {REFERENCE}/{ASSEMBLY}_autosomal.interval_list ]]; then
     # processing a partial set of chromosomes. in the typical case this would
     # be a WGS collection.
 
-    logthis "Building {REFERENCE}/{ASSEMBLY}.interval_list"
+    logthis "${{yellow}}Building {REFERENCE}/{ASSEMBLY}.interval_list${{reset}}"
 
     egrep '^({REGEX})\\s' {REFERENCE}/{ASSEMBLY}.fna.fai |
         awk '{{print $1"\\t1\\t"$2"\\t+\\t"$1}}' |
@@ -220,8 +222,10 @@ if [[ ! -f {O1} || ! -f {O2} ]]; then
 
     ln -s {R1} {O1}
     ln -s {R2} {O2}
+
+    logthis "${{yellow}}Identity preprocessor completed${{reset}}"
 else
-    echo "Preprocessor already run, ${{green}}skipping${{reset}}"
+    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
 """.format(
             R1=r1,
@@ -254,7 +258,7 @@ def runFastpPreprocessor(
 # run the fastp preprocessor
 #
 if [[ ! -f {O1} || ! -f {O2} ]]; then
-    logthis "${{yellow}}Running fastp preprocessor${{reset}}"
+    logthis "${{yellow}}Running FASTP preprocessor${{reset}}"
 
     LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
     fastp \\
@@ -268,8 +272,10 @@ if [[ ! -f {O1} || ! -f {O2} ]]; then
         --thread 16 \\
         -j {STATS}/{SAMPLE}-fastp.json \\
         -h {STATS}/{SAMPLE}-fastp.html
+
+    logthis "${{yellow}}FASTP preprocessor completed${{reset}}"
 else
-    echo "Preprocessor already run, ${{green}}skipping${{reset}}"
+    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
 """.format(
             R1=r1,
@@ -334,8 +340,10 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
         {O1} \\
         {O2} | 
     samtools view -Sb - >{PIPELINE}/{SAMPLE}.aligned.bam
+
+    logthis "${{yellow}}Alignment completed${{reset}}"
 else
-    echo "{PIPELINE}/{SAMPLE}.aligned.bam, aligned temp file found, ${{green}}skipping${{reset}}"
+    logthis "{PIPELINE}/{SAMPLE}.aligned.bam, aligned temp file found, ${{green}}skipping${{reset}}"
 fi
 
 """.format(
@@ -394,8 +402,10 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
 
     # force the index to look "newer" than its source
     touch {SORTED}.bai
+
+    logthis "${{yellow}}Sorting and marking duplicates completed${{reset}}"
 else
-    echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
+    logthis "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
 fi
     """.format(
             SAMPLE=sample,
@@ -430,8 +440,10 @@ if [[ ! -f {UNMARKED} ]]; then
     logthis "${{yellow}}Sorting aligned file${{reset}}"
 
     samtools sort {PIPELINE}/{SAMPLE}.aligned.bam -o {UNMARKED}
+
+    logthis "${{yellow}}Sorting aligned file completed${{reset}}"
 else
-    echo "{UNMARKED}, index, and metrics found, ${{green}}skipping${{reset}}"
+    logthis "{UNMARKED}, index, and metrics found, ${{green}}skipping${{reset}}"
 fi
 
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
@@ -446,8 +458,10 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
 
     # generate an index on the result
     samtools index -b {SORTED} {SORTED}.bai
+
+    logthis "${{yellow}}Marking duplicates completed${{reset}}"
 else
-    echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
+    logthis "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
 fi
     """.format(
             REFERENCE=reference,
@@ -481,12 +495,15 @@ def fragment(script: TextIOWrapper, r1: str, r2: str, options: OptionsDict):
     script.write(
         """
 logthis "${{yellow}}Fragmenting trimmed FASTQ${{reset}}"
+
 Ovation.Pipeline.FastqProcessor split \\
     --format FastqGz \\
     --splits {FRAGMENTS} \\
     --output {PIPELINE} \\
     --in1 {R1} \\
     --in2 {R2}
+
+logthis "${{yellow}}Fragmenting trimmed FASTQ completed${{reset}}"
 """.format(
             PIPELINE=pipeline, R1=r1, R2=r2, SAMPLE=sample, FRAGMENTS=fragmentCount
         )
@@ -522,6 +539,7 @@ parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.alignment.log --header --colsep 
             {PIPELINE}/{{r2}} | \\
         samtools view -Sb - >{PIPELINE}/{{aligned}}
     fi' :::: {FRAGMENT_LIST}
+logthis "${{yellow}}Fragment alignment complete${{reset}}"
 """.format(
             JOBS=jobs,
             REFERENCE=reference,
@@ -552,7 +570,7 @@ def sortParallelWithBiobambam(script: TextIOWrapper, options: OptionsDict):
 #
 # sort and mark duplicates
 #
-logthis "${{yellow}}Sorting and marking duplicates${{reset}}"
+logthis "${{yellow}}Fragment sorting and marking duplicates${{reset}}"
 parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.sort.log --header --colsep $'\\t' \\
     'if [[ ! -f {{sorted}} ]]; then
         bamsormadup \\
@@ -568,6 +586,8 @@ parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.sort.log --header --colsep $'\\t
 # force the index to look "newer" than its source
 parallel --header --colsep $'\\t' \\
     touch {{sorted}}.bai
+
+logthis "${{yellow}}Fragment sorting and marking duplicates completed${{reset}}"
 """.format(
             JOBS=jobs,
             SAMPLE=sample,
@@ -617,6 +637,8 @@ parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.mark.log --header --colsep $'\\t
 # generate an index on the result
 parallel --header --colsep $'\\t' \\
     samtools index -b {PIPELINE}/{{sorted}} {PIPELINE}/{{sorted}}.bai
+
+logthis "${{yellow}}Sorting and marking duplicates compeleted${{reset}}"
     """.format(
             REFERENCE=reference,
             ASSEMBLY=assembly,
@@ -655,7 +677,7 @@ def extractUmappedReads(script: TextIOWrapper, options: OptionsDict):
 # extract unmapped reads
 #
 if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped_R1.fastq || ! -f {PIPELINE}/{SAMPLE}_unmapped_R2.fastq ]]; then
-    logthis "${{yellow}}Extracting unmapped reads into initial FASTQ${{reset}}"
+    logthis "${{yellow}}Extracting unmapped reads${{reset}}"
 
     samtools fastq -N -f 4 \\
         -0 {PIPELINE}/{SAMPLE}_unmapped_other.fastq \\
@@ -663,8 +685,10 @@ if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped_R1.fastq || ! -f {PIPELINE}/{SAMPLE}_unm
         -1 {PIPELINE}/{SAMPLE}_unmapped_R1.fastq \\
         -2 {PIPELINE}/{SAMPLE}_unmapped_R2.fastq \\
         {PIPELINE}/{SAMPLE}.aligned.bam
+
+    logthis "${{yellow}}Unmapped read extraction completed${{reset}}"
 else
-    echo "Unmapped reads extracted to initial FASTQ, ${{green}}skipping${{reset}}"
+    logthis "Unmapped reads extracted to initial FASTQ, ${{green}}skipping${{reset}}"
 fi
     """.format(
             SAMPLE=sample,
@@ -829,7 +853,7 @@ def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
 
     script.write(
         """
-logthis "Calling variants using GATK"
+logthis "${{yellow}}Calling variants using GATK${{reset}}"
 
 parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.call.log --header --colsep $'\\t' \\
     'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}.vcf ]]; then
@@ -844,7 +868,7 @@ parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.call.log --header --colsep $'\\t
             -L {{interval}}
     fi' :::: {INTERVAL_LIST}
 
-logthis "GATK variant calling completed"
+logthis "${{green}}GATK variant calling completed${{reset}}"
 """.format(
             JOBS=jobs,
             THREADS=threads,
@@ -1283,7 +1307,13 @@ mkdir -p {STATS}/qc
 cd {STATS}/qc
 
 # Run multiqc
-multiqc --tag DNA --verbose -f {STATS} --cl_config 'custom_logo: "{STATS}/ovationlogo.png"' --cl_config 'custom_logo_url: "https://www.ovation.io"' --cl_config 'custom_logo_title: "Ovation"'
+multiqc \\
+    --verbose \\
+    --force \\
+    --cl_config 'custom_logo: "{STATS}/ovationlogo.png"' \\
+    --cl_config 'custom_logo_url: "https://www.ovation.io"' \\
+    --cl_config 'custom_logo_title: "Ovation"' \\
+    {STATS}
 
 # Save the output
 mv {STATS}/qc/multiqc_data {STATS}/{SAMPLE}_multiqc_data
