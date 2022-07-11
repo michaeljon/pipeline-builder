@@ -1738,6 +1738,7 @@ def defineArguments() -> Namespace:
     parser.add_argument(
         "-z",
         "--cores",
+        type=int,
         action="store",
         dest="cores",
         metavar="CPU_COUNT",
