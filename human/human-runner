@@ -18,12 +18,18 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
         --reference-assembly GCF_000001405.40_GRCh38.p14_genomic \
         --known-sites GCF_000001405.39.gz \
         --sizes ${HOME}/pipeline-builder/human/GRCh38-p14-chromosomeSizes.json \
+        --segment 50000000 \
         --pipeline-dir ${HOME}/pipeline/${SAMPLE} \
         --stats-dir ${HOME}/stats/${SAMPLE} \
         --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
         --temp-dir ${HOME}/stats/temp \
-        --fastq-dir ${HOME}/pipeline/EXP \
+        --fastq-dir ${HOME}/fastq \
+	    --skip-fastqc \
+        --skip-multi-qc \
+        --skip-variant-qc \
+        --skip-alignment-qc \
         --preprocessor fastp \
+        --read-limit 1000000 \
         --aligner bwa \
         --sorter biobambam \
         --caller gatk \
@@ -31,7 +37,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
 
     cp ${HOME}/pipeline-builder/human/software_versions_mqc.html ${HOME}/stats/${SAMPLE}
     cp ${HOME}/pipeline-builder/human/ovationlogo.png ${HOME}/stats/${SAMPLE}
-exit
+
     # run the pipeline
     bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner >${HOME}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
 

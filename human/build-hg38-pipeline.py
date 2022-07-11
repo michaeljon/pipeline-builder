@@ -6,6 +6,7 @@ import argparse
 import math
 
 from argparse import Namespace
+from optparse import Option
 from typing import Dict, Tuple, Sequence, List, Any
 from datetime import datetime
 from math import ceil
@@ -48,8 +49,9 @@ def computeIntervals(options: OptionsDict):
     intervals = []
 
     rulesFile = options["chromosomeSizes"]
-    segmentSize = options["segmentSize"]
-    lastBlockMax = math.floor(options["segmentSize"] * options["factor"])
+    segmentSize = int(options["segmentSize"])
+    factor = float(options["factor"])
+    lastBlockMax = math.floor(segmentSize * factor)
 
     with open(rulesFile, "r") as file:
         rules = json.load(file)
@@ -123,6 +125,24 @@ def writeIntervalList(options: OptionsDict):
 
         for interval in intervals:
             il.write("{INTERVAL}\t{ROOT}\n".format(INTERVAL=interval[0], ROOT=interval[1]))
+
+
+def writeFragmentList(options: OptionsDict):
+    fragmentCount = int(options["fragmentCount"])
+
+    if fragmentCount == 1:
+        return
+
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
+    fragmentList = "{PIPELINE}/{SAMPLE}.fragments.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
+    with open(fragmentList, "w") as fl:
+        fl.truncate()
+        fl.write("fragment\tr1\tr2\taligned\tunmarked\tsorted\n")
+
+        for fragment in range(1, fragmentCount + 1):
+            fl.write("{FRAGMENT:03n}\t{SAMPLE}_R1.trimmed_{FRAGMENT:03n}.fastq.gz\t{SAMPLE}_R2.trimmed_{FRAGMENT:03n}.fastq.gz\t{SAMPLE}_001_{FRAGMENT:03n}.aligned.bam\t{SAMPLE}_001_{FRAGMENT:03n}.unmarked.bam\t{SAMPLE}_001_{FRAGMENT:03n}.sorted.bam\n".format(FRAGMENT=fragment, SAMPLE=sample))
 
 
 def getFileNames(options: OptionsDict) -> FastqSet:
@@ -245,7 +265,7 @@ if [[ ! -f {O1} || ! -f {O2} ]]; then
         --out2 {O2} \\
         --detect_adapter_for_pe \\
         --verbose {LIMITREADS} \\
-        --thread 8 \\
+        --thread 16 \\
         -j {STATS}/{SAMPLE}-fastp.json \\
         -h {STATS}/{SAMPLE}-fastp.html
 else
@@ -297,7 +317,6 @@ def runBwaAligner(
     sample = options["sample"]
     pipeline = options["pipeline"]
     threads = options["cores"]
-    nonRepeatable = options["non-repeatable"]
 
     script.write(
         """
@@ -308,7 +327,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
     logthis "${{yellow}}Running aligner${{reset}}"
 
     bwa-mem2 mem -t {THREADS} \\
-        -Y -M {DASHK} \\
+        -Y -M \\
         -v 1 \\
         -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
         {REFERENCE}/{ASSEMBLY}.fna \\
@@ -327,7 +346,6 @@ fi
             SAMPLE=sample,
             THREADS=threads,
             PIPELINE=pipeline,
-            DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * int(threads))),
         )
     )
 
@@ -390,13 +408,12 @@ fi
         )
     )
 
-    pass
-
 
 def sortWithSamtools(script: TextIOWrapper, options: OptionsDict, output: str):
     sample = options["sample"]
     pipeline = options["pipeline"]
     reference = options["reference"]
+    assembly = options["referenceAssembly"]
     threads = options["cores"]
     stats = options["stats"]
     bin = options["bin"]
@@ -422,7 +439,7 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
 
     java -Xmx8g -jar {BIN}/picard.jar MarkDuplicates \\
         --TAGGING_POLICY All \\
-        --REFERENCE_SEQUENCE {REFERENCE}/hcov-oc43.fasta \\
+        --REFERENCE_SEQUENCE {REFERENCE}/{ASSEMBLY}.fna \\
         -I {UNMARKED} \\
         -O {SORTED} \\
         -M {STATS}/{SAMPLE}_marked_dup_metrics.txt    
@@ -434,6 +451,7 @@ else
 fi
     """.format(
             REFERENCE=reference,
+            ASSEMBLY=assembly,
             SAMPLE=sample,
             THREADS=threads,
             UNMARKED=unmarked,
@@ -453,6 +471,178 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output
         sortWithBiobambam(script, options, output)
     else:
         sortWithSamtools(script, options, output)
+
+
+def fragment(script: TextIOWrapper, r1: str, r2: str, options: OptionsDict):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    fragmentCount = int(options["fragmentCount"])
+
+    script.write(
+        """
+logthis "${{yellow}}Fragmenting trimmed FASTQ${{reset}}"
+Ovation.Pipeline.FastqProcessor split \\
+    --format FastqGz \\
+    --splits {FRAGMENTS} \\
+    --output {PIPELINE} \\
+    --in1 {R1} \\
+    --in2 {R2}
+""".format(
+            PIPELINE=pipeline, R1=r1, R2=r2, SAMPLE=sample, FRAGMENTS=fragmentCount
+        )
+    )
+
+
+def alignFragments(script: TextIOWrapper, options: OptionsDict):
+    reference = options["reference"]
+    assembly = options["referenceAssembly"]
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+
+    cores = options["cores"]
+    threads = 4
+    jobs = int(cores / threads)
+
+    fragmentList = "{PIPELINE}/{SAMPLE}.fragments.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
+
+    script.write(
+        """
+#
+# align the input files
+#
+logthis "${{yellow}}Running aligners${{reset}}"
+parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.alignment.log --header --colsep $'\\t' \\
+    'if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
+        bwa-mem2 mem -t {THREADS} \\
+            -Y -M \\
+            -v 1 \\
+            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+            {REFERENCE}/{ASSEMBLY}.fna \\
+            {PIPELINE}/{{r1}} \\
+            {PIPELINE}/{{r2}} | \\
+        samtools view -Sb - >{PIPELINE}/{{aligned}}
+    fi' :::: {FRAGMENT_LIST}
+""".format(
+            JOBS=jobs,
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            FRAGMENT_LIST = fragmentList
+        )
+    )
+
+def sortParallelWithBiobambam(script: TextIOWrapper, options: OptionsDict):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    threads = options["cores"]
+    stats = options["stats"]
+    bin = options["bin"]
+    temp = options["temp"]
+
+    cores = options["cores"]
+    threads = 4
+    jobs = int(cores / threads)
+
+    fragmentList = "{PIPELINE}/{SAMPLE}.fragments.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
+
+    script.write(
+        """
+#
+# sort and mark duplicates
+#
+logthis "${{yellow}}Sorting and marking duplicates${{reset}}"
+parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.sort.log --header --colsep $'\\t' \\
+    'if [[ ! -f {{sorted}} ]]; then
+        bamsormadup \\
+            SO=coordinate \\
+            threads={THREADS} \\
+            level=6 \\
+            tmpfile={TEMP}/{SAMPLE} \\
+            inputformat=bam \\
+            indexfilename={{sorted}}.bai \\
+            M={STATS}/{SAMPLE}_{{fragment}}.duplication_metrics <{PIPELINE}/{{aligned}} >{PIPELINE}/{{sorted}}
+    fi' :::: {FRAGMENT_LIST}
+
+# force the index to look "newer" than its source
+parallel --header --colsep $'\\t' \\
+    touch {{sorted}}.bai
+""".format(
+            JOBS=jobs,
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            STATS=stats,
+            BIN=bin,
+            TEMP=temp,
+            FRAGMENT_LIST = fragmentList
+        )
+    )
+
+def sortParallelWithSamtools(script: TextIOWrapper, options: OptionsDict):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    reference = options["reference"]
+    assembly = options["referenceAssembly"]
+    threads = options["cores"]
+    stats = options["stats"]
+    bin = options["bin"]
+    temp = options["temp"]
+
+    fragmentList = "{PIPELINE}/{SAMPLE}.fragments.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
+
+    script.write(
+        """
+#
+# sort and mark duplicates
+#
+logthis "${{yellow}}Sorting aligned file${{reset}}"
+parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.sort.log --header --colsep $'\\t' \\
+    'if [[ ! -f {PIPELINE}/{{unmarked}} ]]; then
+        samtools sort {PIPELINE}/{{aligned}} -o {PIPELINE}/{{unmarked}}
+     fi' :::: {FRAGMENT_LIST}
+
+logthis "${{yellow}}Marking duplicates${{reset}}"
+parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.mark.log --header --colsep $'\\t' \\
+    'if [[ ! -f {PIPELINE}/{{sorted}} ]]; then
+        java -Xmx8g -jar {BIN}/picard.jar MarkDuplicates \\
+            --TAGGING_POLICY All \\
+            --REFERENCE_SEQUENCE {REFERENCE}/{ASSEMBLY}.fna \\
+            -I {PIPELINE}/{{unmarked}} \\
+            -O {PIPELINE}/{{sorted}} \\
+            -M {STATS}/{SAMPLE}_{{fragment}}_marked_dup_metrics.txt    
+     fi' :::: {FRAGMENT_LIST}
+
+# generate an index on the result
+parallel --header --colsep $'\\t' \\
+    samtools index -b {PIPELINE}/{{sorted}} {PIPELINE}/{{sorted}}.bai
+    """.format(
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            STATS=stats,
+            BIN=bin,
+            TEMP=temp,
+            FRAGMENT_LIST = fragmentList
+        )
+    )
+
+def sortFragments(script: TextIOWrapper, options: OptionsDict):
+    sorter = options["sorter"]
+
+    if sorter == "biobambam":
+        sortParallelWithBiobambam(script, options)
+    else:
+        sortParallelWithSamtools(script, options)
+
+
+
+def combine(script: TextIOWrapper, options: OptionsDict, output: str):
+    # samtools merge -f -o {OUTPUT} -c -p <*.bam>
+    pass
 
 
 def extractUmappedReads(script: TextIOWrapper, options: OptionsDict):
@@ -488,15 +678,22 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
     filenames = getFileNames(options)
     trimmedFilenames = getTrimmedFileNames(options)
     alignOnly = options["alignOnly"]
+    fragmentCount = int(options["fragmentCount"])
 
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
     script.write("#\n")
 
     preprocessFASTQ(script, filenames[0], filenames[1], trimmedFilenames[0], trimmedFilenames[1], options)
-    alignFASTQ(script, trimmedFilenames[0], trimmedFilenames[1], options)
 
-    sortAlignedAndMappedData(script, options, output)
+    if fragmentCount == 1:
+        alignFASTQ(script, trimmedFilenames[0], trimmedFilenames[1], options)
+        sortAlignedAndMappedData(script, options, output)
+    else:
+        fragment(script, trimmedFilenames[0], trimmedFilenames[1], options)
+        alignFragments(script, options)
+        sortFragments(script, options)
+        combine(script, options, output)
 
     if processUnmapped == True:
         extractUmappedReads(script, options)
@@ -1213,11 +1410,20 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastqSet
         script.write("#   {INTERVAL} -> {FILE}\n".format(INTERVAL=i, FILE=f))
     script.write("#\n")
 
+    segmentSize = int(options["segmentSize"])
+    factor = float(options["factor"])
+
     script.write("#\n")
     script.write("# Split parameters\n")
-    script.write("#   segmentSize = {P}\n".format(P=options["segmentSize"]))
-    script.write("#   factor = {P}\n".format(P=options["factor"]))
-    script.write("#   last block max size = {P}\n".format(P=math.floor(options["segmentSize"] * options["factor"])))
+    script.write("#   segmentSize = {P}\n".format(P=segmentSize))
+    script.write("#   factor = {P}\n".format(P=factor))
+    script.write("#   last block max size = {P}\n".format(P=math.floor(segmentSize * factor)))
+
+    fragmentCount = int(options["fragmentCount"])
+
+    script.write("#\n")
+    script.write("# Fragments\n")
+    script.write("#   fragmentCount = {P}\n".format(P=fragmentCount))
 
 
 def writeVersions(script: TextIOWrapper):
@@ -1328,12 +1534,21 @@ def defineArguments() -> Namespace:
         default=False,
         help="Skip running FASTQC statistics",
     )
+
     parser.add_argument(
         "--skip-interval-processing",
         action="store_true",
         dest="skipIntervalProcessing",
         default=False,
         help="Skip all interval processing (scatter, call, gather)",
+    )
+
+    parser.add_argument(
+        "--generate-consensus",
+        action="store_true",
+        dest="generateConsensus",
+        default=False,
+        help="Generate a consensus FASTA file",
     )
 
     parser.add_argument(
@@ -1501,15 +1716,6 @@ def defineArguments() -> Namespace:
     )
 
     parser.add_argument(
-        "-N",
-        "--non-repeatable",
-        action="store_true",
-        dest="non-repeatable",
-        default=False,
-        help="Force the -K option to BWA, will use 10,000,000bp per thread",
-    )
-
-    parser.add_argument(
         "--read-limit",
         action="store",
         dest="read-limit",
@@ -1526,6 +1732,15 @@ def defineArguments() -> Namespace:
         dest="watchdog",
         default=150,
         help="Specify a watchdog timeout for the alignment process. Value is in minutes",
+    )
+
+    parser.add_argument(
+        "--fragments",
+        action="store",
+        metavar="FRAGMENT_COUNT",
+        dest="fragmentCount",
+        default=1,
+        help="Number of FASTQ fragments to align",
     )
 
     parser.add_argument(
@@ -1647,6 +1862,7 @@ def main():
         writeMergeList(options)
 
     writeIntervalList(options)
+    writeFragmentList(options)
 
     with open(options["script"], "w+") as script:
         script.truncate(0)
@@ -1662,26 +1878,12 @@ def main():
         script.write("\n")
 
         updateDictionary(script, options)
-        filenames = getFileNames(options)
 
         alignAndSort(script, options, sorted)
-
-        # the order of the next two operations is important in this script
-        # because scatter does its job but waits on all the background
-        # operations to complete. this doesn't take long, so waiting is
-        # ok.
-        #
-        # however, if we were to start the alignment qc process, which runs
-        # in the background, we would start them and then block until they
-        # completed while we're waiting to scatter intervals around
-        #
 
         if skipIntervalProcessing == False:
             # this makes scatter a standalone process for now
             scatter(script, options, sorted)
-
-        if skipIntervalProcessing == False:
-            # process the intervals
             runIntervals(script, options, prefix)
             gather(script, options)
 
@@ -1698,7 +1900,8 @@ def main():
             "{SAMPLE}.annotated.vcf_summary.html".format(SAMPLE=options["sample"]),
         )
 
-        generateConsensus(script, options)
+        if options["generateConsensus"] == True:
+            generateConsensus(script, options)
 
         # we'll wait here to make sure all the background stuff is done before we
         # run multiqc and cleanup
