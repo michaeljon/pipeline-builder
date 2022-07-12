@@ -844,8 +844,8 @@ def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
     # otherwise we're going to thrash the CPU and spend a bunch of time
     # context switching and swapping
     cores = options["cores"]
-    threads = 4
-    jobs = int(cores / threads)
+    hmmThreads = 6
+    jobs = int(cores / hmmThreads)
 
     reference = options["reference"]
     assembly = options["referenceAssembly"]
@@ -871,7 +871,7 @@ parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.call.log --header --colsep $'\\t
 logthis "${{green}}GATK variant calling completed${{reset}}"
 """.format(
             JOBS=jobs,
-            THREADS=threads,
+            THREADS=hmmThreads,
             PIPELINE=pipeline,
             SAMPLE=sample,
             INTERVAL_LIST=intervalList,
@@ -1574,6 +1574,15 @@ def defineArguments() -> Namespace:
     )
 
     parser.add_argument(
+        "--skip-annotation",
+        action="store_true",
+        dest="skipAnnotation",
+        type=bool,
+        default=False,
+        help="Skip all VCF annotation processes",
+    )
+
+    parser.add_argument(
         "--generate-consensus",
         action="store_true",
         dest="generateConsensus",
@@ -1921,14 +1930,15 @@ def main():
             if options["cleanIntermediateFiles"] == True:
                 cleanup(script, cleantarget, options)
 
-        annotate(
-            script,
-            options,
-            "{WORKING}/vep_data".format(WORKING=options["working"]),
-            "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
-            "{PIPELINE}/{SAMPLE}.annotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
-            "{SAMPLE}.annotated.vcf_summary.html".format(SAMPLE=options["sample"]),
-        )
+        if options["skipAnnotation"] == False:
+            annotate(
+                script,
+                options,
+                "{WORKING}/vep_data".format(WORKING=options["working"]),
+                "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
+                "{PIPELINE}/{SAMPLE}.annotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
+                "{SAMPLE}.annotated.vcf_summary.html".format(SAMPLE=options["sample"]),
+            )
 
         if options["generateConsensus"] == True:
             generateConsensus(script, options)

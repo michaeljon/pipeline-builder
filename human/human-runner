@@ -29,7 +29,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
         --skip-variant-qc \
         --skip-alignment-qc \
         --preprocessor fastp \
-        --read-limit 1000000 \
+        --read-limit 100000000 \
         --aligner bwa \
         --sorter biobambam \
         --caller gatk \
