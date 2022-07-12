@@ -89,7 +89,7 @@ def runFastpPreprocessor(
     threads = options["cores"]
     stats = options["stats"]
     bin = options["bin"]
-    readLimit = int(options["read-limit"])
+    readLimit = options["read-limit"]
 
     script.write(
         """
@@ -504,6 +504,7 @@ def defineArguments() -> Namespace:
 
     parser.add_argument(
         "--read-limit",
+        type=int,
         action="store",
         dest="read-limit",
         metavar="READ_LIMIT",
@@ -514,6 +515,7 @@ def defineArguments() -> Namespace:
     parser.add_argument(
         "-d",
         "--watchdog",
+        type=int,
         action="store",
         metavar="WATCHDOG_TIMEOUT",
         dest="watchdog",
