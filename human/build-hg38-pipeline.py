@@ -49,8 +49,8 @@ def computeIntervals(options: OptionsDict):
     intervals = []
 
     rulesFile = options["chromosomeSizes"]
-    segmentSize = int(options["segmentSize"])
-    factor = float(options["factor"])
+    segmentSize = options["segmentSize"]
+    factor = options["factor"]
     lastBlockMax = math.floor(segmentSize * factor)
 
     with open(rulesFile, "r") as file:
@@ -250,7 +250,7 @@ def runFastpPreprocessor(
     threads = options["cores"]
     stats = options["stats"]
     bin = options["bin"]
-    readLimit = int(options["read-limit"])
+    readLimit = options["read-limit"]
 
     script.write(
         """
@@ -490,7 +490,7 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output
 def fragment(script: TextIOWrapper, r1: str, r2: str, options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
-    fragmentCount = int(options["fragmentCount"])
+    fragmentCount = options["fragmentCount"]
 
     script.write(
         """
@@ -702,7 +702,7 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
     filenames = getFileNames(options)
     trimmedFilenames = getTrimmedFileNames(options)
     alignOnly = options["alignOnly"]
-    fragmentCount = int(options["fragmentCount"])
+    fragmentCount = options["fragmentCount"]
 
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
@@ -1440,8 +1440,8 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastqSet
         script.write("#   {INTERVAL} -> {FILE}\n".format(INTERVAL=i, FILE=f))
     script.write("#\n")
 
-    segmentSize = int(options["segmentSize"])
-    factor = float(options["factor"])
+    segmentSize = options["segmentSize"]
+    factor = options["factor"]
 
     script.write("#\n")
     script.write("# Split parameters\n")
@@ -1449,7 +1449,7 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastqSet
     script.write("#   factor = {P}\n".format(P=factor))
     script.write("#   last block max size = {P}\n".format(P=math.floor(segmentSize * factor)))
 
-    fragmentCount = int(options["fragmentCount"])
+    fragmentCount = options["fragmentCount"]
 
     script.write("#\n")
     script.write("# Fragments\n")
@@ -1748,6 +1748,7 @@ def defineArguments() -> Namespace:
 
     parser.add_argument(
         "--read-limit",
+        type=int,
         action="store",
         dest="read-limit",
         metavar="READ_LIMIT",
@@ -1758,6 +1759,7 @@ def defineArguments() -> Namespace:
     parser.add_argument(
         "-d",
         "--watchdog",
+        type=int,
         action="store",
         metavar="WATCHDOG_TIMEOUT",
         dest="watchdog",
@@ -1767,6 +1769,7 @@ def defineArguments() -> Namespace:
 
     parser.add_argument(
         "--fragments",
+        type=int,
         action="store",
         metavar="FRAGMENT_COUNT",
         dest="fragmentCount",
@@ -1785,6 +1788,7 @@ def defineArguments() -> Namespace:
 
     parser.add_argument(
         "--segment",
+        type=int,
         action="store",
         metavar="SEGMENT_SIZE",
         dest="segmentSize",
@@ -1793,6 +1797,7 @@ def defineArguments() -> Namespace:
     )
     parser.add_argument(
         "--factor",
+        type=float,
         action="store",
         metavar="FACTOR",
         dest="factor",
