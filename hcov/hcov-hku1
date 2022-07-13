@@ -2,7 +2,8 @@
 
 SAMPLE=$1
 ORGANISM=hcov-hku1
-REFNAME=NC_006577.2
+ASSEMBLY=GCA_000858765.1_ViralProj15139_genomic
+REFNAME=AY597011.2
 
 if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
     echo Starting ${SAMPLE} run
@@ -16,7 +17,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
         --sample ${SAMPLE} \
         --work-dir ${HOME} \
         --reference-dir ${HOME}/reference/${ORGANISM} \
-        --reference-assembly ${ORGANISM} \
+        --reference-assembly ${ASSEMBLY} \
         --reference-name ${REFNAME} \
         --pipeline-dir ${HOME}/pipeline/${SAMPLE} \
         --stats-dir ${HOME}/pipeline/${SAMPLE} \

@@ -2,6 +2,7 @@
 
 SAMPLE=$1
 ORGANISM=sars-cov-2
+ASSEMBLY=GCA_009858895.3_ASM985889v3_genomic
 REFNAME=MN908947.3
 
 # download the reference data
@@ -21,7 +22,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
         --sample ${SAMPLE} \
         --work-dir ${HOME} \
         --reference-dir ${HOME}/reference/${ORGANISM} \
-        --reference-assembly GCA_009858895.3_ASM985889v3_genomic \
+        --reference-assembly ${ASSEMBLY} \
         --reference-name ${REFNAME} \
         --pipeline-dir ${HOME}/pipeline/${SAMPLE} \
         --stats-dir ${HOME}/pipeline/${SAMPLE} \

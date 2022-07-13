@@ -487,6 +487,7 @@ def assignClade(script: TextIOWrapper, options: OptionsDict):
 
     # we only run this for sars-cov-2 right now
     if referenceName != "MN908947.3":
+        print("Reference " + referenceName + " was requested. Clade assignment is only possible for SARS-CoV-2 right now.")
         return
 
     script.write(
@@ -517,6 +518,8 @@ fi
 
 
 def runVariantPipeline(script: TextIOWrapper, options: OptionsDict):
+    referenceName = options["referenceName"]
+
     script.write("\n")
     script.write("#\n")
     script.write("# Running pipeline\n")
@@ -524,7 +527,11 @@ def runVariantPipeline(script: TextIOWrapper, options: OptionsDict):
 
     callVariants(script, options)
     producePileup(script, options)
-    annotate(script, options)
+
+    if referenceName != "MN908947.3":
+        annotate(script, options)
+    else:
+        print("Reference " + referenceName + " was requested. Variant annotation is not possible yet.")
 
     script.write("\n")
 
@@ -1454,14 +1461,21 @@ def defineArguments() -> Namespace:
         help="Base name of the reference assembly",
     )
 
+    help ="'Chromosome' name from reference assembly " + \
+        "(MN908947.3, sars-cov-2), " + \
+        "(AF304460.1, hcov-229e), " + \
+        "(AY597011.2, hcov-hku1), " + \
+        "(AY567487.2, hcov-nl63), " + \
+        "(AY585228.1, hcov-oc43)"
+
     parser.add_argument(
         "--reference-name",
         required=True,
         action="store",
         metavar="REFERENCE_NAME",
         dest="referenceName",
-        choices=["MN908947.3", "NC_002645.1", "NC_006577.2", "NC_005831.2", "NC_006213.1"],
-        help="'Chromosome' name from reference assembly (MN908947.3, sars-cov-2), (NC_002645.1, hcov-229e), (NC_006577.2, hcov-hku1), (NC_005831.2, hcov-nl63), (NC_006213.1, hcov-oc43)",
+        choices=["MN908947.3", "AF304460.1", "AY597011.2", "AY567487.2", "AY585228.1"],
+        help=help
     )
 
     parser.add_argument(
