@@ -24,7 +24,7 @@ bwa index GCF_000001405.40_GRCh38.p14_genomic.fna
 
 In this case some of the same files are constructed, but there are two new ones: `.sa` and `.bwt`.
 
-## hisat and minimap indexes (for virus data)
+### hisat and minimap indexes (for virus data)
 
 For virome analysis we have a number of alternate aligners. BWA has already been covered above, but we need to build index files for HISAT and MiniMap. This process, like the others for virus data, is extremely fast. If you blink you might miss it. These two processes generate files named `*.[1-8].ht2` and `*.mmi` to match the reference name
 
@@ -34,7 +34,7 @@ minimap2 -d reference.mmi reference.fasta
 ```
 
 
-## samtools indexes
+### samtools indexes
 
 ```bash
 samtools faidx GCF_000001405.40_GRCh38.p14_genomic.fna
@@ -42,7 +42,7 @@ samtools faidx GCF_000001405.40_GRCh38.p14_genomic.fna
 
 This command creates a single index file with a `.fai` extension.
 
-## The GATK sequence dictionary
+### The GATK sequence dictionary
 
 This index can be created by the pipeline, but if running many pipelines in parallel on the same EC2 you'll want to construct this ahead of time to avoid race conditions.
 
@@ -54,14 +54,14 @@ gatk CreateSequenceDictionary \
 
 The output filename is used directly by the pipeline tooling so it needs to follow the above convention directly.
 
-## The GATK interval list
+### The GATK interval list
 
 This file is built per-organism right now. For humans the build is based off the chromosome list that's stored in the associated JSON file. For other, simpler, organisms we're hard-coding the build step in the pipeline itself. For those organisms that have a single reference in their associated FASTA (the coronaviruses for example), the build looks something like this:
 
 ```bash
-    egrep '(NC_045512.2)\\s' {REFERENCE}/covid_reference.fasta.fai |
+    egrep '(MN908947.3)\\s' ${REFERENCE}/GCA_009858895.3_ASM985889v3_genomic.fna.fai |
         awk '{{print $1"\\t1\\t"$2"\\t+\\t"$1}}' |
-        cat {REFERENCE}/covid_reference.dict - >{REFERENCE}/ref_genome_autosomal.interval_list
+        cat ${REFERENCE}/GCA_009858895.3_ASM985889v3_genomic.dict - >${REFERENCE}/ref_genome_autosomal.interval_list
 ```
 
 But for the human FASTA which contain all of the individual chromosome references the process involves parsing the chromosome "names" from the JSON to build a larger regular expression.
@@ -81,3 +81,9 @@ Then, later inside the pipeline itself
         cat {REFERENCE}/{ASSEMBLY}.dict - >{REFERENCE}/{ASSEMBLY}_autosomal.interval_list
 ```
 
+## Additional reference data
+
+
+```bash
+nextclade dataset get --name='sars-cov-2' --output-dir=$HOME/reference/sars-cov-2/nextclade-data/sars-cov-2
+```
