@@ -80,8 +80,8 @@
 
 SARS-CoV-2
 
-- https://www.ncbi.nlm.nih.gov/nuccore/NC_045512.2
-- https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/009/858/895/GCA_009858895.3_ASM985889v3/
+- https://www.ncbi.nlm.nih.gov/nuccore/MN908947.3 (use the RefSeq files)
+- https://www.ncbi.nlm.nih.gov/assembly/GCF_009858895.2/
 
 ## Human
 
