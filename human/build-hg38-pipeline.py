@@ -142,7 +142,11 @@ def writeFragmentList(options: OptionsDict):
         fl.write("fragment\tr1\tr2\taligned\tunmarked\tsorted\n")
 
         for fragment in range(1, fragmentCount + 1):
-            fl.write("{FRAGMENT:03n}\t{SAMPLE}_R1.trimmed_{FRAGMENT:03n}.fastq.gz\t{SAMPLE}_R2.trimmed_{FRAGMENT:03n}.fastq.gz\t{SAMPLE}_001_{FRAGMENT:03n}.aligned.bam\t{SAMPLE}_001_{FRAGMENT:03n}.unmarked.bam\t{SAMPLE}_001_{FRAGMENT:03n}.sorted.bam\n".format(FRAGMENT=fragment, SAMPLE=sample))
+            fl.write(
+                "{FRAGMENT:03n}\t{SAMPLE}_R1.trimmed_{FRAGMENT:03n}.fastq.gz\t{SAMPLE}_R2.trimmed_{FRAGMENT:03n}.fastq.gz\t{SAMPLE}_001_{FRAGMENT:03n}.aligned.bam\t{SAMPLE}_001_{FRAGMENT:03n}.unmarked.bam\t{SAMPLE}_001_{FRAGMENT:03n}.sorted.bam\n".format(
+                    FRAGMENT=fragment, SAMPLE=sample
+                )
+            )
 
 
 def getFileNames(options: OptionsDict) -> FastqSet:
@@ -166,8 +170,8 @@ def getTrimmedFileNames(options: OptionsDict) -> FastqSet:
 
 
 def updateDictionary(script: TextIOWrapper, options: OptionsDict):
-    reference = options["reference"]
     bin = options["bin"]
+    reference = options["reference"]
     assembly = options["referenceAssembly"]
 
     script.write("#\n")
@@ -547,9 +551,10 @@ logthis "${{yellow}}Fragment alignment complete${{reset}}"
             SAMPLE=sample,
             THREADS=threads,
             PIPELINE=pipeline,
-            FRAGMENT_LIST = fragmentList
+            FRAGMENT_LIST=fragmentList,
         )
     )
+
 
 def sortParallelWithBiobambam(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
@@ -596,9 +601,10 @@ logthis "${{yellow}}Fragment sorting and marking duplicates completed${{reset}}"
             STATS=stats,
             BIN=bin,
             TEMP=temp,
-            FRAGMENT_LIST = fragmentList
+            FRAGMENT_LIST=fragmentList,
         )
     )
+
 
 def sortParallelWithSamtools(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
@@ -648,9 +654,10 @@ logthis "${{yellow}}Sorting and marking duplicates compeleted${{reset}}"
             STATS=stats,
             BIN=bin,
             TEMP=temp,
-            FRAGMENT_LIST = fragmentList
+            FRAGMENT_LIST=fragmentList,
         )
     )
+
 
 def sortFragments(script: TextIOWrapper, options: OptionsDict):
     sorter = options["sorter"]
@@ -659,7 +666,6 @@ def sortFragments(script: TextIOWrapper, options: OptionsDict):
         sortParallelWithBiobambam(script, options)
     else:
         sortParallelWithSamtools(script, options)
-
 
 
 def combine(script: TextIOWrapper, options: OptionsDict, output: str):
@@ -807,32 +813,9 @@ logthis "${{green}}BQSR calibration completed${{reset}}"
     )
 
 
-def indexBQSRBAM(script: TextIOWrapper, options: OptionsDict):
-    pipeline = options["pipeline"]
-    sample = options["sample"]
-
-    intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
-
-    script.write(
-        """
-logthis "${{yellow}}Re-indexing BQSR BAM${{reset}}"
-parallel --joblog {PIPELINE}/{SAMPLE}.index.log --header --colsep $'\\t' \\
-    'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}_bqsr.bam.bai ]]; then
-        samtools index {PIPELINE}/{SAMPLE}.{{root}}_bqsr.bam
-     fi' :::: {INTERVAL_LIST}
-logthis "${{green}}BQSR BAM re-indexing completed${{reset}}"
-""".format(
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-            INTERVAL_LIST=intervalList,
-        )
-    )
-
-
 def genBQSR(script: TextIOWrapper, options: OptionsDict):
     genBQSRTables(script, options)
     applyBQSRTables(script, options)
-    indexBQSRBAM(script, options)
 
 
 def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
@@ -840,11 +823,30 @@ def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
     intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
 
-    # HaplotypeCaller actually uses threads, so we limit the number of jobs,
-    # otherwise we're going to thrash the CPU and spend a bunch of time
-    # context switching and swapping
+    # haplotypecaller _can_ use threads, but doesn't do so in a really
+    # good way. after a bunch of experimentation we found that limiting
+    # it to a _single_ thread and running as many jobs as possible leads
+    # to a much better load average and overall runtime
+
+    # read limit 100,000,000
+    # interval size 50,000,000
+    # 1 hmm threads / 72 jobs
+    # [2022-07-12 18:31:50] Calling variants using GATK
+    # [2022-07-12 19:06:45] GATK variant calling completed
+    # 2 hmm threads / 36 jobs
+    # [2022-07-12 16:59:59] Calling variants using GATK
+    # [2022-07-12 17:45:17] GATK variant calling completed
+    # 4 hmm threads / 18 jobs
+    # [2022-07-12 02:29:11] Calling variants using GATK
+    # [2022-07-12 03:36:31] GATK variant calling completed
+    # 6 hmm threads / 12 jobs
+    # [2022-07-12 15:31:14] Calling variants using GATK
+    # [2022-07-12 16:57:06] GATK variant calling completed
+    # 8 hmm threads / 9 jobs
+    # [2022-07-11 23:04:40] Calling variants using GATK
+    # [2022-07-12 00:56:43] GATK variant calling completed
     cores = options["cores"]
-    hmmThreads = 6
+    hmmThreads = 1
     jobs = int(cores / hmmThreads)
 
     reference = options["reference"]
@@ -1057,6 +1059,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fasta ]]; then
         {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
         --sample {SAMPLE} \\
     | sed '/>/ s/$/ | {SAMPLE}/' >{PIPELINE}/{SAMPLE}.consensus.fasta
+
+    logthis "${{yellow}}Consensus completed${{reset}}"
 else
     logthis "Consensus fasta already generated for {PIPELINE}/{SAMPLE}.consensus.fasta, ${{green}}already completed${{reset}}"
 fi
@@ -1064,8 +1068,6 @@ fi
             REFERENCE=reference, ASSEMBLY=assembly, PIPELINE=pipeline, SAMPLE=sample
         )
     )
-
-    pass
 
 
 def gather(script: TextIOWrapper, options: OptionsDict):
@@ -1188,7 +1190,7 @@ def doVariantQC(script: TextIOWrapper, options: OptionsDict):
     return checks
 
 
-def startAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
+def doAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     pipeline = options["pipeline"]
@@ -1343,7 +1345,7 @@ def doQualityControl(script: TextIOWrapper, options: OptionsDict, sorted: str):
         STATS=stats,
     )
 
-    alignment_checks = startAlignmentQC(script, options, sorted)
+    alignment_checks = doAlignmentQC(script, options, sorted)
     variant_checks = doVariantQC(script, options)
 
     cmd = ""
@@ -1475,8 +1477,7 @@ red=$(echo -n "")
 green=$(echo -n "")
 yellow=$(echo -n "")
 reset=$(echo -n "")
-"""
-        )
+""")
     else:
         script.write(
             """
@@ -1485,8 +1486,7 @@ red=$(tput setaf 1)
 green=$(tput setaf 2)
 yellow=$(tput setaf 3)
 reset=$(tput sgr0)
-"""
-        )
+""")
 
     script.write(
         """
@@ -1577,7 +1577,6 @@ def defineArguments() -> Namespace:
         "--skip-annotation",
         action="store_true",
         dest="skipAnnotation",
-        type=bool,
         default=False,
         help="Skip all VCF annotation processes",
     )
@@ -1941,7 +1940,9 @@ def main():
                 script,
                 options,
                 "{WORKING}/vep_data".format(WORKING=options["working"]),
-                "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
+                "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(
+                    PIPELINE=options["pipeline"], SAMPLE=options["sample"]
+                ),
                 "{PIPELINE}/{SAMPLE}.annotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
                 "{SAMPLE}.annotated.vcf_summary.html".format(SAMPLE=options["sample"]),
             )
