@@ -460,7 +460,7 @@ fi
 if [[ ! -f {PIPELINE}/{SAMPLE}.annotated.vcf.gz ]]; then
     logthis "Starting snpeff annotation"
 
-    java -jar ~/bin/snpEff/snpEff.jar ann \\
+    java -jar {BIN}/snpEff/snpEff.jar ann \\
         -htmlStats {PIPELINE}/{SAMPLE}.snpeff.html \\
         -noLog \\
         -verbose \\
@@ -1088,7 +1088,7 @@ if [[ ! -f {O1} || ! -f {O2} ]]; then
     logthis "${{yellow}}Running trimmomatic preprocessor${{reset}}"
 
     LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-        java -jar ~/bin/trimmomatic-0.39.jar PE \\
+        java -jar {BIN}/trimmomatic-0.39.jar PE \\
             {R1} \\
             {R2} \\
             {O1} /dev/null \\
