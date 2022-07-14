@@ -435,6 +435,11 @@ def annotate(script: TextIOWrapper, options: OptionsDict):
 
     referenceName = options["referenceName"]
 
+    # we only run this for sars-cov-2 right now
+    if options["__canAnnotateVariants"] == False:
+        print("Reference " + referenceName + " was requested. Variant annotation is only possible for SARS-CoV-2 right now.")
+        return
+
     script.write(
         """
 # annotate
@@ -486,7 +491,7 @@ def assignClade(script: TextIOWrapper, options: OptionsDict):
     referenceName = options["referenceName"]
 
     # we only run this for sars-cov-2 right now
-    if referenceName != "MN908947.3":
+    if options["__canAssignClades"] == False:
         print("Reference " + referenceName + " was requested. Clade assignment is only possible for SARS-CoV-2 right now.")
         return
 
@@ -527,11 +532,7 @@ def runVariantPipeline(script: TextIOWrapper, options: OptionsDict):
 
     callVariants(script, options)
     producePileup(script, options)
-
-    if referenceName != "MN908947.3":
-        annotate(script, options)
-    else:
-        print("Reference " + referenceName + " was requested. Variant annotation is not possible yet.")
+    annotate(script, options)
 
     script.write("\n")
 
@@ -958,6 +959,11 @@ def verifyOptions(options: OptionsDict):
         print("Unable to find your --stats-dir directory at {PATH}".format(PATH=options["stats"]))
         quit(1)
 
+    ## this is a bit of a hack, but necessary since the tools and databases
+    ## to do clade assignment and variant annotation don't exist right now
+    referenceName = options["referenceName"]
+    options["__canAssignClades"] = referenceName == "MN908947.3"
+    options["__canAnnotateVariants"] = referenceName == "MN908947.3"
 
 def getFileNames(options: OptionsDict) -> FastqSet:
     sample = options["sample"]

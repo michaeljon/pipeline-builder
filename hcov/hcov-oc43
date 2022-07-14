@@ -13,6 +13,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
 
     # build the pipeline
     python ${HOME}/pipeline-builder/hcov/hcov-runner.py \
+        --no-color \
         --cores 72 \
         --sample ${SAMPLE} \
         --work-dir ${HOME} \
