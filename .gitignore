@@ -12,8 +12,10 @@ make-variants
 *.dSYM/
 *.vcf
 
-split/fastqrand
-split/fastqsplit
+zymo/
+
+tools/split/fastqrand
+tools/split/fastqsplit
 
 tools/fq/bin
 tools/fq/obj
