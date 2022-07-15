@@ -1,0 +1,68 @@
+#!/usr/bin/env  bash
+
+export AWS_ACCESS_KEY_ID="ASIAV2DZLAL6B4IGTJ45"
+export AWS_SECRET_ACCESS_KEY="eeqlXqta5lc4aFn96E0xYMfe889D+/K6rzTJB+lE"
+export AWS_SESSION_TOKEN="IQoJb3JpZ2luX2VjEG8aCXVzLWVhc3QtMSJHMEUCIQDhSmYx3D1JubAAi0opjw/h6Ndfy+7rsRh4rXsTnXQnYAIgU1WiYeFcEEapI+aM1XpH4mQZXKJrHn8jcka6RpzucysqjQMIp///////////ARABGgwzOTk2ODY0MzU1ODAiDBfKMimTOTGEJKeM4SrhAp8438JRzQeFEPDkPDvug94orGJYoQ8nPYwF9+8JBqDwT2wz53wx51AxcxcKFGVrpGorhLM7QDWGRNrwKxC9K08ja2YlfJuzSeknwdRFOrt81z4ldJb1nuZIPhs2PGaKcMNpIZ0B9nX+aEWq9ujoWMQucmi0uidcV4Doxy7uv1DM8oPs5vHdwVf2OWtCVXOPFufjx/2cz04bTeS+OW3VfiASoKfnthQ34H64m/IuIjUv/7PYrsp/R7So58pgfJcOj8QOqcrz5aJOc1/tA5iNT4bXki/lLOOdOXB9pZsuSvdyPn/Cpc28Vv7PnXkJGIMS3KUVgJ+7+xCCJeAguwD36yMBpDCi8YDyfV8oyN4bSNWU+Nr7AnsJqd2GIPUsOou1EGvAfpBKZWfaS4cyMVq02AF/FUFmgnl1rl/9uatYcExCC8MYUF72tMgEinf5boQnyKvVFhCOvfbCTBf1wOdcsr09MMvoxZYGOqYBqCRRhAMQ1fnP215qzeUlI6FAU4Kwk8qPodWlQs1LnVrP4rDE5npN7ehzcm7gbjOLxOrMAPQrVgGpVqOATeHynqsfRNXfIJ9cC8A4nGObKH8OWGoQuGtx2M0uEftnFIj1EOWZ24twiRBRKZdG0mKQvuEhnbYicKmTMkFbyf1dUR6G4E24mA3PRPx6ghXClveAq7hGkfqTf6Wt5+2xfYFD6omh6OeSgg=="
+
+cd ~/pipeline
+
+# if [[ ! -f zr5654_4_S1.sorted.bam ]]; then
+#     aws s3 cp s3://ll-pipeline-results/zr5654_4_S1/91b78b1c-5f5f-4667-a3f4-5ad9993ed140/zr5654_4_S1.sorted.bam .
+#     aws s3 cp s3://ll-pipeline-results/zr5654_4_S1/91b78b1c-5f5f-4667-a3f4-5ad9993ed140/zr5654_4_S1.sorted.bam.bai .
+# fi
+
+# if [[ ! -f zr5654_5_S2.sorted.bam ]]; then
+#     aws s3 cp s3://ll-pipeline-results/zr5654_5_S2/710562bb-9095-4b63-a18a-9e81cc97f246/zr5654_5_S2.sorted.bam .
+#     aws s3 cp s3://ll-pipeline-results/zr5654_5_S2/710562bb-9095-4b63-a18a-9e81cc97f246/zr5654_5_S2.sorted.bam.bai .
+# fi
+
+# if [[ ! -f zr5654_7_S3.sorted.bam ]]; then
+#     aws s3 cp s3://ll-pipeline-results/zr5654_7_S3/a425dd14-19c0-4c7e-bc09-4476d7e58dc4/zr5654_7_S3.sorted.bam .
+#     aws s3 cp s3://ll-pipeline-results/zr5654_7_S3/a425dd14-19c0-4c7e-bc09-4476d7e58dc4/zr5654_7_S3.sorted.bam.bai .
+# fi
+
+# if [[ ! -f zr5654_8_S4.sorted.bam ]]; then
+#     aws s3 cp s3://ll-pipeline-results/zr5654_8_S4/81112e1d-e78a-405a-baa3-535d378a2100/zr5654_8_S4.sorted.bam .
+#     aws s3 cp s3://ll-pipeline-results/zr5654_8_S4/81112e1d-e78a-405a-baa3-535d378a2100/zr5654_8_S4.sorted.bam.bai .
+# fi
+
+# if [[ ! -f zr5654_9_S5.sorted.bam ]]; then
+#     aws s3 cp s3://ll-pipeline-results/zr5654_9_S5/309542d7-f1bd-47ce-8a66-3bcaf539b06b/zr5654_9_S5.sorted.bam .
+#     aws s3 cp s3://ll-pipeline-results/zr5654_9_S5/309542d7-f1bd-47ce-8a66-3bcaf539b06b/zr5654_9_S5.sorted.bam.bai .
+# fi
+
+if [[ ! -f zr5654_10_S6.sorted.bam ]]; then
+    aws s3 cp s3://ll-pipeline-results/zr5654_10_S6/d272c02f-eb3e-4bd6-9502-004c432e80da/zr5654_10_S6.sorted.bam .
+    aws s3 cp s3://ll-pipeline-results/zr5654_10_S6/d272c02f-eb3e-4bd6-9502-004c432e80da/zr5654_10_S6.sorted.bam.bai .
+fi
+
+if [[ ! -f zr5654_12_S8.sorted.bam ]]; then
+    aws s3 cp s3://ll-pipeline-results/zr5654_12_S8/cc76b3e6-c3ff-4d90-8fcc-5d64efb374a7/zr5654_12_S8.sorted.bam .
+    aws s3 cp s3://ll-pipeline-results/zr5654_12_S8/cc76b3e6-c3ff-4d90-8fcc-5d64efb374a7/zr5654_12_S8.sorted.bam.bai .
+fi
+
+if [[ ! -f zr5654_18_S10.sorted.bam ]]; then
+    aws s3 cp s3://ll-pipeline-results/zr5654_18_S10/34aef048-00cd-4dc7-9f1f-4139e4cbb4b7/zr5654_18_S10.sorted.bam .
+    aws s3 cp s3://ll-pipeline-results/zr5654_18_S10/34aef048-00cd-4dc7-9f1f-4139e4cbb4b7/zr5654_18_S10.sorted.bam.bai .
+fi
+
+if [[ ! -f zr5654_20_S11.sorted.bam ]]; then
+    aws s3 cp s3://ll-pipeline-results/zr5654_20_S11/1b603d47-f01d-4e48-a6b2-94eea952f1bd/zr5654_20_S11.sorted.bam .
+    aws s3 cp s3://ll-pipeline-results/zr5654_20_S11/1b603d47-f01d-4e48-a6b2-94eea952f1bd/zr5654_20_S11.sorted.bam.bai .
+fi
+
+if [[ ! -f zr5654_22_S13.sorted.bam ]]; then
+    aws s3 cp s3://ll-pipeline-results/zr5654_22_S13/aee4e03a-9091-487a-8f29-cfa1465c6add/zr5654_22_S13.sorted.bam .
+    aws s3 cp s3://ll-pipeline-results/zr5654_22_S13/aee4e03a-9091-487a-8f29-cfa1465c6add/zr5654_22_S13.sorted.bam.bai .
+fi
+
+rm -f *MTRR* *MTR* *MMADHC* *MTHFR* *CBS*
+
+for SAMPLE in zr5654_4_S1 zr5654_5_S2 zr5654_7_S3 zr5654_8_S4 zr5654_9_S5 zr5654_10_S6 zr5654_12_S8 zr5654_18_S10 zr5654_20_S11 zr5654_22_S13; do
+    if [[ -f ${SAMPLE}.sorted.bam ]]; then
+        parallel ~/fastq/extract ::: ${SAMPLE} ::: CBS MTHFR MTR MTRR MMADHC
+        mkdir -p ${SAMPLE}
+        mv ${SAMPLE}_*.csv ${SAMPLE}_*.png ${SAMPLE}
+        tar cfz ${SAMPLE}.tgz ${SAMPLE}
+    fi
+done
