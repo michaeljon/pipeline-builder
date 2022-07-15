@@ -33,6 +33,8 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
     cp ${HOME}/pipeline-builder/assets/software_versions_mqc.html ${HOME}/stats/${SAMPLE}
     cp ${HOME}/pipeline-builder/assets/ovationlogo.png ${HOME}/stats/${SAMPLE}
 
+exit
+
     # run the pipeline
     bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner >${HOME}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
 

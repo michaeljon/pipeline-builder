@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 
 # format the drives
-mkfs.ext4 -E nodiscard /dev/nvme1n1
-mkfs.ext4 -E nodiscard /dev/nvme2n1
+mkfs.ext4 -E discard -m 1 /dev/nvme1n1
+tune2fs -O ^has_journal /dev/nvme1n1
+
+mkfs.ext4 -E discard -m 1 /dev/nvme2n1
+tune2fs -O ^has_journal /dev/nvme2n1
 
 # make our working directory and mount point
 mkdir -p /pipeline
