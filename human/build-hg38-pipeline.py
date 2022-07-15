@@ -343,7 +343,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
         {REFERENCE}/{ASSEMBLY}.fna \\
         {O1} \\
         {O2} | 
-    samtools view -Sb - >{PIPELINE}/{SAMPLE}.aligned.bam
+    samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.aligned.bam
 
     logthis "${{yellow}}Alignment completed${{reset}}"
 else
@@ -541,7 +541,7 @@ parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.alignment.log --header --colsep 
             {REFERENCE}/{ASSEMBLY}.fna \\
             {PIPELINE}/{{r1}} \\
             {PIPELINE}/{{r2}} | \\
-        samtools view -Sb - >{PIPELINE}/{{aligned}}
+        samtools view -Sb -@ 4 - >{PIPELINE}/{{aligned}}
     fi' :::: {FRAGMENT_LIST}
 logthis "${{yellow}}Fragment alignment complete${{reset}}"
 """.format(

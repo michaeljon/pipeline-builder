@@ -1166,7 +1166,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
         {REFERENCE}/{ASSEMBLY}.fna \\
         {O1} \\
         {O2} | 
-    samtools view -Sb - >{PIPELINE}/{SAMPLE}.aligned.bam
+    samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.aligned.bam
 
     logthis "${{yellow}}Alignment completed${{reset}}"
 else
@@ -1219,7 +1219,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
             --no-spliced-alignment \\
             --no-unal \\
             --threads {THREADS} | 
-    samtools view -Sb - >{PIPELINE}/{SAMPLE}.aligned.bam
+    samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.aligned.bam
 
     logthis "${{yellow}}Alignment completed${{reset}}"
 else
