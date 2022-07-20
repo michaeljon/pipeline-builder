@@ -1177,7 +1177,7 @@ def doVariantQC(script: TextIOWrapper, options: OptionsDict):
     )
 
     checks.append(
-        """'if [[ ! -d {STATS}/{SAMPLE}_bcfstats ]]; then bcftools stats --fasta-ref {REFERENCE}/{ASSEMBLY}.fna {PIPELINE}/{SAMPLE}.unannotated.vcf.gz > {STATS}/{SAMPLE}.chk; fi' \\\n""".format(
+        """'if [[ ! -d {STATS}/{SAMPLE}_bcfstats.stats.txt ]]; then bcftools stats --fasta-ref {REFERENCE}/{ASSEMBLY}.fna {PIPELINE}/{SAMPLE}.unannotated.vcf.gz > {STATS}/{SAMPLE}_bcfstats.stats.txt; fi' \\\n""".format(
             REFERENCE=reference,
             ASSEMBLY=assembly,
             KNOWN_SITES=knownSites,
@@ -1248,7 +1248,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
     )
 
     checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then samtools stats -@ 8 -r {REFERENCE}/{ASSEMBLY}.fna {SORTED} >{STATS}/{SAMPLE}.samstats; fi' \\\n""".format(
+        """'if [[ ! -f {STATS}/{SAMPLE}.stats.txt ]]; then samtools stats -@ 8 -r {REFERENCE}/{ASSEMBLY}.fna {SORTED} >{STATS}/{SAMPLE}.stats.txt; fi' \\\n""".format(
             REFERENCE=reference,
             ASSEMBLY=assembly,
             SAMPLE=sample,
@@ -1258,7 +1258,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
     )
 
     checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.samidx ]]; then samtools idxstats -@ 8 {SORTED} >{STATS}/{SAMPLE}.samidx; fi' \\\n""".format(
+        """'if [[ ! -f {STATS}/{SAMPLE}.idxstats.txt ]]; then samtools idxstats -@ 8 {SORTED} >{STATS}/{SAMPLE}.idxstats.txt; fi' \\\n""".format(
             SAMPLE=sample,
             STATS=stats,
             SORTED=sorted,
@@ -1334,13 +1334,13 @@ def doQualityControl(script: TextIOWrapper, options: OptionsDict, sorted: str):
     sample = options["sample"]
     stats = options["stats"]
 
-    plot_vcfstats = """plot-vcfstats --prefix {STATS}/{SAMPLE}_bcfstats {STATS}/{SAMPLE}.chk""".format(
+    plot_vcfstats = """plot-vcfstats --prefix {STATS}/{SAMPLE}_bcfstats {STATS}/{SAMPLE}_bcfstats.stats.txt""".format(
         SAMPLE=sample,
         STATS=stats,
     )
 
     # this doesn't have a test, it's fast enough that we can afford to run it
-    plot_bamstats = """plot-bamstats --prefix {STATS}/{SAMPLE}_samstats/ {STATS}/{SAMPLE}.samstats""".format(
+    plot_bamstats = """plot-bamstats --prefix {STATS}/{SAMPLE}_samstats/ {STATS}/{SAMPLE}.stats.txt""".format(
         SAMPLE=sample,
         STATS=stats,
     )
