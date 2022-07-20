@@ -6,6 +6,7 @@ import argparse
 import math
 
 from argparse import Namespace
+from optparse import Option
 from typing import Dict, Tuple, Sequence, List, Any
 from datetime import datetime
 from math import ceil
@@ -49,7 +50,8 @@ def computeIntervals(options: OptionsDict):
 
     rulesFile = options["chromosomeSizes"]
     segmentSize = options["segmentSize"]
-    lastBlockMax = math.floor(options["segmentSize"] * options["factor"])
+    factor = options["factor"]
+    lastBlockMax = math.floor(segmentSize * factor)
 
     with open(rulesFile, "r") as file:
         rules = json.load(file)
@@ -125,13 +127,35 @@ def writeIntervalList(options: OptionsDict):
             il.write("{INTERVAL}\t{ROOT}\n".format(INTERVAL=interval[0], ROOT=interval[1]))
 
 
+def writeFragmentList(options: OptionsDict):
+    fragmentCount = int(options["fragmentCount"])
+
+    if fragmentCount == 1:
+        return
+
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
+    fragmentList = "{PIPELINE}/{SAMPLE}.fragments.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
+    with open(fragmentList, "w") as fl:
+        fl.truncate()
+        fl.write("fragment\tr1\tr2\taligned\tunmarked\tsorted\n")
+
+        for fragment in range(1, fragmentCount + 1):
+            fl.write(
+                "{FRAGMENT:03n}\t{SAMPLE}_R1.trimmed_{FRAGMENT:03n}.fastq.gz\t{SAMPLE}_R2.trimmed_{FRAGMENT:03n}.fastq.gz\t{SAMPLE}_001_{FRAGMENT:03n}.aligned.bam\t{SAMPLE}_001_{FRAGMENT:03n}.unmarked.bam\t{SAMPLE}_001_{FRAGMENT:03n}.sorted.bam\n".format(
+                    FRAGMENT=fragment, SAMPLE=sample
+                )
+            )
+
+
 def getFileNames(options: OptionsDict) -> FastqSet:
     sample = options["sample"]
     fastq_dir = options["fastq_dir"]
 
     return (
-        "{FASTQ_DIR}/{SAMPLE}_R1.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
-        "{FASTQ_DIR}/{SAMPLE}_R2.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        "{FASTQ_DIR}/{SAMPLE}_R1_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        "{FASTQ_DIR}/{SAMPLE}_R2_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
     )
 
 
@@ -146,8 +170,8 @@ def getTrimmedFileNames(options: OptionsDict) -> FastqSet:
 
 
 def updateDictionary(script: TextIOWrapper, options: OptionsDict):
-    reference = options["reference"]
     bin = options["bin"]
+    reference = options["reference"]
     assembly = options["referenceAssembly"]
 
     script.write("#\n")
@@ -163,6 +187,8 @@ if [[ ! -f {REFERENCE}/{ASSEMBLY}.dict ]]; then
     logthis "${{yellow}}Creating sequence dictionary${{reset}}"
 
     java -jar {BIN}/picard.jar CreateSequenceDictionary -R {REFERENCE}/{ASSEMBLY}.fna -O {REFERENCE}/{ASSEMBLY}.dict
+
+    logthis "Sequence dictionary completed"
 else
     logthis "Reference dictionary {REFERENCE}/{ASSEMBLY}.dict ${{green}}already completed${{reset}}"
 fi
@@ -172,7 +198,7 @@ if [[ ! -f {REFERENCE}/{ASSEMBLY}_autosomal.interval_list ]]; then
     # processing a partial set of chromosomes. in the typical case this would
     # be a WGS collection.
 
-    logthis "Building {REFERENCE}/{ASSEMBLY}.interval_list"
+    logthis "${{yellow}}Building {REFERENCE}/{ASSEMBLY}.interval_list${{reset}}"
 
     egrep '^({REGEX})\\s' {REFERENCE}/{ASSEMBLY}.fna.fai |
         awk '{{print $1"\\t1\\t"$2"\\t+\\t"$1}}' |
@@ -200,8 +226,10 @@ if [[ ! -f {O1} || ! -f {O2} ]]; then
 
     ln -s {R1} {O1}
     ln -s {R2} {O2}
+
+    logthis "${{yellow}}Identity preprocessor completed${{reset}}"
 else
-    echo "Preprocessor already run, ${{green}}skipping${{reset}}"
+    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
 """.format(
             R1=r1,
@@ -226,7 +254,7 @@ def runFastpPreprocessor(
     threads = options["cores"]
     stats = options["stats"]
     bin = options["bin"]
-    readLimit = int(options["read-limit"])
+    readLimit = options["read-limit"]
 
     script.write(
         """
@@ -234,7 +262,7 @@ def runFastpPreprocessor(
 # run the fastp preprocessor
 #
 if [[ ! -f {O1} || ! -f {O2} ]]; then
-    logthis "${{yellow}}Running fastp preprocessor${{reset}}"
+    logthis "${{yellow}}Running FASTP preprocessor${{reset}}"
 
     LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
     fastp \\
@@ -245,11 +273,13 @@ if [[ ! -f {O1} || ! -f {O2} ]]; then
         --out2 {O2} \\
         --detect_adapter_for_pe \\
         --verbose {LIMITREADS} \\
-        --thread 8 \\
+        --thread 16 \\
         -j {STATS}/{SAMPLE}-fastp.json \\
         -h {STATS}/{SAMPLE}-fastp.html
+
+    logthis "${{yellow}}FASTP preprocessor completed${{reset}}"
 else
-    echo "Preprocessor already run, ${{green}}skipping${{reset}}"
+    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
 """.format(
             R1=r1,
@@ -297,7 +327,6 @@ def runBwaAligner(
     sample = options["sample"]
     pipeline = options["pipeline"]
     threads = options["cores"]
-    nonRepeatable = options["non-repeatable"]
 
     script.write(
         """
@@ -308,15 +337,17 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
     logthis "${{yellow}}Running aligner${{reset}}"
 
     bwa-mem2 mem -t {THREADS} \\
-        -Y -M {DASHK} \\
+        -Y -M \\
         -v 1 \\
         -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
         {REFERENCE}/{ASSEMBLY}.fna \\
         {O1} \\
         {O2} | 
-    samtools view -Sb - >{PIPELINE}/{SAMPLE}.aligned.bam
+    samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.aligned.bam
+
+    logthis "${{yellow}}Alignment completed${{reset}}"
 else
-    echo "{PIPELINE}/{SAMPLE}.aligned.bam, aligned temp file found, ${{green}}skipping${{reset}}"
+    logthis "{PIPELINE}/{SAMPLE}.aligned.bam, aligned temp file found, ${{green}}skipping${{reset}}"
 fi
 
 """.format(
@@ -327,7 +358,6 @@ fi
             SAMPLE=sample,
             THREADS=threads,
             PIPELINE=pipeline,
-            DASHK="" if nonRepeatable == True else "-K " + str((10_000_000 * int(threads))),
         )
     )
 
@@ -376,8 +406,10 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
 
     # force the index to look "newer" than its source
     touch {SORTED}.bai
+
+    logthis "${{yellow}}Sorting and marking duplicates completed${{reset}}"
 else
-    echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
+    logthis "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
 fi
     """.format(
             SAMPLE=sample,
@@ -390,13 +422,12 @@ fi
         )
     )
 
-    pass
-
 
 def sortWithSamtools(script: TextIOWrapper, options: OptionsDict, output: str):
     sample = options["sample"]
     pipeline = options["pipeline"]
     reference = options["reference"]
+    assembly = options["referenceAssembly"]
     threads = options["cores"]
     stats = options["stats"]
     bin = options["bin"]
@@ -413,8 +444,10 @@ if [[ ! -f {UNMARKED} ]]; then
     logthis "${{yellow}}Sorting aligned file${{reset}}"
 
     samtools sort {PIPELINE}/{SAMPLE}.aligned.bam -o {UNMARKED}
+
+    logthis "${{yellow}}Sorting aligned file completed${{reset}}"
 else
-    echo "{UNMARKED}, index, and metrics found, ${{green}}skipping${{reset}}"
+    logthis "{UNMARKED}, index, and metrics found, ${{green}}skipping${{reset}}"
 fi
 
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
@@ -422,18 +455,21 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
 
     java -Xmx8g -jar {BIN}/picard.jar MarkDuplicates \\
         --TAGGING_POLICY All \\
-        --REFERENCE_SEQUENCE {REFERENCE}/hcov-oc43.fasta \\
+        --REFERENCE_SEQUENCE {REFERENCE}/{ASSEMBLY}.fna \\
         -I {UNMARKED} \\
         -O {SORTED} \\
         -M {STATS}/{SAMPLE}_marked_dup_metrics.txt    
 
     # generate an index on the result
     samtools index -b {SORTED} {SORTED}.bai
+
+    logthis "${{yellow}}Marking duplicates completed${{reset}}"
 else
-    echo "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
+    logthis "{SORTED}, index, and metrics found, ${{green}}skipping${{reset}}"
 fi
     """.format(
             REFERENCE=reference,
+            ASSEMBLY=assembly,
             SAMPLE=sample,
             THREADS=threads,
             UNMARKED=unmarked,
@@ -455,6 +491,188 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output
         sortWithSamtools(script, options, output)
 
 
+def fragment(script: TextIOWrapper, r1: str, r2: str, options: OptionsDict):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    fragmentCount = options["fragmentCount"]
+
+    script.write(
+        """
+logthis "${{yellow}}Fragmenting trimmed FASTQ${{reset}}"
+
+Ovation.Pipeline.FastqProcessor split \\
+    --format FastqGz \\
+    --splits {FRAGMENTS} \\
+    --output {PIPELINE} \\
+    --in1 {R1} \\
+    --in2 {R2}
+
+logthis "${{yellow}}Fragmenting trimmed FASTQ completed${{reset}}"
+""".format(
+            PIPELINE=pipeline, R1=r1, R2=r2, SAMPLE=sample, FRAGMENTS=fragmentCount
+        )
+    )
+
+
+def alignFragments(script: TextIOWrapper, options: OptionsDict):
+    reference = options["reference"]
+    assembly = options["referenceAssembly"]
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+
+    cores = options["cores"]
+    threads = 4
+    jobs = int(cores / threads)
+
+    fragmentList = "{PIPELINE}/{SAMPLE}.fragments.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
+
+    script.write(
+        """
+#
+# align the input files
+#
+logthis "${{yellow}}Running aligners${{reset}}"
+parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.alignment.log --header --colsep $'\\t' \\
+    'if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
+        bwa-mem2 mem -t {THREADS} \\
+            -Y -M \\
+            -v 1 \\
+            -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+            {REFERENCE}/{ASSEMBLY}.fna \\
+            {PIPELINE}/{{r1}} \\
+            {PIPELINE}/{{r2}} | \\
+        samtools view -Sb -@ 4 - >{PIPELINE}/{{aligned}}
+    fi' :::: {FRAGMENT_LIST}
+logthis "${{yellow}}Fragment alignment complete${{reset}}"
+""".format(
+            JOBS=jobs,
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            FRAGMENT_LIST=fragmentList,
+        )
+    )
+
+
+def sortParallelWithBiobambam(script: TextIOWrapper, options: OptionsDict):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    threads = options["cores"]
+    stats = options["stats"]
+    bin = options["bin"]
+    temp = options["temp"]
+
+    cores = options["cores"]
+    threads = 4
+    jobs = int(cores / threads)
+
+    fragmentList = "{PIPELINE}/{SAMPLE}.fragments.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
+
+    script.write(
+        """
+#
+# sort and mark duplicates
+#
+logthis "${{yellow}}Fragment sorting and marking duplicates${{reset}}"
+parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.sort.log --header --colsep $'\\t' \\
+    'if [[ ! -f {{sorted}} ]]; then
+        bamsormadup \\
+            SO=coordinate \\
+            threads={THREADS} \\
+            level=6 \\
+            tmpfile={TEMP}/{SAMPLE} \\
+            inputformat=bam \\
+            indexfilename={{sorted}}.bai \\
+            M={STATS}/{SAMPLE}_{{fragment}}.duplication_metrics <{PIPELINE}/{{aligned}} >{PIPELINE}/{{sorted}}
+    fi' :::: {FRAGMENT_LIST}
+
+# force the index to look "newer" than its source
+parallel --header --colsep $'\\t' \\
+    touch {{sorted}}.bai
+
+logthis "${{yellow}}Fragment sorting and marking duplicates completed${{reset}}"
+""".format(
+            JOBS=jobs,
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            STATS=stats,
+            BIN=bin,
+            TEMP=temp,
+            FRAGMENT_LIST=fragmentList,
+        )
+    )
+
+
+def sortParallelWithSamtools(script: TextIOWrapper, options: OptionsDict):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    reference = options["reference"]
+    assembly = options["referenceAssembly"]
+    threads = options["cores"]
+    stats = options["stats"]
+    bin = options["bin"]
+    temp = options["temp"]
+
+    fragmentList = "{PIPELINE}/{SAMPLE}.fragments.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
+
+    script.write(
+        """
+#
+# sort and mark duplicates
+#
+logthis "${{yellow}}Sorting aligned file${{reset}}"
+parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.sort.log --header --colsep $'\\t' \\
+    'if [[ ! -f {PIPELINE}/{{unmarked}} ]]; then
+        samtools sort {PIPELINE}/{{aligned}} -o {PIPELINE}/{{unmarked}}
+     fi' :::: {FRAGMENT_LIST}
+
+logthis "${{yellow}}Marking duplicates${{reset}}"
+parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.mark.log --header --colsep $'\\t' \\
+    'if [[ ! -f {PIPELINE}/{{sorted}} ]]; then
+        java -Xmx8g -jar {BIN}/picard.jar MarkDuplicates \\
+            --TAGGING_POLICY All \\
+            --REFERENCE_SEQUENCE {REFERENCE}/{ASSEMBLY}.fna \\
+            -I {PIPELINE}/{{unmarked}} \\
+            -O {PIPELINE}/{{sorted}} \\
+            -M {STATS}/{SAMPLE}_{{fragment}}_marked_dup_metrics.txt    
+     fi' :::: {FRAGMENT_LIST}
+
+# generate an index on the result
+parallel --header --colsep $'\\t' \\
+    samtools index -b {PIPELINE}/{{sorted}} {PIPELINE}/{{sorted}}.bai
+
+logthis "${{yellow}}Sorting and marking duplicates compeleted${{reset}}"
+    """.format(
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            STATS=stats,
+            BIN=bin,
+            TEMP=temp,
+            FRAGMENT_LIST=fragmentList,
+        )
+    )
+
+
+def sortFragments(script: TextIOWrapper, options: OptionsDict):
+    sorter = options["sorter"]
+
+    if sorter == "biobambam":
+        sortParallelWithBiobambam(script, options)
+    else:
+        sortParallelWithSamtools(script, options)
+
+
+def combine(script: TextIOWrapper, options: OptionsDict, output: str):
+    # samtools merge -f -o {OUTPUT} -c -p <*.bam>
+    pass
+
+
 def extractUmappedReads(script: TextIOWrapper, options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
@@ -465,7 +683,7 @@ def extractUmappedReads(script: TextIOWrapper, options: OptionsDict):
 # extract unmapped reads
 #
 if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped_R1.fastq || ! -f {PIPELINE}/{SAMPLE}_unmapped_R2.fastq ]]; then
-    logthis "${{yellow}}Extracting unmapped reads into initial FASTQ${{reset}}"
+    logthis "${{yellow}}Extracting unmapped reads${{reset}}"
 
     samtools fastq -N -f 4 \\
         -0 {PIPELINE}/{SAMPLE}_unmapped_other.fastq \\
@@ -473,8 +691,10 @@ if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped_R1.fastq || ! -f {PIPELINE}/{SAMPLE}_unm
         -1 {PIPELINE}/{SAMPLE}_unmapped_R1.fastq \\
         -2 {PIPELINE}/{SAMPLE}_unmapped_R2.fastq \\
         {PIPELINE}/{SAMPLE}.aligned.bam
+
+    logthis "${{yellow}}Unmapped read extraction completed${{reset}}"
 else
-    echo "Unmapped reads extracted to initial FASTQ, ${{green}}skipping${{reset}}"
+    logthis "Unmapped reads extracted to initial FASTQ, ${{green}}skipping${{reset}}"
 fi
     """.format(
             SAMPLE=sample,
@@ -488,15 +708,22 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
     filenames = getFileNames(options)
     trimmedFilenames = getTrimmedFileNames(options)
     alignOnly = options["alignOnly"]
+    fragmentCount = options["fragmentCount"]
 
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
     script.write("#\n")
 
     preprocessFASTQ(script, filenames[0], filenames[1], trimmedFilenames[0], trimmedFilenames[1], options)
-    alignFASTQ(script, trimmedFilenames[0], trimmedFilenames[1], options)
 
-    sortAlignedAndMappedData(script, options, output)
+    if fragmentCount == 1:
+        alignFASTQ(script, trimmedFilenames[0], trimmedFilenames[1], options)
+        sortAlignedAndMappedData(script, options, output)
+    else:
+        fragment(script, trimmedFilenames[0], trimmedFilenames[1], options)
+        alignFragments(script, options)
+        sortFragments(script, options)
+        combine(script, options, output)
 
     if processUnmapped == True:
         extractUmappedReads(script, options)
@@ -586,32 +813,9 @@ logthis "${{green}}BQSR calibration completed${{reset}}"
     )
 
 
-def indexBQSRBAM(script: TextIOWrapper, options: OptionsDict):
-    pipeline = options["pipeline"]
-    sample = options["sample"]
-
-    intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
-
-    script.write(
-        """
-logthis "${{yellow}}Re-indexing BQSR BAM${{reset}}"
-parallel --joblog {PIPELINE}/{SAMPLE}.index.log --header --colsep $'\\t' \\
-    'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}_bqsr.bam.bai ]]; then
-        samtools index {PIPELINE}/{SAMPLE}.{{root}}_bqsr.bam
-     fi' :::: {INTERVAL_LIST}
-logthis "${{green}}BQSR BAM re-indexing completed${{reset}}"
-""".format(
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-            INTERVAL_LIST=intervalList,
-        )
-    )
-
-
 def genBQSR(script: TextIOWrapper, options: OptionsDict):
     genBQSRTables(script, options)
     applyBQSRTables(script, options)
-    indexBQSRBAM(script, options)
 
 
 def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
@@ -619,12 +823,31 @@ def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
     intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
 
-    # HaplotypeCaller actually uses threads, so we limit the number of jobs,
-    # otherwise we're going to thrash the CPU and spend a bunch of time
-    # context switching and swapping
+    # haplotypecaller _can_ use threads, but doesn't do so in a really
+    # good way. after a bunch of experimentation we found that limiting
+    # it to a _single_ thread and running as many jobs as possible leads
+    # to a much better load average and overall runtime
+
+    # read limit 100,000,000
+    # interval size 50,000,000
+    # 1 hmm threads / 72 jobs
+    # [2022-07-12 18:31:50] Calling variants using GATK
+    # [2022-07-12 19:06:45] GATK variant calling completed
+    # 2 hmm threads / 36 jobs
+    # [2022-07-12 16:59:59] Calling variants using GATK
+    # [2022-07-12 17:45:17] GATK variant calling completed
+    # 4 hmm threads / 18 jobs
+    # [2022-07-12 02:29:11] Calling variants using GATK
+    # [2022-07-12 03:36:31] GATK variant calling completed
+    # 6 hmm threads / 12 jobs
+    # [2022-07-12 15:31:14] Calling variants using GATK
+    # [2022-07-12 16:57:06] GATK variant calling completed
+    # 8 hmm threads / 9 jobs
+    # [2022-07-11 23:04:40] Calling variants using GATK
+    # [2022-07-12 00:56:43] GATK variant calling completed
     cores = options["cores"]
-    threads = 4
-    jobs = int(cores / threads)
+    hmmThreads = 1
+    jobs = int(cores / hmmThreads)
 
     reference = options["reference"]
     assembly = options["referenceAssembly"]
@@ -632,9 +855,9 @@ def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
 
     script.write(
         """
-logthis "Calling variants using GATK"
+logthis "${{yellow}}Calling variants using GATK${{reset}}"
 
-parallel -n {JOBS} --joblog {PIPELINE}/{SAMPLE}.call.log --header --colsep $'\\t' \\
+parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.call.log --header --colsep $'\\t' \\
     'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}.vcf ]]; then
         gatk HaplotypeCaller --java-options -Xmx4g \\
             -R {REFERENCE}/{ASSEMBLY}.fna \\
@@ -647,10 +870,10 @@ parallel -n {JOBS} --joblog {PIPELINE}/{SAMPLE}.call.log --header --colsep $'\\t
             -L {{interval}}
     fi' :::: {INTERVAL_LIST}
 
-logthis "GATK variant calling completed"
+logthis "${{green}}GATK variant calling completed${{reset}}"
 """.format(
             JOBS=jobs,
-            THREADS=threads,
+            THREADS=hmmThreads,
             PIPELINE=pipeline,
             SAMPLE=sample,
             INTERVAL_LIST=intervalList,
@@ -741,7 +964,7 @@ if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
         --cache \\
         --format vcf \\
         --vcf \\
-        --compress_output gzip \\
+        --compress_output bgzip \\
         --merged \\
         --fork {FORKS} \\
         --offline \\
@@ -749,10 +972,15 @@ if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
         --verbose \\
         --force_overwrite \\
         --symbol \\
+        --hgvs \\
+        --protein \\
+        --af \\
         --fasta {REFERENCE}/{ASSEMBLY}.fna \\
         --input_file {INPUT} \\
         --output_file {OUTPUT} \\
         --stats_file {STATS}/{SUMMARY}
+
+    tabix -p vcf {OUTPUT}
 
     logthis "Completed annotation"
 else
@@ -829,16 +1057,17 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fasta ]]; then
     bcftools consensus \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
         {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
+        --sample {SAMPLE} \\
     | sed '/>/ s/$/ | {SAMPLE}/' >{PIPELINE}/{SAMPLE}.consensus.fasta
+
+    logthis "${{yellow}}Consensus completed${{reset}}"
 else
     logthis "Consensus fasta already generated for {PIPELINE}/{SAMPLE}.consensus.fasta, ${{green}}already completed${{reset}}"
 fi
-        """.format(
+""".format(
             REFERENCE=reference, ASSEMBLY=assembly, PIPELINE=pipeline, SAMPLE=sample
         )
     )
-
-    pass
 
 
 def gather(script: TextIOWrapper, options: OptionsDict):
@@ -889,209 +1118,174 @@ def doVariantQC(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
     stats = options["stats"]
 
+    checks = []
+
     # this is commented out right now because CollectVariantCallingMetrics crashes while reading
     # the variants after about 45 minutes. i'll ping my contact at The Broad to check if it's a
     # known issue and get it resolved
-    cvcm = """if [[ ! -f {STATS}/{SAMPLE}.variant_calling_detail_metrics ]]; then gatk CollectVariantCallingMetrics --VERBOSITY ERROR --REFERENCE_SEQUENCE {REFERENCE}/{ASSEMBLY}.fna --SEQUENCE_DICTIONARY {REFERENCE}/{ASSEMBLY}.dict --DBSNP {REFERENCE}/{KNOWN_SITES} --INPUT {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --OUTPUT {STATS}/{SAMPLE}.variant_calling_detail_metrics; fi""".format(
-        REFERENCE=reference,
-        ASSEMBLY=assembly,
-        KNOWN_SITES=knownSites,
-        PIPELINE=pipeline,
-        SAMPLE=sample,
-        STATS=stats,
-    )
+    # checks.append(
+    #     """'if [[ ! -f {STATS}/{SAMPLE}.variant_calling_detail_metrics ]]; then gatk CollectVariantCallingMetrics --VERBOSITY ERROR --REFERENCE_SEQUENCE {REFERENCE}/{ASSEMBLY}.fna --SEQUENCE_DICTIONARY {REFERENCE}/{ASSEMBLY}.dict --DBSNP {REFERENCE}/{KNOWN_SITES} --INPUT {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --OUTPUT {STATS}/{SAMPLE}.variant_calling_detail_metrics; fi' \\\n""".format(
+    #         REFERENCE=reference,
+    #         ASSEMBLY=assembly,
+    #         KNOWN_SITES=knownSites,
+    #         PIPELINE=pipeline,
+    #         SAMPLE=sample,
+    #         STATS=stats,
+    #     )
+    # )
 
-    s1 = """if [[ ! -f {STATS}/{SAMPLE}.frq ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --freq2 --out {STATS}/{SAMPLE} --max-alleles 2 2>/dev/null; fi""".format(
-        PIPELINE=pipeline, SAMPLE=sample, STATS=stats
-    )
-
-    s2 = """if [[ ! -f {STATS}/{SAMPLE}.idepth ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --depth --out {STATS}/{SAMPLE} 2>/dev/null; fi""".format(
-        PIPELINE=pipeline, SAMPLE=sample, STATS=stats
-    )
-
-    s3 = """if [[ ! -f {STATS}/{SAMPLE}.ldepth.mean ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --site-mean-depth --out {STATS}/{SAMPLE} 2>/dev/null; fi""".format(
-        PIPELINE=pipeline, SAMPLE=sample, STATS=stats
-    )
-
-    s4 = """if [[ ! -f {STATS}/{SAMPLE}.lqual ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --site-quality --out {STATS}/{SAMPLE} 2>/dev/null; fi""".format(
-        PIPELINE=pipeline, SAMPLE=sample, STATS=stats
-    )
-
-    s5 = """if [[ ! -f {STATS}/{SAMPLE}.imiss ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --missing-indv --out {STATS}/{SAMPLE} 2>/dev/null; fi""".format(
-        PIPELINE=pipeline, SAMPLE=sample, STATS=stats
-    )
-
-    s6 = """if [[ ! -f {STATS}/{SAMPLE}.lmiss ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --missing-site --out {STATS}/{SAMPLE} 2>/dev/null; fi""".format(
-        PIPELINE=pipeline, SAMPLE=sample, STATS=stats
-    )
-
-    s7 = """if [[ ! -f {STATS}/{SAMPLE}.het ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --het --out {STATS}/{SAMPLE} 2>/dev/null; fi""".format(
-        PIPELINE=pipeline, SAMPLE=sample, STATS=stats
-    )
-
-    bcfstats = """if [[ ! -d {STATS}/{SAMPLE}_bcfstats ]]; then bcftools stats --fasta-ref {REFERENCE}/{ASSEMBLY}.fna {PIPELINE}/{SAMPLE}.unannotated.vcf.gz > {STATS}/{SAMPLE}.chk; fi
-    """.format(
-        REFERENCE=reference,
-        ASSEMBLY=assembly,
-        KNOWN_SITES=knownSites,
-        PIPELINE=pipeline,
-        SAMPLE=sample,
-        STATS=stats,
-    )
-
-    plot = """plot-vcfstats --prefix {STATS}/{SAMPLE}_bcfstats {STATS}/{SAMPLE}.chk""".format(
-        SAMPLE=sample,
-        STATS=stats,
-    )
-
-    script.write(
-        """
-#
-# RUN variant QC process
-# 
-logthis "Starting QC processes"
-parallel --joblog {PIPELINE}/{SAMPLE}.vqc.log ::: \\
-             '{S1}' \\
-             '{S2}' \\
-             '{S3}' \\
-             '{S4}' \\
-             '{S5}' \\
-             '{S6}' \\
-             '{S7}' \\
-             '{BCFSTATS}'
-
-# can't run plot-bamstats until the statistics files are run above
-{PLOT}
-""".format(
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-            CVCM=cvcm,
-            S1=s1,
-            S2=s2,
-            S3=s3,
-            S4=s4,
-            S5=s5,
-            S6=s6,
-            S7=s7,
-            BCFSTATS=bcfstats,
-            PLOT=plot,
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.frq ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --freq2 --out {STATS}/{SAMPLE} --max-alleles 2 2>/dev/null; fi' \\\n""".format(
+            PIPELINE=pipeline, SAMPLE=sample, STATS=stats
         )
     )
 
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.idepth ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --depth --out {STATS}/{SAMPLE} 2>/dev/null; fi' \\\n""".format(
+            PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+        )
+    )
 
-def startAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.ldepth.mean ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --site-mean-depth --out {STATS}/{SAMPLE} 2>/dev/null; fi' \\\n""".format(
+            PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+        )
+    )
+
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.lqual ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --site-quality --out {STATS}/{SAMPLE} 2>/dev/null; fi' \\\n""".format(
+            PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+        )
+    )
+
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.imiss ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --missing-indv --out {STATS}/{SAMPLE} 2>/dev/null; fi' \\\n""".format(
+            PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+        )
+    )
+
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.lmiss ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --missing-site --out {STATS}/{SAMPLE} 2>/dev/null; fi' \\\n""".format(
+            PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+        )
+    )
+
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.het ]]; then vcftools --gzvcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz --het --out {STATS}/{SAMPLE} 2>/dev/null; fi' \\\n""".format(
+            PIPELINE=pipeline, SAMPLE=sample, STATS=stats
+        )
+    )
+
+    checks.append(
+        """'if [[ ! -d {STATS}/{SAMPLE}_bcfstats.stats.txt ]]; then bcftools stats --fasta-ref {REFERENCE}/{ASSEMBLY}.fna {PIPELINE}/{SAMPLE}.unannotated.vcf.gz > {STATS}/{SAMPLE}_bcfstats.stats.txt; fi' \\\n""".format(
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            KNOWN_SITES=knownSites,
+            PIPELINE=pipeline,
+            SAMPLE=sample,
+            STATS=stats,
+        )
+    )
+
+    return checks
+
+
+def doAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     pipeline = options["pipeline"]
     sample = options["sample"]
     stats = options["stats"]
     threads = options["cores"]
+    skipFastQc = options["skipFastQc"]
 
     filenames = getTrimmedFileNames(options)
 
-    flagstat = """if [[ ! -f {STATS}/{SAMPLE}.flagstat.txt ]]; then samtools flagstat -@ 8 {SORTED} >{STATS}/{SAMPLE}.flagstat.txt; fi""".format(
-        SAMPLE=sample,
-        STATS=stats,
-        SORTED=sorted,
-    )
+    checks = []
 
-    casm = """if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then gatk CollectAlignmentSummaryMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.alignment_metrics.txt; fi""".format(
-        REFERENCE=reference,
-        ASSEMBLY=assembly,
-        PIPELINE=pipeline,
-        SAMPLE=sample,
-        STATS=stats,
-        THREADS=threads,
-        SORTED=sorted,
-    )
-
-    cgcbm = """if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then gatk CollectGcBiasMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.gc_bias_metrics.txt -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf -S {STATS}/{SAMPLE}.gc_bias_summary.txt; fi""".format(
-        REFERENCE=reference,
-        ASSEMBLY=assembly,
-        PIPELINE=pipeline,
-        SAMPLE=sample,
-        STATS=stats,
-        THREADS=threads,
-        SORTED=sorted,
-    )
-
-    cwm = """if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then gatk CollectWgsMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.wgs_metrics.txt --MINIMUM_BASE_QUALITY 20 --MINIMUM_MAPPING_QUALITY 20 --COVERAGE_CAP 250 --READ_LENGTH 151 --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list --USE_FAST_ALGORITHM --INCLUDE_BQ_HISTOGRAM; fi""".format(
-        REFERENCE=reference,
-        ASSEMBLY=assembly,
-        PIPELINE=pipeline,
-        SAMPLE=sample,
-        STATS=stats,
-        THREADS=threads,
-        SORTED=sorted,
-    )
-
-    samstats = """if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then samtools stats -@ 8 -r {REFERENCE}/{ASSEMBLY}.fna {SORTED} >{STATS}/{SAMPLE}.samstats; fi""".format(
-        REFERENCE=reference,
-        ASSEMBLY=assembly,
-        SAMPLE=sample,
-        STATS=stats,
-        SORTED=sorted,
-    )
-
-    # this doesn't have a test, it's fast enough that we can afford to run it
-    plot = """plot-bamstats --prefix {STATS}/{SAMPLE}_samstats/ {STATS}/{SAMPLE}.samstats""".format(
-        SAMPLE=sample,
-        STATS=stats,
-    )
-
-    idxstats = """if [[ ! -f {STATS}/{SAMPLE}.samidx ]]; then samtools idxstats -@ 8 {SORTED} >{STATS}/{SAMPLE}.samidx; fi""".format(
-        SAMPLE=sample,
-        STATS=stats,
-        SORTED=sorted,
-    )
-
-    coverage = """if [[ ! -f {STATS}/{SAMPLE}.samtools.coverage ]]; then samtools coverage -d 0 --reference {REFERENCE}/{ASSEMBLY}.fna {SORTED} >{STATS}/{SAMPLE}.samtools.coverage; fi""".format(
-        REFERENCE=reference,
-        ASSEMBLY=assembly,
-        SAMPLE=sample,
-        STATS=stats,
-        SORTED=sorted,
-    )
-
-    # this is commented out until we can make it fast enough by either partitioning the input
-    # or randomly selecting some partition
-    fastqc = """if [[ ! -f {STATS}/{SAMPLE}.sorted_fastqc.zip || ! -f {STATS}/{SAMPLE}.sorted_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi""".format(
-        SAMPLE=sample,
-        STATS=stats,
-        R1=filenames[0],
-        R2=filenames[1],
-    )
-
-    script.write(
-        """
-#
-# RUN QC process
-# 
-logthis "Starting QC processes"
-parallel --joblog {PIPELINE}/{SAMPLE}.qc.log ::: \\
-             '{FLAGSTAT}' \\
-             '{CASM}' \\
-             '{CGCBM}' \\
-             '{CWM}' \\
-             '{SAMSTATS}' \\
-             '{IDXSTATS}' \\
-             '{COVERAGE}'
-
-# can't run plot-bamstats until the statistics files are run above
-{PLOT}             
-""".format(
-            PIPELINE=pipeline,
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.flagstat.txt ]]; then samtools flagstat -@ 8 {SORTED} >{STATS}/{SAMPLE}.flagstat.txt; fi' \\\n""".format(
             SAMPLE=sample,
-            FLAGSTAT=flagstat,
-            CASM=casm,
-            CGCBM=cgcbm,
-            CWM=cwm,
-            SAMSTATS=samstats,
-            PLOT=plot,
-            IDXSTATS=idxstats,
-            COVERAGE=coverage,
+            STATS=stats,
+            SORTED=sorted,
         )
     )
+
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then gatk CollectAlignmentSummaryMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.alignment_metrics.txt; fi' \\\n""".format(
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            PIPELINE=pipeline,
+            SAMPLE=sample,
+            STATS=stats,
+            THREADS=threads,
+            SORTED=sorted,
+        )
+    )
+
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then gatk CollectGcBiasMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.gc_bias_metrics.txt -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf -S {STATS}/{SAMPLE}.gc_bias_summary.txt; fi' \\\n""".format(
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            PIPELINE=pipeline,
+            SAMPLE=sample,
+            STATS=stats,
+            THREADS=threads,
+            SORTED=sorted,
+        )
+    )
+
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then gatk CollectWgsMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.wgs_metrics.txt --MINIMUM_BASE_QUALITY 20 --MINIMUM_MAPPING_QUALITY 20 --COVERAGE_CAP 250 --READ_LENGTH 151 --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list --USE_FAST_ALGORITHM --INCLUDE_BQ_HISTOGRAM; fi' \\\n""".format(
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            PIPELINE=pipeline,
+            SAMPLE=sample,
+            STATS=stats,
+            THREADS=threads,
+            SORTED=sorted,
+        )
+    )
+
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.stats.txt ]]; then samtools stats -@ 8 -r {REFERENCE}/{ASSEMBLY}.fna {SORTED} >{STATS}/{SAMPLE}.stats.txt; fi' \\\n""".format(
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            SAMPLE=sample,
+            STATS=stats,
+            SORTED=sorted,
+        )
+    )
+
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.idxstats.txt ]]; then samtools idxstats -@ 8 {SORTED} >{STATS}/{SAMPLE}.idxstats.txt; fi' \\\n""".format(
+            SAMPLE=sample,
+            STATS=stats,
+            SORTED=sorted,
+        )
+    )
+
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.samtools.coverage ]]; then samtools coverage -d 0 --reference {REFERENCE}/{ASSEMBLY}.fna {SORTED} >{STATS}/{SAMPLE}.samtools.coverage; fi' \\\n""".format(
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            SAMPLE=sample,
+            STATS=stats,
+            SORTED=sorted,
+        )
+    )
+
+    if skipFastQc == False:
+        checks.append(
+            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
+                SAMPLE=sample,
+                STATS=stats,
+                R1=filenames[0],
+                R2=filenames[1],
+            )
+        )
+
+    return checks
 
 
 def runMultiQC(script: TextIOWrapper, options: OptionsDict):
@@ -1115,7 +1309,13 @@ mkdir -p {STATS}/qc
 cd {STATS}/qc
 
 # Run multiqc
-multiqc --tag DNA --verbose -f {STATS}
+multiqc \\
+    --verbose \\
+    --force \\
+    --cl_config 'custom_logo: "{STATS}/ovationlogo.png"' \\
+    --cl_config 'custom_logo_url: "https://www.ovation.io"' \\
+    --cl_config 'custom_logo_title: "Ovation"' \\
+    {STATS}
 
 # Save the output
 mv {STATS}/qc/multiqc_data {STATS}/{SAMPLE}_multiqc_data
@@ -1127,6 +1327,63 @@ logthis "MultiQC for {SAMPLE} is complete"
             STATS=stats, SAMPLE=sample
         )
     )
+
+
+def doQualityControl(script: TextIOWrapper, options: OptionsDict, sorted: str):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+    stats = options["stats"]
+
+    plot_vcfstats = """plot-vcfstats --prefix {STATS}/{SAMPLE}_bcfstats {STATS}/{SAMPLE}_bcfstats.stats.txt""".format(
+        SAMPLE=sample,
+        STATS=stats,
+    )
+
+    # this doesn't have a test, it's fast enough that we can afford to run it
+    plot_bamstats = """plot-bamstats --prefix {STATS}/{SAMPLE}_samstats/ {STATS}/{SAMPLE}.stats.txt""".format(
+        SAMPLE=sample,
+        STATS=stats,
+    )
+
+    alignment_checks = doAlignmentQC(script, options, sorted)
+    variant_checks = doVariantQC(script, options)
+
+    cmd = ""
+    if options["doAlignmentQc"] == True or options["doVariantQc"] == True:
+        cmd = "parallel --joblog {PIPELINE}/{SAMPLE}.qc.log ::: \\\n".format(PIPELINE=pipeline, SAMPLE=sample)
+
+        if options["doAlignmentQc"] == True:
+            for qc in alignment_checks:
+                cmd += "    " + qc
+
+        if options["doVariantQc"] == True:
+            for qc in variant_checks:
+                cmd += "    " + qc
+
+            cmd += "    'echo End of stats'\n"
+
+            script.write(
+                """
+#
+# RUN QC processes, if there are any
+# 
+logthis "Starting QC processes"
+{PARALLEL}
+
+# can't run plot-bamstats until the statistics files are run above
+{PLOT_BAMSTATS}
+
+# can't run plot-vcfstats until the statistics files are run above
+{PLOT_VCFSTATS}
+""".format(
+                    PARALLEL=cmd,
+                    PLOT_BAMSTATS=plot_bamstats if options["doAlignmentQc"] == True else "",
+                    PLOT_VCFSTATS=plot_vcfstats if options["doVariantQc"] == True else "",
+                )
+            )
+
+    if options["doMultiQc"] == True:
+        runMultiQC(script, options)
 
 
 def cleanup(script: TextIOWrapper, prefix: str, options: OptionsDict):
@@ -1185,11 +1442,20 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastqSet
         script.write("#   {INTERVAL} -> {FILE}\n".format(INTERVAL=i, FILE=f))
     script.write("#\n")
 
+    segmentSize = options["segmentSize"]
+    factor = options["factor"]
+
     script.write("#\n")
     script.write("# Split parameters\n")
-    script.write("#   segmentSize = {P}\n".format(P=options["segmentSize"]))
-    script.write("#   factor = {P}\n".format(P=options["factor"]))
-    script.write("#   last block max size = {P}\n".format(P=math.floor(options["segmentSize"] * options["factor"])))
+    script.write("#   segmentSize = {P}\n".format(P=segmentSize))
+    script.write("#   factor = {P}\n".format(P=factor))
+    script.write("#   last block max size = {P}\n".format(P=math.floor(segmentSize * factor)))
+
+    fragmentCount = options["fragmentCount"]
+
+    script.write("#\n")
+    script.write("# Fragments\n")
+    script.write("#   fragmentCount = {P}\n".format(P=fragmentCount))
 
 
 def writeVersions(script: TextIOWrapper):
@@ -1199,15 +1465,31 @@ def writeVersions(script: TextIOWrapper):
 
 
 def writeEnvironment(script: TextIOWrapper, options: OptionsDict):
+    noColor = options["noColor"]
+
     script.write("#\n")
-    script.write(
-        """
-# color shortcuts
+
+    if noColor == True:
+        script.write(
+            """
+# color shortcuts disabled
+red=$(echo -n "")
+green=$(echo -n "")
+yellow=$(echo -n "")
+reset=$(echo -n "")
+""")
+    else:
+        script.write(
+            """
+# color shortcuts enabled
 red=$(tput setaf 1)
 green=$(tput setaf 2)
 yellow=$(tput setaf 3)
 reset=$(tput sgr0)
+""")
 
+    script.write(
+        """
 function logthis() {{
   NOW=$(date "+%Y-%m-%d %H:%M:%S")
   echo -e "[${{NOW}}] ${{1}}"
@@ -1276,11 +1558,43 @@ def defineArguments() -> Namespace:
         help="Skip alignment QC process on input and output files",
     )
     parser.add_argument(
+        "--skip-fastqc",
+        action="store_true",
+        dest="skipFastQc",
+        default=False,
+        help="Skip running FASTQC statistics",
+    )
+
+    parser.add_argument(
         "--skip-interval-processing",
         action="store_true",
         dest="skipIntervalProcessing",
         default=False,
         help="Skip all interval processing (scatter, call, gather)",
+    )
+
+    parser.add_argument(
+        "--skip-annotation",
+        action="store_true",
+        dest="skipAnnotation",
+        default=False,
+        help="Skip all VCF annotation processes",
+    )
+
+    parser.add_argument(
+        "--generate-consensus",
+        action="store_true",
+        dest="generateConsensus",
+        default=False,
+        help="Generate a consensus FASTA file",
+    )
+
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        dest="noColor",
+        default=False,
+        help="Turn off colorized log output",
     )
 
     parser.add_argument(
@@ -1432,6 +1746,7 @@ def defineArguments() -> Namespace:
     parser.add_argument(
         "-z",
         "--cores",
+        type=int,
         action="store",
         dest="cores",
         metavar="CPU_COUNT",
@@ -1440,16 +1755,8 @@ def defineArguments() -> Namespace:
     )
 
     parser.add_argument(
-        "-N",
-        "--non-repeatable",
-        action="store_true",
-        dest="non-repeatable",
-        default=False,
-        help="Force the -K option to BWA, will use 10,000,000bp per thread",
-    )
-
-    parser.add_argument(
         "--read-limit",
+        type=int,
         action="store",
         dest="read-limit",
         metavar="READ_LIMIT",
@@ -1460,11 +1767,22 @@ def defineArguments() -> Namespace:
     parser.add_argument(
         "-d",
         "--watchdog",
+        type=int,
         action="store",
         metavar="WATCHDOG_TIMEOUT",
         dest="watchdog",
         default=150,
         help="Specify a watchdog timeout for the alignment process. Value is in minutes",
+    )
+
+    parser.add_argument(
+        "--fragments",
+        type=int,
+        action="store",
+        metavar="FRAGMENT_COUNT",
+        dest="fragmentCount",
+        default=1,
+        help="Number of FASTQ fragments to align",
     )
 
     parser.add_argument(
@@ -1478,6 +1796,7 @@ def defineArguments() -> Namespace:
 
     parser.add_argument(
         "--segment",
+        type=int,
         action="store",
         metavar="SEGMENT_SIZE",
         dest="segmentSize",
@@ -1486,6 +1805,7 @@ def defineArguments() -> Namespace:
     )
     parser.add_argument(
         "--factor",
+        type=float,
         action="store",
         metavar="FACTOR",
         dest="factor",
@@ -1586,6 +1906,7 @@ def main():
         writeMergeList(options)
 
     writeIntervalList(options)
+    writeFragmentList(options)
 
     with open(options["script"], "w+") as script:
         script.truncate(0)
@@ -1601,40 +1922,12 @@ def main():
         script.write("\n")
 
         updateDictionary(script, options)
-        filenames = getFileNames(options)
 
         alignAndSort(script, options, sorted)
-
-        # the order of the next two operations is important in this script
-        # because scatter does its job but waits on all the background
-        # operations to complete. this doesn't take long, so waiting is
-        # ok.
-        #
-        # however, if we were to start the alignment qc process, which runs
-        # in the background, we would start them and then block until they
-        # completed while we're waiting to scatter intervals around
-        #
 
         if skipIntervalProcessing == False:
             # this makes scatter a standalone process for now
             scatter(script, options, sorted)
-
-        # if we've been asked to run qc at all we can actually start
-        # the alignment qc processes very early (right after we've
-        # completed alignment and sorting). so, we start them here. there's
-        # an overall impact on the interval runs while these qc processes
-        # are running, but we're willing to deal with that since the overall
-        # qc process takes a very long time
-        #
-        # in particular it's the fastqc process itself which chews up
-        # so much time. it's a single-threaded limited-memory (250mb)
-        # process so we're not too worried about it's impact on the rest of
-        # the variant calling processes
-        if options["doAlignmentQc"] == True:
-            startAlignmentQC(script, options, sorted)
-
-        if skipIntervalProcessing == False:
-            # process the intervals
             runIntervals(script, options, prefix)
             gather(script, options)
 
@@ -1642,31 +1935,28 @@ def main():
             if options["cleanIntermediateFiles"] == True:
                 cleanup(script, cleantarget, options)
 
-        # we can start variant qc here because we're going to run against
-        # the unannotated vcf (we'll get the same metrics either way), and
-        # parts of this process take a long time
-        if options["doVariantQc"] == True:
-            doVariantQC(script, options)
+        if options["skipAnnotation"] == False:
+            annotate(
+                script,
+                options,
+                "{WORKING}/vep_data".format(WORKING=options["working"]),
+                "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(
+                    PIPELINE=options["pipeline"], SAMPLE=options["sample"]
+                ),
+                "{PIPELINE}/{SAMPLE}.annotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
+                "{SAMPLE}.annotated.vcf_summary.html".format(SAMPLE=options["sample"]),
+            )
 
-        annotate(
-            script,
-            options,
-            "{WORKING}/vep_data".format(WORKING=options["working"]),
-            "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
-            "{PIPELINE}/{SAMPLE}.annotated.vcf.gz".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]),
-            "{SAMPLE}.annotated.vcf_summary.html".format(SAMPLE=options["sample"]),
-        )
-
-        generateConsensus(script, options)
+        if options["generateConsensus"] == True:
+            generateConsensus(script, options)
 
         # we'll wait here to make sure all the background stuff is done before we
         # run multiqc and cleanup
-        script.write('logthis "${green}Done processing${reset}"\n')
+        script.write('logthis "${green}Done with front-end processing${reset}"\n')
 
-        if options["doMultiQc"] == True:
-            runMultiQC(script, options)
+        doQualityControl(script, options, sorted)
 
-        script.write('logthis "${green}Done processing${reset}"\n')
+        script.write('logthis "${green}Done with back-end processing${reset}"\n')
 
         script.write("\n")
         script.write("touch {PIPELINE}/01-completed\n".format(PIPELINE=options["pipeline"]))

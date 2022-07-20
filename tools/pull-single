@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+FASTQLIST=$(cat $1)
+
+pushd ~/pipeline/FASTQ
+
+for FASTQ in $FASTQLIST; do
+    wget $FASTQ
+done

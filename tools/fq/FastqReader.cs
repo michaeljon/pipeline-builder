@@ -75,6 +75,15 @@ namespace Ovation.Pipeline.FastqProcessor
                 sequence = null;
                 return false;
             }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(ex.Message);
+                sequence = null;
+                Environment.Exit(1);
+
+                // unreachable code
+                return false;
+            }
         }
 
         protected void Dispose(bool disposing)

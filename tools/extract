@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+
+# Example
+# parallel ./extract ::: zr5654_11_S7  ::: CBS MTHFR MTR MTRR MMADHC
+
+if [[ $# -ne 2 ]]; then
+    echo "usage: extract SAMPLE GENE"
+    exit 1
+fi
+
+SAMPLE=$1
+GENE=$2
+CHROMOSOME=$(awk "BEGIN { FS = \"; \"; OFS = \"\" } \$4~/^${GENE}\$/ { print \$1 }" ~/fastq/GRCh38.p14.genes.csv)
+START=$(awk "BEGIN { FS = \"; \"; OFS = \"\" } \$4~/^${GENE}\$/ { print \$2 }" ~/fastq/GRCh38.p14.genes.csv)
+STOP=$(awk "BEGIN { FS = \"; \"; OFS = \"\" } \$4~/^${GENE}\$/ { print \$3 }" ~/fastq/GRCh38.p14.genes.csv)
+
+# extract the gene from the aligned and sorted bam
+samtools view -@ 8 \
+    --no-header \
+    --bam \
+    --output ${SAMPLE}.${GENE}.bam \
+    ${SAMPLE}.sorted.bam \
+    ${CHROMOSOME}:${START}-${STOP}
+
+# index the bam for later
+samtools index -@ 8 ${SAMPLE}.${GENE}.bam
+
+# # extract the coverage across the gene
+# samtools coverage --depth 0 \
+#     --reference ${HOME}/reference/GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.fna \
+#     --region ${CHROMOSOME}:${START}-${STOP} \
+#     ${SAMPLE}.${GENE}.bam >${SAMPLE}.${GENE}.samtools.coverage.tsv
+
+# run a depth-of-coverage report over all the positions
+gatk DepthOfCoverage \
+    --java-options -Xmx4g \
+    --verbosity ERROR \
+    --reference ${HOME}/reference/GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.fna \
+    --sequence-dictionary ${HOME}/reference/GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.dict \
+    --input ${SAMPLE}.${GENE}.bam \
+    --output ${SAMPLE}_${GENE}.depth.csv \
+    --omit-per-sample-statistics True \
+    --omit-locus-table True \
+    --omit-interval-statistics True \
+    --omit-genes-not-entirely-covered-by-traversal \
+    --intervals ${CHROMOSOME}:${START}-${STOP}
+
+# reformat the columns a bit
+sed -i 's/:/,/;s/Locus/Chrom,Pos/' ${SAMPLE}_${GENE}.depth.csv
+
+# generate the coverage graph
+python <<EOF
+import pandas
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.ticker import StrMethodFormatter
+from scipy.interpolate import make_interp_spline
+
+plt.gca().yaxis.set_major_formatter(StrMethodFormatter('{x:,.0f}')) # No decimal places
+plt.gca().xaxis.set_major_formatter(StrMethodFormatter('{x:,.0f}')) # No decimal places
+
+df = pandas.read_csv('${SAMPLE}_${GENE}.depth.csv')
+
+space = 100
+width = ${STOP} - ${START} + 1
+gap = int(width / space)
+
+xySpline = make_interp_spline(df.Pos, df.Total_Depth)
+x = np.linspace(df.Pos.min(), df.Pos.max(), space)
+y = xySpline(x)
+
+plt.plot(x, y)
+plt.title("${GENE} coverage over ${CHROMOSOME}:${START}-${STOP}")
+plt.xlabel("Position on ${CHROMOSOME}")
+plt.ylabel("Depth")
+
+plt.savefig('${SAMPLE}_${GENE}.plot.png')
+EOF
+
+# clean up the rest
+rm -f ${SAMPLE}.${GENE}.bam
+rm -f ${SAMPLE}.${GENE}.bam.bai

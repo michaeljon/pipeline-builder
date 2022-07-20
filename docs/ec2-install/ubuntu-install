@@ -46,8 +46,11 @@ mkdir ${WORKING}/reference
 mkdir ${WORKING}/pipeline
 
 # working filesystem space, this'll change per configuration (zero, one, or two disks)
-sudo mkfs.ext4 -E nodiscard /dev/nvme1n1
-sudo mkfs.ext4 -E nodiscard /dev/nvme2n1
+sudo mkfs.ext4 -E discard -m 1 /dev/nvme1n1
+sudo tune2fs -O ^has_journal /dev/nvme1n1
+
+sudo mkfs.ext4 -E discard -m 1 /dev/nvme2n1
+sudo tune2fs -O ^has_journal /dev/nvme2n1
 
 sudo mount /dev/nvme1n1 ${WORKING}/pipeline
 sudo mount /dev/nvme2n1 ${WORKING}/stats
