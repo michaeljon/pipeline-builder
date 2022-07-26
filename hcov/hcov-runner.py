@@ -189,9 +189,14 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         -R {REFERENCE}/{ASSEMBLY}.fna \\
         -I {PIPELINE}/{SAMPLE}.sorted.bam \\
         -O {PIPELINE}/{SAMPLE}.unannotated.vcf \\
-        --verbosity ERROR \\
-        --pairHMM FASTEST_AVAILABLE \\
-        --native-pair-hmm-threads 4
+        --standard-min-confidence-threshold-for-calling 20 \\
+        --dont-use-soft-clipped-bases \\
+        --min-base-quality-score 20 \\
+        --max-reads-per-alignment-start 0 \\
+        --linked-de-bruijn-graph \\
+        --recover-all-dangling-branches \\
+        --sample-ploidy 1 \\
+        --verbosity ERROR
 
     bgzip {PIPELINE}/{SAMPLE}.unannotated.vcf
     tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
@@ -289,7 +294,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp \\
         --output-type v  \\
         --output {PIPELINE}/{SAMPLE}.unannotated.vcf \\
-        -- --tags AC,AN,AF,VAF,MAF 2>/dev/null
+        -- --tags AC,AN,AF,VAF,MAF,FORMAT/VAF 2>/dev/null
 
     rm -f {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp
 
@@ -527,8 +532,6 @@ fi
 
 
 def runVariantPipeline(script: TextIOWrapper, options: OptionsDict):
-    referenceName = options["referenceName"]
-
     script.write("\n")
     script.write("#\n")
     script.write("# Running pipeline\n")
@@ -1149,6 +1152,7 @@ def runBwaAligner(
     o2: str,
     options: OptionsDict,
 ):
+    aligner = options["aligner"]
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     sample = options["sample"]
@@ -1164,10 +1168,12 @@ def runBwaAligner(
 if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
     logthis "${{yellow}}Running aligner${{reset}}"
 
-    bwa-mem2 mem -t {THREADS} \\
-        -Y -M \\
-        -v 1 \\
+    {ALIGNER} mem \\
         -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+        -t {THREADS} \\
+        -Y \\
+        -M \\
+        -v 1 \\
         {REFERENCE}/{ASSEMBLY}.fna \\
         {O1} \\
         {O2} | 
@@ -1179,6 +1185,7 @@ else
 fi
 
 """.format(
+            ALIGNER=aligner,
             O1=o1,
             O2=o2,
             ASSEMBLY=assembly,
@@ -1251,7 +1258,7 @@ def alignFASTQ(
 ):
     aligner = options["aligner"]
 
-    if aligner == "bwa":
+    if aligner == "bwa" or aligner == "bwa-mem2":
         runBwaAligner(script, o1, o2, options)
     elif aligner == "hisat2":
         runHisatAligner(script, o1, o2, options)
@@ -1416,8 +1423,8 @@ def defineArguments() -> Namespace:
         action="store",
         dest="aligner",
         default="bwa",
-        choices=["bwa", "hisat2"],
-        help="Use 'bwa' or 'hisat2' as the aligner.",
+        choices=["bwa", "bwa-mem2", "hisat2"],
+        help="Use 'bwa', 'bwa-mem2', or 'hisat2' as the aligner.",
     )
 
     parser.add_argument(
