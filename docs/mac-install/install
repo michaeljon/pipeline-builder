@@ -107,6 +107,14 @@ if [[ ! -f vcftools-0.1.16.tar.gz ]]; then
     curl --silent https://github.com/vcftools/vcftools/releases/download/v0.1.16/vcftools-0.1.16.tar.gz --location -O
 fi
 
+echo "Downloading bedtools"
+if [[ ! -f bedtools-v2.30.0.tar.gz ]]; then
+    curl --silent https://github.com/arq5x/bedtools2/archive/refs/tags/bedtools-v2.30.0.tar.gz --location -O
+fi
+
+
+
+
 echo "Unpacking source code"
 cd ${ROOT}/src
 for t in ../components/*.tgz ../components/*.tar.gz ../components/*.tar.bz2; do
@@ -183,6 +191,11 @@ echo "Building vcftools"
 cd ${ROOT}/vcftools-0.1.16
 ./configure --prefix=${ROOT} --exec-prefix=${ROOT}
 make
+make install
+
+echo "Building bedtools"
+cd ${ROOT}/bedtools-v2.30.0
+make prefix=${ROOT}
 make install
 
 echo "Building BIOBAMBAM and components - this'll take a while"
