@@ -437,7 +437,11 @@ def annotate(script: TextIOWrapper, options: OptionsDict):
 
     # we only run this for sars-cov-2 right now
     if options["__canAnnotateVariants"] == False:
-        print("Reference " + referenceName + " was requested. Variant annotation is only possible for SARS-CoV-2 right now.")
+        print(
+            "Reference "
+            + referenceName
+            + " was requested. Variant annotation is only possible for SARS-CoV-2 right now."
+        )
         return
 
     script.write(
@@ -492,7 +496,11 @@ def assignClade(script: TextIOWrapper, options: OptionsDict):
 
     # we only run this for sars-cov-2 right now
     if options["__canAssignClades"] == False:
-        print("Reference " + referenceName + " was requested. Clade assignment is only possible for SARS-CoV-2 right now.")
+        print(
+            "Reference "
+            + referenceName
+            + " was requested. Clade assignment is only possible for SARS-CoV-2 right now."
+        )
         return
 
     script.write(
@@ -501,16 +509,12 @@ def assignClade(script: TextIOWrapper, options: OptionsDict):
 if [[ ! -f {PIPELINE}/{SAMPLE}.nextclade.tsv ]]; then
     logthis "Starting nextclade characterization for {SAMPLE}"
 
-    nextclade \\
-        --in-order \\
-        --input-fasta {PIPELINE}/{SAMPLE}.consensus.fa \\
+    nextclade run \\
         --input-dataset {REFERENCE}/nextclade-data \\
-        --genes E,M,N,ORF1a,ORF1b,ORF3a,ORF6,ORF7a,ORF7b,ORF8,ORF9b,S \\
-        --output-json {PIPELINE}/{SAMPLE}.nextclade.json \\
-        --output-tsv {PIPELINE}/{SAMPLE}.nextclade.tsv \\
-        --output-tree {PIPELINE}/{SAMPLE}.nextclade.auspice.json \\
-        --output-dir {PIPELINE}/ \\
-        --output-basename {SAMPLE}.nextclade
+        --output-all {PIPELINE}/ \\
+        --output-basename {SAMPLE}.nextclade \\
+        -- \\
+        {PIPELINE}/{SAMPLE}.consensus.fa
 
     logthis "Clade assignment complete for {SAMPLE}"
 else
@@ -964,6 +968,7 @@ def verifyOptions(options: OptionsDict):
     referenceName = options["referenceName"]
     options["__canAssignClades"] = referenceName == "MN908947.3"
     options["__canAnnotateVariants"] = referenceName == "MN908947.3"
+
 
 def getFileNames(options: OptionsDict) -> FastqSet:
     sample = options["sample"]
@@ -1467,12 +1472,14 @@ def defineArguments() -> Namespace:
         help="Base name of the reference assembly",
     )
 
-    help ="'Chromosome' name from reference assembly " + \
-        "(MN908947.3, sars-cov-2), " + \
-        "(AF304460.1, hcov-229e), " + \
-        "(AY597011.2, hcov-hku1), " + \
-        "(AY567487.2, hcov-nl63), " + \
-        "(AY585228.1, hcov-oc43)"
+    help = (
+        "'Chromosome' name from reference assembly "
+        + "(MN908947.3, sars-cov-2), "
+        + "(AF304460.1, hcov-229e), "
+        + "(AY597011.2, hcov-hku1), "
+        + "(AY567487.2, hcov-nl63), "
+        + "(AY585228.1, hcov-oc43)"
+    )
 
     parser.add_argument(
         "--reference-name",
@@ -1481,7 +1488,7 @@ def defineArguments() -> Namespace:
         metavar="REFERENCE_NAME",
         dest="referenceName",
         choices=["MN908947.3", "AF304460.1", "AY597011.2", "AY567487.2", "AY585228.1"],
-        help=help
+        help=help,
     )
 
     parser.add_argument(
