@@ -17,7 +17,7 @@ mkdir -p tmp
 mkdir -p perl5
 
 mkdir -p \
-    reference/human \
+    reference/GRCh38.p14 \
     reference/sars-cov-2 \
     reference/hcov-229e \
     reference/hcov-nl63 \
@@ -52,13 +52,18 @@ if [[ ! -f bamtools.tgz ]]; then
     curl --silent https://github.com/pezmaster31/bamtools/archive/refs/tags/v2.5.2.tar.gz --location -o bamtools.tgz
 fi
 
+echo "Downloading BEDTOOLS components"
+if [[ ! -d ${ROOT}/src/bedtools2 ]]; then
+    git clone git@github.com:arq5x/bedtools2.git ${ROOT}/src/bedtools2
+fi
+
 echo "Downloading BWA & BWA-MEM2"
 if [[ ! -f bwa-0.7.17.tar.bz2 ]]; then
     curl --silent https://github.com/lh3/bwa/releases/download/v0.7.17/bwa-0.7.17.tar.bz2 --location -O
 fi
 
-if [[ ! -f ${ROOT}/src/bwa-mem2 ]]; then
-    git clone https://github.com/bwa-mem2/bwa-mem2 ${ROOT}/bwa-mem2
+if [[ ! -d ${ROOT}/src/bwa-mem2 ]]; then
+    git clone https://github.com/bwa-mem2/bwa-mem2 ${ROOT}/src/bwa-mem2
 fi
 
 echo "Downloading GATK and picard"
@@ -107,6 +112,36 @@ if [[ ! -f vcftools-0.1.16.tar.gz ]]; then
     curl --silent https://github.com/vcftools/vcftools/releases/download/v0.1.16/vcftools-0.1.16.tar.gz --location -O
 fi
 
+echo "Downloading snpEff"
+if [[ ! -f snpEff_latest_core.zip ]]; then
+    curl --silent https://snpeff.blob.core.windows.net/versions/snpEff_latest_core.zip --location -O
+fi
+
+echo "Downloading nextclade"
+system=$(uname -s)
+arch=$(uname -m)
+
+if [[ "${system}" == "Darwin" ]]; then
+    if [[ "${arch}" == "x86_64" ]]; then
+        if [[ ! -f nextclade-x86_64-apple-darwin ]]; then
+            echo "Downloading nextclade for Intel MacOS"
+            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.3.0/nextclade-x86_64-apple-darwin --location -o nextclade
+        fi
+    else
+        if [[ ! -f nextclade-aarch64-apple-darwin ]]; then
+            echo "Downloading nextclade for ARM MacOS"
+            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.3.0/nextclade-aarch64-apple-darwin --location -o nextclade
+        fi
+    fi
+elif [[ "${system}" == "Linux" ]]; then
+    if [[ ! -f nextclade-x86_64-unknown-linux-gnu ]]; then
+        echo "Downloading nextclade for Intel Linux"
+        curl --silent https://github.com/nextstrain/nextclade/releases/download/2.3.0/nextclade-x86_64-unknown-linux-gnu --location -o nextclade
+    fi
+else
+    echo "Nextclade not supported on your platform, maybe"
+fi
+
 echo "Unpacking source code"
 cd ${ROOT}/src
 for t in ../components/*.tgz ../components/*.tar.gz ../components/*.tar.bz2; do
@@ -116,6 +151,10 @@ done
 for z in ../components/*.zip; do
     unzip -o -qq $z
 done
+
+echo "Installing a few standalone / non-build tools"
+cp ${ROOT}/components/nextclade ${ROOT}/bin/nextclade && chmod +x ${ROOT}/bin/nextclade
+mv ${ROOT}/components/snpEff ${ROOT}/bin/snpEff
 
 echo "Building SAMTOOLS components"
 cd ${ROOT}/src/htslib-1.15.1
@@ -145,6 +184,12 @@ cd build
 cmake -DCMAKE_INSTALL_PREFIX=${ROOT} ..
 make
 make install
+
+echo "Building BAMTOOLS components"
+cd ${ROOT}/bedtools2
+make prefix=${ROOT}
+make install
+cp bin/* ${ROOT}/bin
 
 echo "Build BWA components"
 cd ${ROOT}/bwa-0.7.17
@@ -205,18 +250,29 @@ make install
 
 # Building fastp (requires isa-l and libdeflate)
 cd ${ROOT}/src
-git clone https://github.com/intel/isa-l.git
+if [[ ! -d ${ROOT}/src/isa-l ]]; then
+    git clone https://github.com/intel/isa-l.git ${ROOT}/src/isa-l
+fi
+
+if [[ ! -d ${ROOT}/src/libdeflate ]]; then
+    git clone https://github.com/ebiggers/libdeflate.git ${ROOT}/src/libdeflate
+fi
+
 cd ${ROOT}/src/isa-l
 ./autogen.sh
 ./configure --prefix=${ROOT} --exec-prefix=${ROOT}
 make
 make install
 
-git clone https://github.com/ebiggers/libdeflate.git
+cd ${ROOT}/src/libdeflate
 make
 make install PREFIX=${ROOT}
 
-git clone https://github.com/OpenGene/fastp.git
+if [[ ! -d ${ROOT}/src/fastp ]]; then
+    git clone https://github.com/OpenGene/fastp.git ${ROOT}/src/fastp
+fi
+
+cd ${ROOT}/src/fastp
 export CXXFLAGS="-I${ROOT}/include -I/usr/local/include"
 export LD_FLAGS="-I${ROOT}/lib -L/usr/local/lib"
 make PREFIX=${ROOT}
@@ -225,30 +281,26 @@ echo "Installing FASTQC, TrimGalore, GATK and picard"
 cp -r ${ROOT}/components/FastQC ${ROOT}/bin/FastQC
 chmod 755 ${ROOT}/bin/FastQC/fastqc
 cp ${ROOT}/components/picard.jar ${ROOT}/bin
-cp ${ROOT}/components/gatk-4.2.6.1 {HOME}/bin/gatk-4.2.6.1
+cp ${ROOT}/components/gatk-4.2.6.1 {ROOT}/bin/gatk-4.2.6.1
 cp ${ROOT}/components/TrimGalore-0.6.7/trim_galore ${ROOT}/bin
 
-echo "Downloading and installing VEP"
-cd ${ROOT}/bin
-git clone https://github.com/Ensembl/ensembl-vep.git
+echo "Downloading and installing VEP directly to ${ROOT}/bin"
+if [[ ! -d ${ROOT}/src/ensembl-vep ]]; then
+    git clone https://github.com/Ensembl/ensembl-vep.git ${ROOT}/src/ensembl-vep
+fi
 
-cd ensembl-vep
+cd ${ROOT}/bin/ensembl-vep
 export PERL5LIB=$PERL5LIB:${ROOT}/cpanm/lib/perl5
 ${ROOT}/bin/cpanm -l ${ROOT}/perl5 --installdeps .
 
+echo "Checking out VEP release 106 and pulling all release 106 data / plugins"
 git checkout release/106
 
 perl INSTALL.pl \
-    --CACHEDIR ${ROOT}/vep-data \
+    --CACHEDIR ${ROOT}/reference/vep-data \
     --ASSEMBLY GRCh38 \
     --AUTO aclfp \
     --PLUGINS all \
     --NO_HTSLIB \
     --NO_TEST \
     --SPECIES homo_sapiens_merged
-
-# perl INSTALL.pl \
-#     --CACHEDIR ${HOME}/vep-data \
-#     --PLUGINSDIR ${HOME}/vep-data/Plugins \
-#     --AUTO p \
-#     --PLUGINS all
