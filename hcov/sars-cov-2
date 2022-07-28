@@ -10,7 +10,7 @@ if [[ ! -d ${HOME}/reference/sars-cov-2/nextclade-data ]]; then
     nextclade dataset get --name='sars-cov-2' --output-dir=${HOME}/reference/sars-cov-2/nextclade-data
 fi
 
-if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
+if [[ ! -f ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
     echo Starting ${SAMPLE} run
 
     # give us a place to work
@@ -30,7 +30,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
         --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
         --temp-dir ${HOME}/stats/temp \
         --fastq-dir ${HOME}/pipeline/fastq \
-        --preprocessor fastp \
+        --preprocessor none \
         --aligner bwa \
         --sorter biobambam \
         --caller bcftools \

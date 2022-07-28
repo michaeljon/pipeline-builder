@@ -344,7 +344,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
     bcftools consensus \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
         {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
-    | sed '/>/ s/$/ | {SAMPLE}/' >{PIPELINE}/{SAMPLE}.consensus.fa
+    | sed '/>/ s/.*$/>{ASSEMBLY} {SAMPLE}/' >{PIPELINE}/{SAMPLE}.consensus.fa
 
     logthis "${{yellow}}Consensus completed${{reset}}"
 else
@@ -733,6 +733,16 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
 
     checks.append(
         """'if [[ ! -f {STATS}/{SAMPLE}.samtools.coverage ]]; then samtools coverage -d 0 --reference {REFERENCE}/{ASSEMBLY}.fna {SORTED} >{STATS}/{SAMPLE}.samtools.coverage; fi' \\\n""".format(
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            SAMPLE=sample,
+            STATS=stats,
+            SORTED=sorted,
+        )
+    )
+
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 30 -F 1284 {SORTED} | bedtools genomecov -ibam stdin -bga >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
             REFERENCE=reference,
             ASSEMBLY=assembly,
             SAMPLE=sample,
