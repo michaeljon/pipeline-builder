@@ -322,6 +322,7 @@ def runBwaAligner(
     o2: str,
     options: OptionsDict,
 ):
+    aligner = options["aligner"]
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     sample = options["sample"]
@@ -336,7 +337,7 @@ def runBwaAligner(
 if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
     logthis "${{yellow}}Running aligner${{reset}}"
 
-    bwa-mem2 mem -t {THREADS} \\
+    {ALIGNER} mem -t {THREADS} \\
         -Y -M \\
         -v 1 \\
         -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
@@ -351,6 +352,7 @@ else
 fi
 
 """.format(
+            ALIGNER=aligner,
             O1=o1,
             O2=o2,
             REFERENCE=reference,
@@ -370,7 +372,7 @@ def alignFASTQ(
 ):
     aligner = options["aligner"]
 
-    if aligner == "bwa":
+    if aligner == "bwa" or aligner == "bwa-mem2":
         runBwaAligner(script, o1, o2, options)
     else:
         print("Unexpected value {ALIGNER} given for the --aligner option".format(ALIGNER=aligner))
@@ -1504,7 +1506,7 @@ export PERL5LIB=/home/ubuntu/perl5/lib/perl5:$PERL5LIB
 export PERL_LOCAL_LIB_ROOT=/home/ubuntu/perl5:$PERL_LOCAL_LIB_ROOT
 
 # shared library stuff
-export LD_LIBRARY_PATH={WORKING}/bin:/usr/lib64:/usr/local/lib/:$LB_LIBRARY_PATH
+export LD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib64:/usr/local/lib/:$LB_LIBRARY_PATH
 export LD_PRELOAD={WORKING}/bin/libz.so.1.2.11.zlib-ng
 
 # handy path
@@ -1612,9 +1614,9 @@ def defineArguments() -> Namespace:
         "--aligner",
         action="store",
         dest="aligner",
-        default="bwa",
-        choices=["bwa", "hisat2"],
-        help="Use 'bwa' or 'hisat2' as the aligner.",
+        default="bwa-mem2",
+        choices=["bwa", "bwa-mem2"],
+        help="Use 'bwa' or 'bwa-mem2' as the aligner.",
     )
 
     parser.add_argument(
