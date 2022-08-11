@@ -25,17 +25,17 @@ mkdir /pipeline/working/output
 cd /pipeline/tools
 
 # download and unpack
-curl https://github.com/samtools/samtools/releases/download/1.14/samtools-1.14.tar.bz2 --location -O
-curl https://github.com/samtools/bcftools/releases/download/1.14/bcftools-1.14.tar.bz2 --location -O
-curl https://github.com/samtools/htslib/releases/download/1.14/htslib-1.14.tar.bz2 --location -O
+curl https://github.com/samtools/samtools/releases/download/1.15.1/samtools-1.15.1.tar.bz2 --location -O
+curl https://github.com/samtools/bcftools/releases/download/1.15.1/bcftools-1.15.1.tar.bz2 --location -O
+curl https://github.com/samtools/htslib/releases/download/1.15.1/htslib-1.15.1.tar.bz2 --location -O
 
 curl https://github.com/lh3/bwa/releases/download/v0.7.17/bwa-0.7.17.tar.bz2 --location -O
-curl https://github.com/broadinstitute/picard/releases/download/2.26.6/picard.jar --location -O
-curl https://github.com/broadinstitute/gatk/releases/download/4.2.3.0/gatk-4.2.3.0.zip --location -O
+curl https://github.com/broadinstitute/picard/releases/download/2.27.4/picard.jar --location -O
+curl https://github.com/broadinstitute/gatk/releases/download/4.2.6.1/gatk-4.2.6.1.zip --location -O
 curl https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.9.zip --location -O
 
 curl https://github.com/bwa-mem2/bwa-mem2/releases/download/v2.2.1/bwa-mem2-2.2.1_x64-linux.tar.bz2 --location -O
-curl https://gitlab.com/german.tischler/libmaus2/-/archive/2.0.807-release-20211122112933/libmaus2-2.0.807-release-20211122112933.tar.gz --location -O
+curl https://gitlab.com/german.tischler/libmaus2/-/archive/2.0.810-release-20220216151520/libmaus2-2.0.810-release-20220216151520.tar.gz --location -O
 curl https://gitlab.com/german.tischler/biobambam2/-/archive/2.0.183-release-20210802180148/biobambam2-2.0.183-release-20210802180148.tar.gz --location -O
 
 curl https://github.com/FelixKrueger/TrimGalore/archive/refs/tags/0.6.7.tar.gz --location -o trim_galore.tgz

@@ -81,6 +81,24 @@ Then, later inside the pipeline itself
         cat {REFERENCE}/{ASSEMBLY}.dict - >{REFERENCE}/{ASSEMBLY}_autosomal.interval_list
 ```
 
+### The GATK feature file index
+
+HaplotypeCaller can make use of an index on the "known sites" reference. We create this index using GATK. This process requires that the reference dictionary was created in an early step (see the `CreateSequenceDictionary` step above) because it's the file that's effectively "merged" into the feature VCF.
+
+```bash
+# cache the reference copy so we can reuse the name consistently
+mv GCF_000001405.39.gz GCF_000001405.39.non-indexed.vcf.gz
+
+# update the sequence dictionary in the vcf
+gatk UpdateVcfSequenceDictionary \
+    -I GCF_000001405.39.non-indexed.vcf.gz \
+    -SD GCF_000001405.40_GRCh38.p14_genomic.dict \
+    -O GCF_000001405.39.gz
+
+# then index the feature file (still in vcf format)
+gatk IndexFeatureFile -I GCF_000001405.39.gz
+```
+
 ## Additional reference data
 
 
