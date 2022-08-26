@@ -3,13 +3,13 @@
 echo "This script uses a handful of, well, interesting build components that "
 echo "do not come standard on MacOS. So, before you get started you'll want to"
 echo ""
-echo "brew install cmake jsoncpp gcc boost yasm"
+echo "brew install cmake jsoncpp gcc boost nasm"
 echo ""
 
 ROOT=$(pwd)
 
 mkdir -p src
-mkdir -p pipeline
+mkdir -p output
 mkdir -p bin
 mkdir -p stats
 mkdir -p components
@@ -18,11 +18,13 @@ mkdir -p perl5
 
 mkdir -p \
     reference/GRCh38.p14 \
-    reference/sars-cov-2 \
     reference/hcov-229e \
+    reference/hcov-emc \
+    reference/hcov-hku1 \
     reference/hcov-nl63 \
     reference/hcov-oc43 \
-    reference/hcov-hku1 \
+    reference/hcov-panel \
+    reference/sars-cov-2 \
     reference/vep-data
 
 # get a couple of tools for later
@@ -35,16 +37,16 @@ chmod 755 cpanm
 cd ${ROOT}/components
 
 echo "Downloading SAMTOOLS components"
-if [[ ! -f samtools-1.15.1.tar.bz2 ]]; then
-    curl --silent https://github.com/samtools/samtools/releases/download/1.15.1/samtools-1.15.1.tar.bz2 --location -O
+if [[ ! -f samtools-1.16.tar.bz2 ]]; then
+    curl --silent https://github.com/samtools/samtools/releases/download/1.16/samtools-1.16.tar.bz2 --location -O
 fi
 
-if [[ ! -f bcftools-1.15.1.tar.bz2 ]]; then
-    curl --silent https://github.com/samtools/bcftools/releases/download/1.15.1/bcftools-1.15.1.tar.bz2 --location -O
+if [[ ! -f bcftools-1.16.tar.bz2 ]]; then
+    curl --silent https://github.com/samtools/bcftools/releases/download/1.16/bcftools-1.16.tar.bz2 --location -O
 fi
 
-if [[ ! -f htslib-1.15.1.tar.bz2 ]]; then
-    curl --silent https://github.com/samtools/htslib/releases/download/1.15.1/htslib-1.15.1.tar.bz2 --location -O
+if [[ ! -f htslib-1.16.tar.bz2 ]]; then
+    curl --silent https://github.com/samtools/htslib/releases/download/1.16/htslib-1.16.tar.bz2 --location -O
 fi
 
 echo "Downloading BAMTOOLS components"
@@ -63,7 +65,7 @@ if [[ ! -f bwa-0.7.17.tar.bz2 ]]; then
 fi
 
 if [[ ! -d ${ROOT}/src/bwa-mem2 ]]; then
-    git clone https://github.com/bwa-mem2/bwa-mem2 ${ROOT}/src/bwa-mem2
+    git clone --recursive https://github.com/bwa-mem2/bwa-mem2 ${ROOT}/src/bwa-mem2
 fi
 
 echo "Downloading GATK and picard"
@@ -112,144 +114,6 @@ if [[ ! -f vcftools-0.1.16.tar.gz ]]; then
     curl --silent https://github.com/vcftools/vcftools/releases/download/v0.1.16/vcftools-0.1.16.tar.gz --location -O
 fi
 
-echo "Downloading snpEff"
-if [[ ! -f snpEff_latest_core.zip ]]; then
-    curl --silent https://snpeff.blob.core.windows.net/versions/snpEff_latest_core.zip --location -O
-fi
-
-echo "Downloading nextclade"
-system=$(uname -s)
-arch=$(uname -m)
-
-if [[ "${system}" == "Darwin" ]]; then
-    if [[ "${arch}" == "x86_64" ]]; then
-        if [[ ! -f nextclade-x86_64-apple-darwin ]]; then
-            echo "Downloading nextclade for Intel MacOS"
-            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.3.0/nextclade-x86_64-apple-darwin --location -o nextclade
-        fi
-    else
-        if [[ ! -f nextclade-aarch64-apple-darwin ]]; then
-            echo "Downloading nextclade for ARM MacOS"
-            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.3.0/nextclade-aarch64-apple-darwin --location -o nextclade
-        fi
-    fi
-elif [[ "${system}" == "Linux" ]]; then
-    if [[ ! -f nextclade-x86_64-unknown-linux-gnu ]]; then
-        echo "Downloading nextclade for Intel Linux"
-        curl --silent https://github.com/nextstrain/nextclade/releases/download/2.3.0/nextclade-x86_64-unknown-linux-gnu --location -o nextclade
-    fi
-else
-    echo "Nextclade not supported on your platform, maybe"
-fi
-
-echo "Unpacking source code"
-cd ${ROOT}/src
-for t in ../components/*.tgz ../components/*.tar.gz ../components/*.tar.bz2; do
-    tar xzf $t
-done
-
-for z in ../components/*.zip; do
-    unzip -o -qq $z
-done
-
-echo "Installing a few standalone / non-build tools"
-cp ${ROOT}/components/nextclade ${ROOT}/bin/nextclade && chmod +x ${ROOT}/bin/nextclade
-mv ${ROOT}/components/snpEff ${ROOT}/bin/snpEff
-
-echo "Building SAMTOOLS components"
-cd ${ROOT}/src/htslib-1.15.1
-autoreconf -i
-./configure --prefix=${ROOT} --exec-prefix=${ROOT}
-make
-make install
-
-cd ${ROOT}/src/samtools-1.15.1
-autoheader
-autoreconf -Wno-syntax
-./configure --prefix=${ROOT} --exec-prefix=${ROOT} --with-htslib=${ROOT}
-make
-make install
-
-cd ${ROOT}/src/bcftools-1.15.1
-autoheader
-autoconf
-./configure --enable-libgsl --enable-perl-filters --prefix=${ROOT} --exec-prefix=${ROOT} --with-htslib=${ROOT}
-make
-make install
-
-echo "Building BAMTOOLS components"
-cd ${ROOT}/bamtools/bamtools-2.5.2
-mkdir -p build
-cd build
-cmake -DCMAKE_INSTALL_PREFIX=${ROOT} ..
-make
-make install
-
-echo "Building BAMTOOLS components"
-cd ${ROOT}/bedtools2
-make prefix=${ROOT}
-make install
-cp bin/* ${ROOT}/bin
-
-echo "Build BWA components"
-cd ${ROOT}/bwa-0.7.17
-make
-cp bwa ${ROOT}/bin
-
-echo "Build BWA-MEM components"
-echo "Note: if this fails to build properly you need to apply the patch to ext/strsafelib first"
-echo "Note: you must apply the bwa-mem2.patch before compiling this"
-cd ${ROOT}/bwa-mem2
-git submodule init
-git submodule update
-
-echo "TODO: apply bwa-mem2.patch"
-echo "TODO: apply strsafelib.patch"
-echo "TODO: make"
-echo "TODO: cp bwa-* ${ROOT}/bin"
-
-echo "Build zlib, zlib-ng, and pigz components"
-cd ${ROOT}/zlib-ng
-./configure --zlib-compat --native
-make
-make install prefix=${ROOT}
-
-cd ${ROOT}/zlib-1.2.12
-./configure --prefix=${ROOT} --eprefix=${ROOT}
-make
-make install prefix=${ROOT}
-
-cd ${ROOT}/pigz-2.7
-make
-cp pigz ${ROOT}/bin
-cp unpigz ${ROOT}/bin
-
-echo "Building vcftools"
-cd ${ROOT}/vcftools-0.1.16
-./configure --prefix=${ROOT} --exec-prefix=${ROOT}
-make
-make install
-
-echo "Building BIOBAMBAM and components - this'll take a while"
-export CC=/usr/local/bin/gcc-11
-export CXX=/usr/local/bin/g++-11
-export CXXCPP=/usr/local/bin/cpp-11
-export CFLAGS="-I/usr/local/include"
-export CXXFLAGS="-I/usr/local/include"
-export LDFLAGS="-L/usr/local/lib"
-
-cd ${ROOT}/libmaus2-2.0.810-release-20220216151520
-./configure --prefix=${ROOT} --exec-prefix=${ROOT} --enable-native --enable-shared-libmaus2
-make
-make install
-
-cd ${ROOT}/biobambam2-2.0.183-release-20210802180148
-./configure --prefix=${ROOT} --exec-prefix=${ROOT} --with-libmaus2=${ROOT}
-make
-make install
-
-# Building fastp (requires isa-l and libdeflate)
-cd ${ROOT}/src
 if [[ ! -d ${ROOT}/src/isa-l ]]; then
     git clone https://github.com/intel/isa-l.git ${ROOT}/src/isa-l
 fi
@@ -258,9 +122,155 @@ if [[ ! -d ${ROOT}/src/libdeflate ]]; then
     git clone https://github.com/ebiggers/libdeflate.git ${ROOT}/src/libdeflate
 fi
 
-cd ${ROOT}/src/isa-l
-./autogen.sh
+if [[ ! -d ${ROOT}/src/fastp ]]; then
+    git clone https://github.com/OpenGene/fastp.git ${ROOT}/src/fastp
+fi
+
+echo "Downloading snpEff"
+if [[ ! -f snpEff_latest_core.zip ]]; then
+    curl --silent https://snpeff.blob.core.windows.net/versions/snpEff_latest_core.zip --location -o ${ROOT}/components/snpEff_latest_core.zip
+fi
+
+echo "Downloading nextclade"
+system=$(uname -s)
+arch=$(uname -m)
+
+if [[ "${system}" == "Darwin" ]]; then
+    if [[ "${arch}" == "x86_64" ]]; then
+        if [[ ! -f nextclade ]]; then
+            echo "Downloading nextclade for Intel MacOS"
+            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.4.0/nextclade-x86_64-apple-darwin --location -o nextclade
+        fi
+    else
+        if [[ ! -f nextclade ]]; then
+            echo "Downloading nextclade for ARM MacOS"
+            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.4.0/nextclade-aarch64-apple-darwin --location -o nextclade
+        fi
+    fi
+elif [[ "${system}" == "Linux" ]]; then
+    if [[ ! -f nextclade ]]; then
+        echo "Downloading nextclade for Intel Linux"
+        curl --silent https://github.com/nextstrain/nextclade/releases/download/2.4.0/nextclade-x86_64-unknown-linux-gnu --location -o nextclade
+    fi
+else
+    echo "Nextclade not supported on your platform, maybe"
+fi
+
+echo "Unpacking source code"
+cd ${ROOT}/src
+for t in ${ROOT}/components/*.tgz ${ROOT}/components/*.tar.gz ${ROOT}/components/*.tar.bz2; do
+    tar xzf $t
+done
+
+for z in ${ROOT}/components/*.zip; do
+    unzip -o -qq $z
+done
+
+echo "Installing a few standalone / non-build tools"
+cp ${ROOT}/components/nextclade ${ROOT}/bin/nextclade && chmod +x ${ROOT}/bin/nextclade
+mv ${ROOT}/src/snpEff ${ROOT}/bin/snpEff
+
+echo "Setting environment variables for build (gcc and friends)"
+export CC=/usr/local/bin/gcc-11
+export CXX=/usr/local/bin/g++-11
+export CXXCPP=/usr/local/bin/cpp-11
+export CFLAGS="-I/usr/local/include -Wno-deprecated-declarations  -Wno-unused-result"
+export CXXFLAGS=${CFLAGS}
+export LDFLAGS="-L/usr/local/lib"
+
+echo "Building SAMTOOLS components"
+cd ${ROOT}/src/htslib-1.16
+autoreconf -i
 ./configure --prefix=${ROOT} --exec-prefix=${ROOT}
+make
+make install
+
+cd ${ROOT}/src/samtools-1.16
+autoheader
+autoreconf -Wno-syntax
+./configure --prefix=${ROOT} --exec-prefix=${ROOT} --with-htslib=${ROOT}
+make
+make install
+
+cd ${ROOT}/src/bcftools-1.16
+autoheader
+autoconf
+./configure --enable-libgsl --enable-perl-filters --prefix=${ROOT} --exec-prefix=${ROOT} --with-htslib=${ROOT}
+make
+make install
+
+echo "Building BAMTOOLS components"
+cd ${ROOT}/src/bamtools-2.5.2
+mkdir -p build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX=${ROOT} ..
+make
+make install
+
+echo "Building BEDTOOLS components"
+cd ${ROOT}/src/bedtools2
+make prefix=${ROOT}
+make install
+cp bin/* ${ROOT}/bin
+
+echo "Build BWA components"
+cd ${ROOT}/src/bwa-0.7.17
+make
+cp bwa ${ROOT}/bin
+
+echo "Build BWA-MEM components"
+echo "Note: if this fails to build properly you need to apply the patch to ext/strsafelib first"
+echo "Note: you must apply the bwa-mem2.patch before compiling this"
+cd ${ROOT}/src/bwa-mem2
+git submodule init
+git submodule update
+
+echo "TODO: apply bwa-mem2.patch"
+# git apply --ignore-space-change --ignore-whitespace ~/src/ovation/pipeline-builder/docs/mac-install/bwa-mem2.patch
+echo "TODO: apply strsafelib.patch"
+# cd ext/safestringlib
+# git apply --ignore-space-change --ignore-whitespace ~/src/ovation/pipeline-builder/docs/mac-install/strsafelib.patch
+
+echo "TODO: make"
+echo "TODO: cp bwa-* ${ROOT}/bin"
+
+echo "Build zlib, zlib-ng, and pigz components"
+cd ${ROOT}/src/zlib-ng-2.0.6
+./configure --zlib-compat --native
+make
+make install prefix=${ROOT}
+
+cd ${ROOT}/src/zlib-1.2.12
+./configure --prefix=${ROOT} --eprefix=${ROOT}
+make
+make install prefix=${ROOT}
+
+cd ${ROOT}/src/pigz-2.7
+make
+cp pigz ${ROOT}/bin
+cp unpigz ${ROOT}/bin
+
+echo "Building vcftools"
+cd ${ROOT}/src/vcftools-0.1.16
+./configure --prefix=${ROOT} --exec-prefix=${ROOT}
+make
+make install
+
+echo "Building BIOBAMBAM and components - this'll take a while"
+cd ${ROOT}/src/libmaus2-2.0.810-release-20220216151520
+./configure --enable-compile-testprograms=no --prefix=${ROOT}
+make
+make install prefix=${ROOT}
+
+cd ${ROOT}/src/biobambam2-2.0.183-release-20210802180148
+./configure --prefix=${ROOT} --with-libmaus2=${ROOT}
+make
+make install prefix=${ROOT}
+
+echo "Building FASTP and components - this'll take a while"
+cd ${ROOT}/src/isa-l
+autoreconf --install --symlink -f
+./configure --target=darwin --prefix=${ROOT} --libdir=${ROOT}/lib
 make
 make install
 
@@ -268,33 +278,40 @@ cd ${ROOT}/src/libdeflate
 make
 make install PREFIX=${ROOT}
 
-if [[ ! -d ${ROOT}/src/fastp ]]; then
-    git clone https://github.com/OpenGene/fastp.git ${ROOT}/src/fastp
-fi
+echo "Building fastp last, make sure you applied the patch"
+echo "TODO: apply fastp.patch"
 
 cd ${ROOT}/src/fastp
+git apply --ignore-space-change --ignore-whitespace ~/src/ovation/pipeline-builder/docs/mac-install/fastp.patch
+
 export CXXFLAGS="-I${ROOT}/include -I/usr/local/include"
 export LD_FLAGS="-I${ROOT}/lib -L/usr/local/lib"
 make PREFIX=${ROOT}
+make install PREFIX=${ROOT}
 
 echo "Installing FASTQC, TrimGalore, GATK and picard"
-cp -r ${ROOT}/components/FastQC ${ROOT}/bin/FastQC
+cp -r ${ROOT}/src/FastQC ${ROOT}/bin/FastQC
 chmod 755 ${ROOT}/bin/FastQC/fastqc
 cp ${ROOT}/components/picard.jar ${ROOT}/bin
-cp ${ROOT}/components/gatk-4.2.6.1 {ROOT}/bin/gatk-4.2.6.1
-cp ${ROOT}/components/TrimGalore-0.6.7/trim_galore ${ROOT}/bin
+cp -r ${ROOT}/src/gatk-4.2.6.1 ${ROOT}/bin/gatk-4.2.6.1
+cp ${ROOT}/src/TrimGalore-0.6.7/trim_galore ${ROOT}/bin
 
 echo "Downloading and installing VEP directly to ${ROOT}/bin"
+cd ${ROOT}/src
 if [[ ! -d ${ROOT}/src/ensembl-vep ]]; then
-    git clone https://github.com/Ensembl/ensembl-vep.git ${ROOT}/src/ensembl-vep
+    git clone https://github.com/Ensembl/ensembl-vep.git ${ROOT}/bin/ensembl-vep
 fi
 
 cd ${ROOT}/bin/ensembl-vep
 export PERL5LIB=$PERL5LIB:${ROOT}/cpanm/lib/perl5
 ${ROOT}/bin/cpanm -l ${ROOT}/perl5 --installdeps .
 
-echo "Checking out VEP release 106 and pulling all release 106 data / plugins"
-git checkout release/106
+${ROOT}/bin/cpanm DBI
+${ROOT}/bin/cpanm Archive::Zip
+${ROOT}/bin/cpanm DBD::mysql
+
+echo "Checking out VEP release 107 and pulling all release 107 data / plugins"
+git checkout release/107
 
 perl INSTALL.pl \
     --CACHEDIR ${ROOT}/reference/vep-data \

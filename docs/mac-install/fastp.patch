@@ -1,0 +1,23 @@
+diff --git a/src/adaptertrimmer.cpp b/src/adaptertrimmer.cpp
+index 5061599..df59c2f 100644
+--- a/src/adaptertrimmer.cpp
++++ b/src/adaptertrimmer.cpp
+@@ -19,15 +19,15 @@ bool AdapterTrimmer::trimByOverlapAnalysis(Read* r1, Read* r2, FilterResult* fr,
+         //5'      ......frontTrimmed1......|------------------------------------------|----- 3'
+         //3' -----|-------------------------------------------|......frontTrimmed2.....      5'
+ 
+-        int len1 = min(r1->length(), ol + frontTrimmed2);
+-        int len2 = min(r2->length(), ol + frontTrimmed1);
++        int len1 = min(r1->length(), ol + frontTrimmed1);
++        int len2 = min(r2->length(), ol + frontTrimmed2);
+         string adapter1 = r1->mSeq->substr(len1, r1->length() - len1);
+         string adapter2 = r2->mSeq->substr(len2, r2->length() - len2);
+ 
+         if(_DEBUG) {
+             cerr << adapter1 << endl;
+             cerr << adapter2 << endl;
+-            cerr << "frontTrimmed2: " << frontTrimmed1 << endl;
++            cerr << "frontTrimmed1: " << frontTrimmed1 << endl;
+             cerr << "frontTrimmed2: " << frontTrimmed2 << endl;
+             cerr << "overlap:" << ov.offset << "," << ov.overlap_len << ", " << ov.diff << endl;
+             r1->print();
