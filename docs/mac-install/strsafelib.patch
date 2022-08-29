@@ -25,18 +25,21 @@ index 162efd2..41c3193 100644
  /* set uint16_t */
  extern errno_t memset16_s(uint16_t *dest, rsize_t dmax, uint16_t value);
 diff --git a/makefile b/makefile
-index f7cc268..f72aac3 100644
+index f7cc268..4870de8 100644
 --- a/makefile
 +++ b/makefile
-@@ -1,7 +1,7 @@
+@@ -1,8 +1,8 @@
  IDIR = include
  MKDIR_P = mkdir -p
- CC=gcc
+-CC=gcc
 -CFLAGS=-I$(IDIR) -fstack-protector-strong -fPIE -fPIC -O2 -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security
-+CFLAGS=-I$(IDIR) -fstack-protector-strong -fPIE -fPIC -O2 -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Wno-unused-command-line-argument -DSTDC_HEADERS
- LDFLAGS=-z noexecstack -z relo -z now
+-LDFLAGS=-z noexecstack -z relo -z now
++# CC=gcc
++# CFLAGS=-I$(IDIR) $(CFLAGS) #-fstack-protector-strong -fPIE -fPIC -O2 -D_FORTIFY_SOURCE=2 -Wformat -Wformat-security -Wno-unused-command-line-argument -DSTDC_HEADERS
++# LDFLAGS=-z noexecstack -z relo -z now
  
  ODIR=obj
+ OTDIR=objtest
 diff --git a/safeclib/memset16_s.c b/safeclib/memset16_s.c
 index a7372d2..9a763fa 100644
 --- a/safeclib/memset16_s.c

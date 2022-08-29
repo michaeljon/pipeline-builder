@@ -11,12 +11,27 @@ from os import cpu_count, system
 FastqSet = Tuple[str, str]
 OptionsDict = Dict[str, Any]
 
+panel_choices = ["MN908947.3", "AF304460.1", "AY597011.2", "AY567487.2", "AY585228.1", "JX869059.2", "panel"]
+panel_choice_help = (
+    "'Chromosome' name from reference assembly "
+    + "(MN908947.3, sars-cov-2), "
+    + "(AF304460.1, hcov-229e), "
+    + "(AY597011.2, hcov-hku1), "
+    + "(AY567487.2, hcov-nl63), "
+    + "(AY585228.1, hcov-oc43), "
+    + "(JX869059.2, hcov-emc), "
+    + "(panel, combined panel of all organisms)"
+)
+
 
 def updateDictionary(script: TextIOWrapper, options: OptionsDict):
     bin = options["bin"]
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     chromosome = options["referenceName"]
+
+    if chromosome == "panel":
+        chromosome = "|".join([chr for chr in panel_choices if chr != "panel"])
 
     script.write("#\n")
     script.write("# Build the reference dictionary and interval list\n")
@@ -400,6 +415,44 @@ fi
     )
 
 
+def produceConsensusUsingGatk(
+    script: TextIOWrapper,
+    options: OptionsDict,
+):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    reference = options["reference"]
+    assembly = options["referenceAssembly"]
+
+    script.write(
+        """
+# produce consensus using bcftools
+if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
+    logthis "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.unannotated.vcf.gz${{reset}}"
+
+    gatk IndexFeatureFile \\
+        -I {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
+        --verbosity WARNING
+
+    gatk FastaAlternateReferenceMaker \\
+        -R {REFERENCE}/{ASSEMBLY}.fna \\
+        -V {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
+        -O {PIPELINE}/{SAMPLE}.consensus.fa \\
+        --verbosity WARNING
+
+    logthis "${{yellow}}Consensus completed${{reset}}"
+else
+    logthis "Consensus generation already complete for {PIPELINE}/{SAMPLE}.unannotated.vcf, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            PIPELINE=pipeline,
+            SAMPLE=sample,
+        )
+    )
+
+
 def producePileup(
     script: TextIOWrapper,
     options: OptionsDict,
@@ -443,9 +496,9 @@ def annotate(script: TextIOWrapper, options: OptionsDict):
     # we only run this for sars-cov-2 right now
     if options["__canAnnotateVariants"] == False:
         print(
-            "Reference "
+            "Reference '"
             + referenceName
-            + " was requested. Variant annotation is only possible for SARS-CoV-2 right now."
+            + "' was requested. Variant annotation is only possible for SARS-CoV-2 right now."
         )
         return
 
@@ -502,9 +555,9 @@ def assignClade(script: TextIOWrapper, options: OptionsDict):
     # we only run this for sars-cov-2 right now
     if options["__canAssignClades"] == False:
         print(
-            "Reference "
+            "Reference '"
             + referenceName
-            + " was requested. Clade assignment is only possible for SARS-CoV-2 right now."
+            + "' was requested. Clade assignment is only possible for SARS-CoV-2 right now."
         )
         return
 
@@ -555,6 +608,8 @@ def generateConsensus(script: TextIOWrapper, options: OptionsDict):
         produceConsensusUsingIvar(script, options)
     elif consensusGenerator == "bcftools":
         produceConsensusUsingBcftools(script, options)
+    elif consensusGenerator == "gatk":
+        produceConsensusUsingGatk(script, options)
 
     script.write(
         """
@@ -906,13 +961,15 @@ function logthis() {{
 ulimit -n 8192
 
 # perl stuff
-export PATH=/home/ubuntu/perl5/bin:$PATH
-export PERL5LIB=/home/ubuntu/perl5/lib/perl5:$PERL5LIB
-export PERL_LOCAL_LIB_ROOT=/home/ubuntu/perl5:$PERL_LOCAL_LIB_ROOT
+export PATH={WORKING}/perl5/bin:$PATH
+export PERL5LIB={WORKING}/perl5/lib/perl5:$PERL5LIB
+export PERL_LOCAL_LIB_ROOT={WORKING}/perl5:$PERL_LOCAL_LIB_ROOT
 
-# shared library stuff
-export LD_LIBRARY_PATH={WORKING}/bin:/usr/lib64:/usr/local/lib/:$LB_LIBRARY_PATH
-export LD_PRELOAD={WORKING}/bin/libz.so.1.2.11.zlib-ng
+# shared library stuff (linux)
+export LD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib64:/usr/local/lib/:$LD_LIBRARY_PATH
+
+# shared library stuff (darwin)
+export DYLD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib:/usr/local/lib/:$DYLD_LIBRARY_PATH
 
 # bcftools
 export BCFTOOLS_PLUGINS={WORKING}/bin/plugins
@@ -930,6 +987,10 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
 
     if options["working"] == None:
         options["working"] = "$HOME"
+    if options["bin"] == None:
+        options["bin"] = "{WORKING}/bin".format(WORKING=options["working"])
+    if options["lib"] == None:
+        options["lib"] = "{WORKING}/lib".format(WORKING=options["working"])
     if options["reference"] == None:
         options["reference"] = "{WORKING}/reference".format(WORKING=options["working"])
     if options["pipeline"] == None:
@@ -954,6 +1015,10 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
 def verifyOptions(options: OptionsDict):
     if exists(options["bin"]) == False:
         print("Unable to find your --bin-dir directory at {PATH}".format(PATH=options["bin"]))
+        quit(1)
+
+    if exists(options["lib"]) == False:
+        print("Unable to find your --lib-dir directory at {PATH}".format(PATH=options["lib"]))
         quit(1)
 
     if exists(options["working"]) == False:
@@ -1059,18 +1124,17 @@ def runFastpPreprocessor(
 if [[ ! -f {O1} || ! -f {O2} ]]; then
     logthis "${{yellow}}Running FASTP preprocessor${{reset}}"
 
-    LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-        fastp \\
-            --report_title "fastp report for sample {SAMPLE}" \\
-            --in1 {R1} \\
-            --in2 {R2} \\
-            --out1 {O1} \\
-            --out2 {O2} \\
-            {ADAPTERS} \\
-            --verbose {LIMITREADS} \\
-            --thread 8 \\
-            -j {STATS}/{SAMPLE}-fastp.json \\
-            -h {STATS}/{SAMPLE}-fastp.html
+    fastp \\
+        --report_title "fastp report for sample {SAMPLE}" \\
+        --in1 {R1} \\
+        --in2 {R2} \\
+        --out1 {O1} \\
+        --out2 {O2} \\
+        {ADAPTERS} \\
+        --verbose {LIMITREADS} \\
+        --thread 8 \\
+        -j {STATS}/{SAMPLE}-fastp.json \\
+        -h {STATS}/{SAMPLE}-fastp.html
 
     logthis "${{yellow}}FASTP preprocessor completed${{reset}}"
 else
@@ -1111,17 +1175,16 @@ def runTrimmomaticPreprocessor(
 if [[ ! -f {O1} || ! -f {O2} ]]; then
     logthis "${{yellow}}Running trimmomatic preprocessor${{reset}}"
 
-    LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-        java -jar {BIN}/trimmomatic-0.39.jar PE \\
-            {R1} \\
-            {R2} \\
-            {O1} /dev/null \\
-            {O2} /dev/null \\
-            ILLUMINACLIP:{BIN}/adapters/NexteraPE-PE.fa:2:30:10 \\
-            LEADING:5 \\
-            TRAILING:5 \\
-            SLIDINGWINDOW:4:20 \\
-            MINLEN:30
+    java -jar {BIN}/trimmomatic-0.39.jar PE \\
+        {R1} \\
+        {R2} \\
+        {O1} /dev/null \\
+        {O2} /dev/null \\
+        ILLUMINACLIP:{BIN}/adapters/NexteraPE-PE.fa:2:30:10 \\
+        LEADING:5 \\
+        TRAILING:5 \\
+        SLIDINGWINDOW:4:20 \\
+        MINLEN:30
 
     logthis "${{yellow}}trimmomatic preprocessor completed${{reset}}"
 else
@@ -1476,7 +1539,7 @@ def defineArguments() -> Namespace:
         action="store",
         dest="consensusGenerator",
         default="bcftools",
-        choices=["ivar", "bcftools"],
+        choices=["ivar", "bcftools", "gatk"],
         help="Choice of consensus FASTA generator",
     )
 
@@ -1489,23 +1552,14 @@ def defineArguments() -> Namespace:
         help="Base name of the reference assembly",
     )
 
-    help = (
-        "'Chromosome' name from reference assembly "
-        + "(MN908947.3, sars-cov-2), "
-        + "(AF304460.1, hcov-229e), "
-        + "(AY597011.2, hcov-hku1), "
-        + "(AY567487.2, hcov-nl63), "
-        + "(AY585228.1, hcov-oc43)"
-    )
-
     parser.add_argument(
         "--reference-name",
         required=True,
         action="store",
         metavar="REFERENCE_NAME",
         dest="referenceName",
-        choices=["MN908947.3", "AF304460.1", "AY597011.2", "AY567487.2", "AY585228.1"],
-        help=help,
+        choices=panel_choices,
+        help=panel_choice_help,
     )
 
     parser.add_argument(
@@ -1548,8 +1602,14 @@ def defineArguments() -> Namespace:
         action="store",
         metavar="BIN_DIR",
         dest="bin",
-        default="$HOME/bin",
         help="Install location of all tooling",
+    )
+    parser.add_argument(
+        "--lib-dir",
+        action="store",
+        metavar="LIB_DIR",
+        dest="lib",
+        help="Install location of all libraries",
     )
 
     parser.add_argument(

@@ -1,0 +1,45 @@
+diff --git a/configure.ac b/configure.ac
+index b491d7d..f67d608 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1,12 +1,8 @@
+ #                                               -*- Autoconf -*-
+ # Process this file with autoconf to produce a configure script.
+ 
+-AC_PREREQ(2.69)
+-AC_INIT([libisal],
+-        [2.30.0],
+-        [sg.support.isal@intel.com],
+-        [isa-l],
+-        [http://01.org/storage-acceleration-library])
++AC_PREREQ([2.71])
++AC_INIT([libisal],[2.30.0],[sg.support.isal@intel.com],[isa-l],[http://01.org/storage-acceleration-library])
+ AC_CONFIG_SRCDIR([])
+ AC_CONFIG_AUX_DIR([build-aux])
+ AM_INIT_AUTOMAKE([
+@@ -50,7 +46,7 @@ else
+ fi
+ 
+ # Check for programs
+-AC_PROG_CC_STDC
++AC_PROG_CC
+ AC_USE_SYSTEM_EXTENSIONS
+ AM_SILENT_RULES([yes])
+ LT_INIT
+@@ -69,13 +65,11 @@ AS_IF([test "x$enable_debug" = "xyes"], [
+ # If this build is for x86, look for yasm and nasm
+ if test x"$is_x86" = x"yes"; then
+   AC_MSG_CHECKING([whether Intel CET is enabled])
+-  AC_TRY_COMPILE([],[
++  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[]], [[
+ #ifndef __CET__
+ # error CET is not enabled
+-#endif],
+-		  [AC_MSG_RESULT([yes])
+-		   intel_cet_enabled=yes],
+-		  [AC_MSG_RESULT([no])
++#endif]])],[AC_MSG_RESULT([yes])
++		   intel_cet_enabled=yes],[AC_MSG_RESULT([no])
+ 		   intel_cet_enabled=no])
+ AS_IF([test "x$intel_cet_enabled" = "xyes"], [
+         AC_DEFINE(INTEL_CET_ENABLED, [1], [Intel CET enabled.])

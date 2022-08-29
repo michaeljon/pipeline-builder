@@ -1,3 +1,45 @@
+diff --git a/Makefile b/Makefile
+index 359585f..aed0a4a 100644
+--- a/Makefile
++++ b/Makefile
+@@ -33,12 +33,7 @@ ifneq ($(portable),)
+ endif
+ 
+ EXE=		bwa-mem2
+-#CXX=		icpc
+-ifeq ($(CXX), icpc)
+-	CC= icc
+-else ifeq ($(CXX), g++)
+-	CC=gcc
+-endif		
++
+ ARCH_FLAGS=	-msse -msse2 -msse3 -mssse3 -msse4.1
+ MEM_FLAGS=	-DSAIS=1
+ CPPFLAGS+=	-DENABLE_PREFETCH -DV17=1 -DMATE_SORT=0 $(MEM_FLAGS) 
+@@ -90,7 +85,7 @@ else
+ myall:multi
+ endif
+ 
+-CXXFLAGS+=	-g -O3 -fpermissive $(ARCH_FLAGS) #-Wall ##-xSSE2
++CXXFLAGS+=	-g -O3 -fpermissive -Wno-register $(ARCH_FLAGS) #-Wall ##-xSSE2
+ 
+ .PHONY:all clean depend multi
+ .SUFFIXES:.cpp .o
+@@ -121,7 +116,7 @@ $(BWA_LIB):$(OBJS)
+ 	ar rcs $(BWA_LIB) $(OBJS)
+ 
+ $(SAFE_STR_LIB):
+-	cd ext/safestringlib/ && $(MAKE) clean && $(MAKE) CC=$(CC) directories libsafestring.a
++	cd ext/safestringlib/ && $(MAKE) clean && $(MAKE) CC=$(CC) CFLAGS="-I./include $(CFLAGS) -DHAVE_STDLIB_H" directories libsafestring.a
+ 
+ clean:
+ 	rm -fr src/*.o $(BWA_LIB) $(EXE) bwa-mem2.sse41 bwa-mem2.sse42 bwa-mem2.avx bwa-mem2.avx2 bwa-mem2.avx512bw
+diff --git a/ext/safestringlib b/ext/safestringlib
+--- a/ext/safestringlib
++++ b/ext/safestringlib
+@@ -1 +1 @@
+-Subproject commit 245c4b8cff1d2e7338b7f3a82828fc8e72b29549
++Subproject commit 245c4b8cff1d2e7338b7f3a82828fc8e72b29549-dirty
 diff --git a/src/FMI_search.cpp b/src/FMI_search.cpp
 index 5f0ff48..cc077e7 100644
 --- a/src/FMI_search.cpp
@@ -20,3 +62,90 @@ index 5f0ff48..cc077e7 100644
                          _mm_prefetch(&sa_ms_byte[pos >> SA_COMPX], _MM_HINT_T0);
                          _mm_prefetch(&sa_ls_word[pos >> SA_COMPX], _MM_HINT_T0);
                      }
+diff --git a/src/memcpy_bwamem.cpp b/src/memcpy_bwamem.cpp
+index 84b5f56..ba1a24b 100644
+--- a/src/memcpy_bwamem.cpp
++++ b/src/memcpy_bwamem.cpp
+@@ -29,7 +29,7 @@ Authors: Sanchit Misra <sanchit.misra@intel.com>; Vasimuddin Md <vasimuddin.md@i
+ 
+ #include "memcpy_bwamem.h"
+ 
+-errno_t memcpy_bwamem(void *dest, rsize_t dmax, const void *src, rsize_t smax, char *file_name, int line_num)
++errno_t memcpy_bwamem(void *dest, rsize_t dmax, const void *src, rsize_t smax, const char *file_name, int line_num)
+ {
+     errno_t ret;
+     int64_t bytes_copied;
+diff --git a/src/memcpy_bwamem.h b/src/memcpy_bwamem.h
+index 0d53d93..46671aa 100644
+--- a/src/memcpy_bwamem.h
++++ b/src/memcpy_bwamem.h
+@@ -40,6 +40,6 @@ extern "C" {
+ }
+ #endif
+ 
+-errno_t memcpy_bwamem(void *dest, rsize_t dmax, const void *src, rsize_t smax, char *file_name, int line_num);
++errno_t memcpy_bwamem(void *dest, rsize_t dmax, const void *src, rsize_t smax, const char *file_name, int line_num);
+ 
+ #endif
+diff --git a/src/utils.h b/src/utils.h
+index 54a062a..29ea357 100644
+--- a/src/utils.h
++++ b/src/utils.h
+@@ -46,35 +46,49 @@
+ #define xreopen(fn, mode, fp) err_xreopen_core(__func__, fn, mode, fp)
+ #define xzopen(fn, mode) err_xzopen_core(__func__, fn, mode)
+ 
+-#define xassert(cond, msg) if ((cond) == 0) _err_fatal_simple_core(__func__, msg)
++#define xassert(cond, msg) \
++	if ((cond) == 0)       \
++	_err_fatal_simple_core(__func__, msg)
+ 
+-#if defined(__GNUC__) && !defined(__clang__)
++#if defined(__GNUC__) && __GNUC__ < 11 && !defined(__clang__)
+ #if defined(__i386__)
+ static inline unsigned long long __rdtsc(void)
+ {
+ 	unsigned long long int x;
+-    __asm__ volatile (".byte 0x0f, 0x31" : "=A" (x));
++	__asm__ volatile(".byte 0x0f, 0x31"
++					 : "=A"(x));
+ 	return x;
+ }
+ #elif defined(__x86_64__)
+ static inline unsigned long long __rdtsc(void)
+ {
+ 	unsigned hi, lo;
+-    __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
++	__asm__ __volatile__("rdtsc"
++						 : "=a"(lo), "=d"(hi));
+ 	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
+ }
+ #endif
+ #endif
+ 
+-typedef struct {
++typedef struct
++{
+ 	uint64_t x, y;
+ } pair64_t;
+ 
+-typedef struct { size_t n, m; uint64_t *a; } uint64_v;
+-typedef struct { size_t n, m; pair64_t *a; } pair64_v;
++typedef struct
++{
++	size_t n, m;
++	uint64_t *a;
++} uint64_v;
++typedef struct
++{
++	size_t n, m;
++	pair64_t *a;
++} pair64_v;
+ 
+ #ifdef __cplusplus
+-extern "C" {
++extern "C"
++{
+ #endif
+ 
+ 	void err_fatal(const char *header, const char *fmt, ...) ATTRIBUTE((noreturn));
