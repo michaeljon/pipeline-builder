@@ -445,7 +445,7 @@ def sortWithSamtools(script: TextIOWrapper, options: OptionsDict, output: str):
 if [[ ! -f {UNMARKED} ]]; then
     logthis "${{yellow}}Sorting aligned file${{reset}}"
 
-    samtools sort {PIPELINE}/{SAMPLE}.aligned.bam -o {UNMARKED}
+    samtools sort -@ {THREADS} {PIPELINE}/{SAMPLE}.aligned.bam -o {UNMARKED} --verbosity 5
 
     logthis "${{yellow}}Sorting aligned file completed${{reset}}"
 else
