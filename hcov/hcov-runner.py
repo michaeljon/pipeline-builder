@@ -358,8 +358,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
     bcftools index {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
     bcftools consensus \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
-        {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
-    | sed '/>/ s/.*$/>{ASSEMBLY} {SAMPLE}/' >{PIPELINE}/{SAMPLE}.consensus.fa
+        {PIPELINE}/{SAMPLE}.unannotated.vcf.gz >{PIPELINE}/{SAMPLE}.consensus.fa
 
     logthis "${{yellow}}Consensus completed${{reset}}"
 else
@@ -797,7 +796,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
     )
 
     checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 30 -F 1284 {SORTED} | bedtools genomecov -ibam stdin -bga >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
+        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 30 -F 1284 {SORTED} | bedtools genomecov -d -ibam stdin | awk "\\$2 % 100 == 0 {{print \\$1,\\$2,\\$3}}" | sed "s/AF304460.1/hcov_229e/;s/JX869059.2/hcov_emc/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl64/;s/AY585228.1/hcov_oc43/;s/MN908947.3/sars_cov_2/" >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
             REFERENCE=reference,
             ASSEMBLY=assembly,
             SAMPLE=sample,
@@ -1196,6 +1195,51 @@ fi
     )
 
 
+def runTrimGalore(
+    script: TextIOWrapper,
+    r1: str,
+    r2: str,
+    o1: str,
+    o2: str,
+    options: OptionsDict,
+):
+    bin = options["bin"]
+    sample = options["sample"]
+    threads = options["cores"]
+    pipeline = options["pipeline"]
+
+    script.write(
+        """
+#
+# run the trim galore preprocessor
+#
+if [[ ! -f {O1} || ! -f {O2} ]]; then
+    logthis "${{yellow}}Running trim galore preprocessor${{reset}}"
+
+    trim_galore \\
+        --cores 8 \\
+        --paired \\
+        --clip_R2 10 \\
+        --basename {SAMPLE} \\
+        --output_dir {PIPELINE} \\
+        -a NNNNNNNNNNAGATCGGAAGAGCACACGTCTGAACTCCAGTCAC \\
+        -a2 AGATCGGAAGAGCGTCGTGTAGGGAAAGA \\
+        {R1} \\
+        {R2}
+
+    mv {PIPELINE}/{SAMPLE}_val_1.fq.gz {O1}
+    mv {PIPELINE}/{SAMPLE}_val_2.fq.gz {O2}
+
+    logthis "${{yellow}}trim galore preprocessor completed${{reset}}"
+else
+    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            R1=r1, R2=r2, O1=o1, O2=o2, BIN=bin, THREADS=threads, SAMPLE=sample, PIPELINE=pipeline
+        )
+    )
+
+
 def preprocessFASTQ(
     script: TextIOWrapper,
     r1: str,
@@ -1212,6 +1256,8 @@ def preprocessFASTQ(
         runFastpPreprocessor(script, r1, r2, o1, o2, options)
     elif preprocessor == "trimmomatic":
         runTrimmomaticPreprocessor(script, r1, r2, o1, o2, options)
+    elif preprocessor == "trimgalore":
+        runTrimGalore(script, r1, r2, o1, o2, options)
     else:
         print("Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(PREPROCESSOR=preprocessor))
         quit(1)
@@ -1471,7 +1517,7 @@ def defineArguments() -> Namespace:
         action="store",
         dest="preprocessor",
         default="none",
-        choices=["trimmomatic", "fastp", "none"],
+        choices=["trimmomatic", "fastp", "trimgalore", "none"],
         help="Optionally run a FASTQ preprocessor",
     )
 
