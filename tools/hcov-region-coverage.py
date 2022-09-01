@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from importlib.resources import read_binary
 import sys
 import json
 import gzip
@@ -60,8 +61,8 @@ for gene in genes:
             min,
             max,
             stdev,
-            len(read_count),
+            width,
             sum(read_count),
-            sum(read_count) / len(read_count) * 100.0,
+            sum(read_count) / width * 100.0,
         )
     )
