@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from importlib.resources import read_binary
 import sys
 import json
 import gzip
@@ -47,11 +48,11 @@ for gene in genes:
     min = np.min(region_data[gene])
     max = np.max(region_data[gene])
     stdev = np.std(region_data[gene])
-    read_count = [1 for dp in region_data[gene] if dp != 0]
+    read_count = sum([1 for dp in region_data[gene] if dp != 0])
     width = genes[gene]["stop"] - genes[gene]["start"] + 1
 
     print(
-        "{}\t{}\t{}\t{:.1f}\t{:.0f}\t{:.0f}\t{:.0f}\t{:.2f}\t{:.0f}\t{:.0f}\t{:.2f}".format(
+        "{}\t{}\t{}\t{:.1f}\t{:.0f}\t{:.0f}\t{:.0f}\t{:.2f}\t{:.0f}\t{:.0f}\t{}".format(
             sample,
             organism,
             gene,
@@ -60,8 +61,8 @@ for gene in genes:
             min,
             max,
             stdev,
-            len(read_count),
-            sum(read_count),
-            sum(read_count) / len(read_count) * 100.0,
+            width,
+            read_count,
+            "{:.2f}".format(read_count / width * 100.0) if read_count > 0 else "N/A",
         )
     )
