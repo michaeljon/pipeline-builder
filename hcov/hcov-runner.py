@@ -892,10 +892,10 @@ def doQualityControl(script: TextIOWrapper, options: OptionsDict):
             for qc in variant_checks:
                 cmd += "    " + qc
 
-            cmd += "    'echo End of stats'\n"
+        cmd += "    'echo End of stats'\n"
 
-            script.write(
-                """
+        script.write(
+            """
 #
 # RUN QC processes, if there are any
 # 
@@ -908,11 +908,11 @@ logthis "Starting QC processes"
 # can't run plot-vcfstats until the statistics files are run above
 {PLOT_VCFSTATS}
 """.format(
-                    PARALLEL=cmd,
-                    PLOT_BAMSTATS=plot_bamstats if options["doAlignmentQc"] == True else "",
-                    PLOT_VCFSTATS=plot_vcfstats if options["doVariantQc"] == True else "",
-                )
+                PARALLEL=cmd,
+                PLOT_BAMSTATS=plot_bamstats if options["doAlignmentQc"] == True else "",
+                PLOT_VCFSTATS=plot_vcfstats if options["doVariantQc"] == True else "",
             )
+        )
 
     if options["doMultiQc"] == True:
         runMultiQC(script, options)
@@ -1115,6 +1115,10 @@ def runFastpPreprocessor(
     bin = options["bin"]
     readLimit = int(options["read-limit"])
 
+    #
+    # fastp is limited to 8 threads, so we use them
+    #
+
     script.write(
         """
 #
@@ -1165,6 +1169,11 @@ def runTrimmomaticPreprocessor(
     options: OptionsDict,
 ):
     bin = options["bin"]
+    sample = options["sample"]
+    stats = options["stats"]
+
+    u1 = o1.replace(".trimmed", ".unpaired")
+    u2 = o2.replace(".trimmed", ".unpaired")
 
     script.write(
         """
@@ -1177,20 +1186,20 @@ if [[ ! -f {O1} || ! -f {O2} ]]; then
     java -jar {BIN}/trimmomatic-0.39.jar PE \\
         {R1} \\
         {R2} \\
-        {O1} /dev/null \\
-        {O2} /dev/null \\
-        ILLUMINACLIP:{BIN}/adapters/NexteraPE-PE.fa:2:30:10 \\
+        {O1} {U1} \\
+        {O2} {U2} \\
+        ILLUMINACLIP:{BIN}/adapters/TruSeq3-PE-2.fa:2:30:10 \\
         LEADING:5 \\
         TRAILING:5 \\
         SLIDINGWINDOW:4:20 \\
-        MINLEN:30
+        MINLEN:30 2> {STATS}/{SAMPLE}_trim_out.log
 
     logthis "${{yellow}}trimmomatic preprocessor completed${{reset}}"
 else
     logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
 """.format(
-            R1=r1, R2=r2, O1=o1, O2=o2, BIN=bin
+            R1=r1, R2=r2, O1=o1, O2=o2, U1=u1, U2=u2, STATS=stats, SAMPLE=sample, BIN=bin
         )
     )
 
@@ -1207,6 +1216,11 @@ def runTrimGalore(
     sample = options["sample"]
     threads = options["cores"]
     pipeline = options["pipeline"]
+    stats = options["stats"]
+
+    #
+    # trim_galore is limited to 8 threads, so we use them
+    #
 
     script.write(
         """
@@ -1225,7 +1239,7 @@ if [[ ! -f {O1} || ! -f {O2} ]]; then
         -a NNNNNNNNNNAGATCGGAAGAGCACACGTCTGAACTCCAGTCAC \\
         -a2 AGATCGGAAGAGCGTCGTGTAGGGAAAGA \\
         {R1} \\
-        {R2}
+        {R2} 2> {STATS}/{SAMPLE}_trim_out.log
 
     mv {PIPELINE}/{SAMPLE}_val_1.fq.gz {O1}
     mv {PIPELINE}/{SAMPLE}_val_2.fq.gz {O2}
@@ -1235,7 +1249,7 @@ else
     logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
 """.format(
-            R1=r1, R2=r2, O1=o1, O2=o2, BIN=bin, THREADS=threads, SAMPLE=sample, PIPELINE=pipeline
+            R1=r1, R2=r2, O1=o1, O2=o2, BIN=bin, THREADS=threads, STATS=stats, SAMPLE=sample, PIPELINE=pipeline
         )
     )
 

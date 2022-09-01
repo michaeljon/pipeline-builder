@@ -5,49 +5,40 @@ ORGANISM=hcov-nl63
 ASSEMBLY=GCA_000853865.1_ViralProj14960_genomic
 REFNAME=AY567487.2
 
-if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
-    echo Starting ${SAMPLE} run
+echo Starting ${SAMPLE} run
 
-    # give us a place to work
-    mkdir -p ${HOME}/pipeline/${SAMPLE}
+# give us a place to work
+mkdir -p ${HOME}/pipeline/${SAMPLE}/${ORGANISM}
 
-    # build the pipeline
-    python ${HOME}/pipeline-builder/hcov/hcov-runner.py \
-        --no-color \
-        --cores 72 \
-        --sample ${SAMPLE} \
-        --work-dir ${HOME} \
-        --reference-dir ${HOME}/reference/${ORGANISM} \
-        --reference-assembly ${ASSEMBLY} \
-        --reference-name ${REFNAME} \
-        --pipeline-dir ${HOME}/pipeline/${SAMPLE} \
-        --stats-dir ${HOME}/pipeline/${SAMPLE} \
-        --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
-        --temp-dir ${HOME}/stats/temp \
-        --fastq-dir ${HOME}/pipeline/fastq \
-        --caller bcftools \
-        --aligner bwa \
-        --preprocessor fastp \
-        --sorter biobambam \
-        --unmapped
+# build the pipeline
+python ${HOME}/pipeline-builder/hcov/hcov-runner.py \
+    --no-color \
+    --cores 72 \
+    --sample ${SAMPLE} \
+    --work-dir ${HOME} \
+    --reference-dir ${HOME}/reference/${ORGANISM} \
+    --reference-assembly ${ASSEMBLY} \
+    --reference-name ${REFNAME} \
+    --pipeline-dir ${HOME}/pipeline/${SAMPLE}/${ORGANISM} \
+    --stats-dir ${HOME}/pipeline/${SAMPLE}/${ORGANISM} \
+    --script ${HOME}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner \
+    --temp-dir ${HOME}/stats/temp \
+    --fastq-dir ${HOME}/pipeline/fastq \
+    --skip-multi-qc \
+    --skip-variant-qc \
+    --skip-fastqc \
+    --skip-annotation \
+    --caller bcftools \
+    --aligner bwa \
+    --preprocessor trimgalore \
+    --sorter biobambam 
 
-    cp ${HOME}/pipeline-builder/assets/software_versions_mqc.html ${HOME}/pipeline/${SAMPLE}
-    cp ${HOME}/pipeline-builder/assets/ovationlogo.png ${HOME}/pipeline/${SAMPLE}
+cp ${HOME}/pipeline-builder/assets/software_versions_mqc.html ${HOME}/pipeline/${SAMPLE}/${ORGANISM}
+cp ${HOME}/pipeline-builder/assets/ovationlogo.png ${HOME}/pipeline/${SAMPLE}/${ORGANISM}
 
-    # run the pipeline
-    bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner >${HOME}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
+# run the pipeline
+bash ${HOME}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner >${HOME}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}.log 2>&1
 
-    echo Run ${SAMPLE} completed, packaging
+echo Run ${SAMPLE} completed, packaging
 
-    # pack up the stuff and clean house
-    # rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_R1.trimmed.fastq.gz
-    # rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_R2.trimmed.fastq.gz
-
-    cd ${HOME}/pipeline/
-    tar cfz ${HOME}/pipeline/${SAMPLE}.tgz ./${SAMPLE}
-    # rm -rf ${HOME}/pipeline/${SAMPLE}
-
-    echo Finished ${SAMPLE} run
-else
-    echo "We have already processed sample ${SAMPLE}"
-fi
+echo Finished ${SAMPLE} run
