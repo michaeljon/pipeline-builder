@@ -28,7 +28,7 @@ python ${HOME}/pipeline-builder/hcov/hcov-runner.py \
     --stats-dir ${HOME}/pipeline/${SAMPLE}/${ORGANISM} \
     --script ${HOME}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner \
     --temp-dir ${HOME}/stats/temp \
-    --fastq-dir ${HOME}/pipeline/fastq \
+    --fastq-dir ${HOME}/fastq \
     --skip-multi-qc \
     --skip-variant-qc \
     --skip-fastqc \
