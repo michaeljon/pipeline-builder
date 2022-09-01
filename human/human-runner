@@ -19,6 +19,7 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
         --known-sites GCF_000001405.39.gz \
         --sizes ${HOME}/pipeline-builder/human/GRCh38-p14-chromosomeSizes.json \
         --segment 25000000 \
+        --vep-dir ${HOME}/reference/vep_data \
         --pipeline-dir ${HOME}/pipeline/${SAMPLE} \
         --stats-dir ${HOME}/stats/${SAMPLE} \
         --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \

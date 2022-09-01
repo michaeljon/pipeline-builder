@@ -1362,10 +1362,10 @@ def doQualityControl(script: TextIOWrapper, options: OptionsDict, sorted: str):
             for qc in variant_checks:
                 cmd += "    " + qc
 
-            cmd += "    'echo End of stats'\n"
+        cmd += "    'echo End of stats'\n"
 
-            script.write(
-                """
+        script.write(
+            """
 #
 # RUN QC processes, if there are any
 # 
@@ -1378,11 +1378,11 @@ logthis "Starting QC processes"
 # can't run plot-vcfstats until the statistics files are run above
 {PLOT_VCFSTATS}
 """.format(
-                    PARALLEL=cmd,
-                    PLOT_BAMSTATS=plot_bamstats if options["doAlignmentQc"] == True else "",
-                    PLOT_VCFSTATS=plot_vcfstats if options["doVariantQc"] == True else "",
-                )
+                PARALLEL=cmd,
+                PLOT_BAMSTATS=plot_bamstats if options["doAlignmentQc"] == True else "",
+                PLOT_VCFSTATS=plot_vcfstats if options["doVariantQc"] == True else "",
             )
+        )
 
     if options["doMultiQc"] == True:
         runMultiQC(script, options)
@@ -1479,7 +1479,8 @@ red=$(echo -n "")
 green=$(echo -n "")
 yellow=$(echo -n "")
 reset=$(echo -n "")
-""")
+"""
+        )
     else:
         script.write(
             """
@@ -1488,7 +1489,8 @@ red=$(tput setaf 1)
 green=$(tput setaf 2)
 yellow=$(tput setaf 3)
 reset=$(tput sgr0)
-""")
+"""
+        )
 
     script.write(
         """
@@ -1735,6 +1737,13 @@ def defineArguments() -> Namespace:
         default="$HOME/bin",
         help="Install location of all tooling",
     )
+    parser.add_argument(
+        "--vep-dir",
+        action="store",
+        metavar="VEP_DATA",
+        dest="vep_data_dir",
+        help="Location of the current VEP data",
+    )
 
     parser.add_argument(
         "--script",
@@ -1894,7 +1903,7 @@ def verifyOptions(options: OptionsDict):
 def main():
     opts = defineArguments()
     options = fixupPathOptions(opts)
-
+    
     verifyOptions(options)
 
     filenames = getFileNames(options)
@@ -1941,7 +1950,7 @@ def main():
             annotate(
                 script,
                 options,
-                "{WORKING}/vep_data".format(WORKING=options["working"]),
+                "{VEP_DATA}".format(VEP_DATA=options["vep_data_dir"]),
                 "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(
                     PIPELINE=options["pipeline"], SAMPLE=options["sample"]
                 ),
