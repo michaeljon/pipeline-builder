@@ -8,22 +8,22 @@ REFNAME=AY597011.2
 echo Starting ${SAMPLE} run
 
 # give us a place to work
-mkdir -p ${HOME}/pipeline/${SAMPLE}/${ORGANISM}
+mkdir -p ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}
 
 # build the pipeline
-python ${HOME}/pipeline-builder/hcov/hcov-runner.py \
+python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-runner.py \
     --no-color \
     --cores 72 \
     --sample ${SAMPLE} \
-    --work-dir ${HOME} \
-    --reference-dir ${HOME}/reference/${ORGANISM} \
+    --work-dir ${PIPELINE_ROOT} \
+    --reference-dir ${PIPELINE_ROOT}/reference/${ORGANISM} \
     --reference-assembly ${ASSEMBLY} \
     --reference-name ${REFNAME} \
-    --pipeline-dir ${HOME}/pipeline/${SAMPLE}/${ORGANISM} \
-    --stats-dir ${HOME}/pipeline/${SAMPLE}/${ORGANISM} \
-    --script ${HOME}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner \
-    --temp-dir ${HOME}/stats/temp \
-    --fastq-dir ${HOME}/fastq \
+    --pipeline-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM} \
+    --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM} \
+    --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner \
+    --temp-dir ${PIPELINE_ROOT}/stats/temp \
+    --fastq-dir ${PIPELINE_ROOT}/fastq \
     --skip-multi-qc \
     --skip-variant-qc \
     --skip-fastqc \
@@ -33,11 +33,11 @@ python ${HOME}/pipeline-builder/hcov/hcov-runner.py \
     --preprocessor trimgalore \
     --sorter biobambam 
 
-cp ${HOME}/pipeline-builder/assets/software_versions_mqc.html ${HOME}/pipeline/${SAMPLE}/${ORGANISM}
-cp ${HOME}/pipeline-builder/assets/ovationlogo.png ${HOME}/pipeline/${SAMPLE}/${ORGANISM}
+cp ${PIPELINE_ROOT}/pipeline-builder/assets/software_versions_mqc.html ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}
+cp ${PIPELINE_ROOT}/pipeline-builder/assets/ovationlogo.png ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}
 
 # run the pipeline
-bash ${HOME}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner >${HOME}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}.log 2>&1
+bash ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner >${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}.log 2>&1
 
 echo Run ${SAMPLE} completed, packaging
 
