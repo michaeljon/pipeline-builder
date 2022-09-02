@@ -41,7 +41,7 @@ with gzip.open(pileup, "rt") as f:
                             if genes[g]["start"] <= pos and pos <= genes[g]["stop"]:
                                 region_data[g][pos - genes[g]["start"]] = int(v[1])
 
-print("sample\torganism\tgene\tmean\tmedian\tmin\tmax\tstdev\tbases\tseen\tcoverage")
+print("sample\torganism\tgene\tmeandepth\tmediandepth\tmindepth\tmaxdepth\tstdev\tbases\tseen\tcoverage")
 for gene in genes:
     mean = np.mean(region_data[gene])
     median = np.median(region_data[gene])
@@ -52,7 +52,7 @@ for gene in genes:
     width = genes[gene]["stop"] - genes[gene]["start"] + 1
 
     print(
-        "{}\t{}\t{}\t{:.1f}\t{:.0f}\t{:.0f}\t{:.0f}\t{:.2f}\t{:.0f}\t{:.0f}\t{}".format(
+        "{}\t{}\t{}\t{:.1f}\t{:.0f}\t{:.0f}\t{:.0f}\t{:.2f}\t{:.0f}\t{:.0f}\t{:.2f}".format(
             sample,
             organism,
             gene,
@@ -63,6 +63,6 @@ for gene in genes:
             stdev,
             width,
             read_count,
-            "{:.2f}".format(read_count / width * 100.0) if read_count > 0 else "N/A",
+            read_count / width * 100.0,
         )
     )
