@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+mkdir -p ~/tmp/multiple-call-covers
+
+for FILENAME in $(find ~/pipeline/ -name '*.sorted.bam' -print); do
+    LOCATION=$(dirname $FILENAME)
+    SAMPLE=$(echo $FILENAME | cut -d/ -f5)
+
+    if [[ ! -f ${LOCATION}/${SAMPLE}.depth.gz ]]; then
+        printf "${SAMPLE} *: calculating depth...     \r"
+        samtools depth $FILENAME | gzip >${LOCATION}/${SAMPLE}.depth.gz
+    fi
+
+    printf "${SAMPLE} *: building report...       \r"
+    ./hcov-region-coverage.py ${SAMPLE} '*' ${LOCATION}/${SAMPLE}.depth.gz >~/tmp/multiple-call-covers/${SAMPLE}_star.tsv
+
+    printf "${SAMPLE} *: finished                 \n"
+done
+
+echo -e "sample	organism	gene	mean	median	min	max	stdev	bases	seen	coverage" >~/tmp/multiple-call-coverage.tsv
+cat ~/tmp/multiple-call-covers/* | grep -v '^sample' >>~/tmp/multiple-call-coverage.tsv

@@ -41,22 +41,20 @@ with gzip.open(pileup, "rt") as f:
                 pos = int(elements[1])
 
                 target = feature_data[sequence_organisms[elements[0]]]
+                depth = int(elements[2])
 
-                infos = elements[7].split(";")
-                for i in infos:
-                    v = i.split("=")
-                    if v[0] == "DP":
-                        target["region_data"][pos - 1] = int(v[1])
+                target["region_data"][pos - 1] = depth
 
-                        genes = target["genes"]
-                        for g in genes:
-                            gene = genes[g]
-                            if genes[g]["start"] <= pos and pos <= genes[g]["stop"]:
-                                gene["region_data"][pos - genes[g]["start"]] = int(v[1])
+                genes = target["genes"]
+                for g in genes:
+                    gene = genes[g]
+                    if genes[g]["start"] <= pos and pos <= genes[g]["stop"]:
+                        gene["region_data"][pos - genes[g]["start"]] = depth
+
+to_process = [ k for k in feature_data if organism == "*" or organism == k ]
 
 print("sample\torganism\tgene\tmeandepth\tmediandepth\tmindepth\tmaxdepth\tstdev\tbases\tseen\tcoverage")
-for ok in feature_data:
-    if organism == "*" or organism == ok:
+for ok in to_process:
         region_data = feature_data[ok]["region_data"]
 
         mean = np.mean(region_data)
