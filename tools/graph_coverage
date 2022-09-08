@@ -11,15 +11,16 @@ library(tidyverse)
 cov <- read_tsv('./stats/${SAMPLE}.bedtools.coverage.txt', col_names=FALSE)
 names(cov) <- c('chromosome', 'position', 'coverage')
 
-mean_cov <- cov |>
-  pull(coverage) |>
-  mean()
+median_cov <- cov %>%
+  pull(coverage) %>%
+  sort() %>%
+  median(na.rm = FALSE)
 
 plt <- ggplot(data=cov, mapping=aes(x=position,y=coverage)) +
   geom_smooth() +
   theme_hc() +
   ggtitle("Sample ${SAMPLE} coverage") +
-  geom_hline(yintercept = mean_cov, color="turquoise4") 
+  geom_hline(yintercept = median_cov, color="turquoise4") 
 
 png("stats/${SAMPLE}.coverage.png")
 print(plt)

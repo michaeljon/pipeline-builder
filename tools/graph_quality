@@ -13,14 +13,16 @@ library(tidyverse)
 
 qual <- read_tsv('./${SAMPLE}/${SAMPLE}_vcfstats.lqual', col_names=TRUE)
 
-mean_qual <- qual |>
-  pull(QUAL) |>
-  mean()
+median_qual <- qual %>%
+  pull(QUAL) %>%
+  sort() %>%
+  median(na.rm = FALSE)
+
 plt <- ggplot(data=qual, mapping=aes(x=POS,y=QUAL)) +
   geom_smooth() +
   theme_hc() +
   ggtitle("Sample ${SAMPLE} quality") +
-  geom_hline(yintercept = mean_qual, color="purple")
+  geom_hline(yintercept = median_qual, color="purple")
 
 png("quality/${SAMPLE}.quality.png")
 print(plt)
