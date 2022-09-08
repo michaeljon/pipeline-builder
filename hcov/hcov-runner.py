@@ -1046,15 +1046,42 @@ def verifyOptions(options: OptionsDict):
     options["__canAssignClades"] = referenceName == "MN908947.3"
     options["__canAnnotateVariants"] = referenceName == "MN908947.3"
 
+fallback_warning_shown = False
 
 def getFileNames(options: OptionsDict) -> FastqSet:
+    global fallback_warning_shown
+
     sample = options["sample"]
     fastq_dir = options["fastq_dir"]
 
-    return (
+    # assume we have the _001 pattern first
+    filenames = (
         "{FASTQ_DIR}/{SAMPLE}_R1_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
         "{FASTQ_DIR}/{SAMPLE}_R2_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
     )
+
+    if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
+        if fallback_warning_shown == False:
+            print("Falling back to shortened fastq file names")
+            fallback_warning_shown = True
+
+        # if that didn't work, try for the redacted names
+        filenames = (
+            "{FASTQ_DIR}/{SAMPLE}_R1.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+            "{FASTQ_DIR}/{SAMPLE}_R2.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        )
+
+        if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
+            print(
+                "Unable to locate the R1 or R2 files at {R1} and {R2}".format(
+                    R1=filenames[0],
+                    R2=filenames[1],
+                )
+            )
+            print("Check your --sample and --fastq-dir parameters")
+            quit(1)
+
+    return filenames
 
 
 def getTrimmedFileNames(options: OptionsDict) -> FastqSet:
