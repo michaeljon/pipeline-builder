@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
 SAMPLE=$1
-ORGANISM=hcov-hku1
-ASSEMBLY=GCA_000858765.1_ViralProj15139_genomic
-REFNAME=AY597011.2
+ORGANISM=hcov-emc
+ASSEMBLY=GCA_000901155.1_ViralProj183710_genomic
+REFNAME=JX869059.2
 
 echo Starting ${SAMPLE} run
 

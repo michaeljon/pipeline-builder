@@ -260,6 +260,11 @@ cd ${ROOT}/src/vcftools-0.1.16
 make
 make install
 
+echo "Building bedtools"
+cd ${ROOT}/bedtools-v2.30.0
+make prefix=${ROOT}
+make install
+
 echo "Building BIOBAMBAM and components - this'll take a while"
 cd ${ROOT}/src/libmaus2-2.0.810-release-20220216151520
 ./configure --enable-compile-testprograms=no --prefix=${ROOT}

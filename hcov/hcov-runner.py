@@ -204,9 +204,14 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         -R {REFERENCE}/{ASSEMBLY}.fna \\
         -I {PIPELINE}/{SAMPLE}.sorted.bam \\
         -O {PIPELINE}/{SAMPLE}.unannotated.vcf \\
-        --verbosity ERROR \\
-        --pairHMM FASTEST_AVAILABLE \\
-        --native-pair-hmm-threads 4
+        --standard-min-confidence-threshold-for-calling 20 \\
+        --dont-use-soft-clipped-bases \\
+        --min-base-quality-score 20 \\
+        --max-reads-per-alignment-start 0 \\
+        --linked-de-bruijn-graph \\
+        --recover-all-dangling-branches \\
+        --sample-ploidy 1 \\
+        --verbosity ERROR
 
     bgzip {PIPELINE}/{SAMPLE}.unannotated.vcf
     tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
@@ -304,7 +309,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp \\
         --output-type v  \\
         --output {PIPELINE}/{SAMPLE}.unannotated.vcf \\
-        -- --tags AC,AN,AF,VAF,MAF 2>/dev/null
+        -- --tags AC,AN,AF,VAF,MAF,FORMAT/VAF 2>/dev/null
 
     rm -f {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp
 
@@ -353,8 +358,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
     bcftools index {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
     bcftools consensus \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
-        {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
-    | sed '/>/ s/$/ | {SAMPLE}/' >{PIPELINE}/{SAMPLE}.consensus.fa
+        {PIPELINE}/{SAMPLE}.unannotated.vcf.gz >{PIPELINE}/{SAMPLE}.consensus.fa
 
     logthis "${{yellow}}Consensus completed${{reset}}"
 else
@@ -791,6 +795,16 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
         )
     )
 
+    checks.append(
+        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 30 -F 1284 {SORTED} | bedtools genomecov -d -ibam stdin | awk "\\$2 % 100 == 0 {{print \\$1,\\$2,\\$3}}" | sed "s/AF304460.1/hcov_229e/;s/JX869059.2/hcov_emc/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl63/;s/AY585228.1/hcov_oc43/;s/MN908947.3/sars_cov_2/" >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            SAMPLE=sample,
+            STATS=stats,
+            SORTED=sorted,
+        )
+    )
+
     if skipFastQc == False:
         checks.append(
             """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
@@ -878,10 +892,10 @@ def doQualityControl(script: TextIOWrapper, options: OptionsDict):
             for qc in variant_checks:
                 cmd += "    " + qc
 
-            cmd += "    'echo End of stats'\n"
+        cmd += "    'echo End of stats'\n"
 
-            script.write(
-                """
+        script.write(
+            """
 #
 # RUN QC processes, if there are any
 # 
@@ -894,11 +908,11 @@ logthis "Starting QC processes"
 # can't run plot-vcfstats until the statistics files are run above
 {PLOT_VCFSTATS}
 """.format(
-                    PARALLEL=cmd,
-                    PLOT_BAMSTATS=plot_bamstats if options["doAlignmentQc"] == True else "",
-                    PLOT_VCFSTATS=plot_vcfstats if options["doVariantQc"] == True else "",
-                )
+                PARALLEL=cmd,
+                PLOT_BAMSTATS=plot_bamstats if options["doAlignmentQc"] == True else "",
+                PLOT_VCFSTATS=plot_vcfstats if options["doVariantQc"] == True else "",
             )
+        )
 
     if options["doMultiQc"] == True:
         runMultiQC(script, options)
@@ -1032,15 +1046,42 @@ def verifyOptions(options: OptionsDict):
     options["__canAssignClades"] = referenceName == "MN908947.3"
     options["__canAnnotateVariants"] = referenceName == "MN908947.3"
 
+fallback_warning_shown = False
 
 def getFileNames(options: OptionsDict) -> FastqSet:
+    global fallback_warning_shown
+
     sample = options["sample"]
     fastq_dir = options["fastq_dir"]
 
-    return (
+    # assume we have the _001 pattern first
+    filenames = (
         "{FASTQ_DIR}/{SAMPLE}_R1_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
         "{FASTQ_DIR}/{SAMPLE}_R2_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
     )
+
+    if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
+        if fallback_warning_shown == False:
+            print("Falling back to shortened fastq file names")
+            fallback_warning_shown = True
+
+        # if that didn't work, try for the redacted names
+        filenames = (
+            "{FASTQ_DIR}/{SAMPLE}_R1.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+            "{FASTQ_DIR}/{SAMPLE}_R2.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        )
+
+        if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
+            print(
+                "Unable to locate the R1 or R2 files at {R1} and {R2}".format(
+                    R1=filenames[0],
+                    R2=filenames[1],
+                )
+            )
+            print("Check your --sample and --fastq-dir parameters")
+            quit(1)
+
+    return filenames
 
 
 def getTrimmedFileNames(options: OptionsDict) -> FastqSet:
@@ -1101,6 +1142,10 @@ def runFastpPreprocessor(
     bin = options["bin"]
     readLimit = int(options["read-limit"])
 
+    #
+    # fastp is limited to 8 threads, so we use them
+    #
+
     script.write(
         """
 #
@@ -1151,6 +1196,11 @@ def runTrimmomaticPreprocessor(
     options: OptionsDict,
 ):
     bin = options["bin"]
+    sample = options["sample"]
+    stats = options["stats"]
+
+    u1 = o1.replace(".trimmed", ".unpaired")
+    u2 = o2.replace(".trimmed", ".unpaired")
 
     script.write(
         """
@@ -1163,20 +1213,70 @@ if [[ ! -f {O1} || ! -f {O2} ]]; then
     java -jar {BIN}/trimmomatic-0.39.jar PE \\
         {R1} \\
         {R2} \\
-        {O1} /dev/null \\
-        {O2} /dev/null \\
-        ILLUMINACLIP:{BIN}/adapters/NexteraPE-PE.fa:2:30:10 \\
+        {O1} {U1} \\
+        {O2} {U2} \\
+        ILLUMINACLIP:{BIN}/adapters/TruSeq3-PE-2.fa:2:30:10 \\
         LEADING:5 \\
         TRAILING:5 \\
         SLIDINGWINDOW:4:20 \\
-        MINLEN:30
+        MINLEN:30 2> {STATS}/{SAMPLE}_trim_out.log
 
     logthis "${{yellow}}trimmomatic preprocessor completed${{reset}}"
 else
     logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
 """.format(
-            R1=r1, R2=r2, O1=o1, O2=o2, BIN=bin
+            R1=r1, R2=r2, O1=o1, O2=o2, U1=u1, U2=u2, STATS=stats, SAMPLE=sample, BIN=bin
+        )
+    )
+
+
+def runTrimGalore(
+    script: TextIOWrapper,
+    r1: str,
+    r2: str,
+    o1: str,
+    o2: str,
+    options: OptionsDict,
+):
+    bin = options["bin"]
+    sample = options["sample"]
+    threads = options["cores"]
+    pipeline = options["pipeline"]
+    stats = options["stats"]
+
+    #
+    # trim_galore is limited to 8 threads, so we use them
+    #
+
+    script.write(
+        """
+#
+# run the trim galore preprocessor
+#
+if [[ ! -f {O1} || ! -f {O2} ]]; then
+    logthis "${{yellow}}Running trim galore preprocessor${{reset}}"
+
+    trim_galore \\
+        --cores 8 \\
+        --paired \\
+        --clip_R2 10 \\
+        --basename {SAMPLE} \\
+        --output_dir {PIPELINE} \\
+        -a NNNNNNNNNNAGATCGGAAGAGCACACGTCTGAACTCCAGTCAC \\
+        -a2 AGATCGGAAGAGCGTCGTGTAGGGAAAGA \\
+        {R1} \\
+        {R2} 2> {STATS}/{SAMPLE}_trim_out.log
+
+    mv {PIPELINE}/{SAMPLE}_val_1.fq.gz {O1}
+    mv {PIPELINE}/{SAMPLE}_val_2.fq.gz {O2}
+
+    logthis "${{yellow}}trim galore preprocessor completed${{reset}}"
+else
+    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            R1=r1, R2=r2, O1=o1, O2=o2, BIN=bin, THREADS=threads, STATS=stats, SAMPLE=sample, PIPELINE=pipeline
         )
     )
 
@@ -1197,6 +1297,8 @@ def preprocessFASTQ(
         runFastpPreprocessor(script, r1, r2, o1, o2, options)
     elif preprocessor == "trimmomatic":
         runTrimmomaticPreprocessor(script, r1, r2, o1, o2, options)
+    elif preprocessor == "trimgalore":
+        runTrimGalore(script, r1, r2, o1, o2, options)
     else:
         print("Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(PREPROCESSOR=preprocessor))
         quit(1)
@@ -1210,6 +1312,7 @@ def runBwaAligner(
     o2: str,
     options: OptionsDict,
 ):
+    aligner = options["aligner"]
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     sample = options["sample"]
@@ -1225,10 +1328,12 @@ def runBwaAligner(
 if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
     logthis "${{yellow}}Running aligner${{reset}}"
 
-    bwa-mem2 mem -t {THREADS} \\
-        -Y -M \\
-        -v 1 \\
+    {ALIGNER} mem \\
         -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+        -t {THREADS} \\
+        -Y \\
+        -M \\
+        -v 1 \\
         {REFERENCE}/{ASSEMBLY}.fna \\
         {O1} \\
         {O2} | 
@@ -1240,6 +1345,7 @@ else
 fi
 
 """.format(
+            ALIGNER=aligner,
             O1=o1,
             O2=o2,
             ASSEMBLY=assembly,
@@ -1312,7 +1418,7 @@ def alignFASTQ(
 ):
     aligner = options["aligner"]
 
-    if aligner == "bwa":
+    if aligner == "bwa" or aligner == "bwa-mem2":
         runBwaAligner(script, o1, o2, options)
     elif aligner == "hisat2":
         runHisatAligner(script, o1, o2, options)
@@ -1452,7 +1558,7 @@ def defineArguments() -> Namespace:
         action="store",
         dest="preprocessor",
         default="none",
-        choices=["trimmomatic", "fastp", "none"],
+        choices=["trimmomatic", "fastp", "trimgalore", "none"],
         help="Optionally run a FASTQ preprocessor",
     )
 
@@ -1477,8 +1583,8 @@ def defineArguments() -> Namespace:
         action="store",
         dest="aligner",
         default="bwa",
-        choices=["bwa", "hisat2"],
-        help="Use 'bwa' or 'hisat2' as the aligner.",
+        choices=["bwa", "bwa-mem2", "hisat2"],
+        help="Use 'bwa', 'bwa-mem2', or 'hisat2' as the aligner.",
     )
 
     parser.add_argument(

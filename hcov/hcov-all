@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+export PIPELINE_ROOT=${HOME}
+
+~/pipeline-builder/hcov/hcov-229e $1
+~/pipeline-builder/hcov/hcov-emc $1
+~/pipeline-builder/hcov/hcov-hku1 $1
+~/pipeline-builder/hcov/hcov-nl63 $1
+~/pipeline-builder/hcov/hcov-oc43 $1
+~/pipeline-builder/hcov/sars-cov-2 $1

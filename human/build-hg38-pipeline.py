@@ -322,6 +322,7 @@ def runBwaAligner(
     o2: str,
     options: OptionsDict,
 ):
+    aligner = options["aligner"]
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     sample = options["sample"]
@@ -336,7 +337,7 @@ def runBwaAligner(
 if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
     logthis "${{yellow}}Running aligner${{reset}}"
 
-    bwa-mem2 mem -t {THREADS} \\
+    {ALIGNER} mem -t {THREADS} \\
         -Y -M \\
         -v 1 \\
         -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
@@ -351,6 +352,7 @@ else
 fi
 
 """.format(
+            ALIGNER=aligner,
             O1=o1,
             O2=o2,
             REFERENCE=reference,
@@ -370,7 +372,7 @@ def alignFASTQ(
 ):
     aligner = options["aligner"]
 
-    if aligner == "bwa":
+    if aligner == "bwa" or aligner == "bwa-mem2":
         runBwaAligner(script, o1, o2, options)
     else:
         print("Unexpected value {ALIGNER} given for the --aligner option".format(ALIGNER=aligner))
@@ -443,7 +445,7 @@ def sortWithSamtools(script: TextIOWrapper, options: OptionsDict, output: str):
 if [[ ! -f {UNMARKED} ]]; then
     logthis "${{yellow}}Sorting aligned file${{reset}}"
 
-    samtools sort {PIPELINE}/{SAMPLE}.aligned.bam -o {UNMARKED}
+    samtools sort -@ {THREADS} {PIPELINE}/{SAMPLE}.aligned.bam -o {UNMARKED} --verbosity 5
 
     logthis "${{yellow}}Sorting aligned file completed${{reset}}"
 else
@@ -1360,10 +1362,10 @@ def doQualityControl(script: TextIOWrapper, options: OptionsDict, sorted: str):
             for qc in variant_checks:
                 cmd += "    " + qc
 
-            cmd += "    'echo End of stats'\n"
+        cmd += "    'echo End of stats'\n"
 
-            script.write(
-                """
+        script.write(
+            """
 #
 # RUN QC processes, if there are any
 # 
@@ -1376,11 +1378,11 @@ logthis "Starting QC processes"
 # can't run plot-vcfstats until the statistics files are run above
 {PLOT_VCFSTATS}
 """.format(
-                    PARALLEL=cmd,
-                    PLOT_BAMSTATS=plot_bamstats if options["doAlignmentQc"] == True else "",
-                    PLOT_VCFSTATS=plot_vcfstats if options["doVariantQc"] == True else "",
-                )
+                PARALLEL=cmd,
+                PLOT_BAMSTATS=plot_bamstats if options["doAlignmentQc"] == True else "",
+                PLOT_VCFSTATS=plot_vcfstats if options["doVariantQc"] == True else "",
             )
+        )
 
     if options["doMultiQc"] == True:
         runMultiQC(script, options)
@@ -1477,7 +1479,8 @@ red=$(echo -n "")
 green=$(echo -n "")
 yellow=$(echo -n "")
 reset=$(echo -n "")
-""")
+"""
+        )
     else:
         script.write(
             """
@@ -1486,7 +1489,8 @@ red=$(tput setaf 1)
 green=$(tput setaf 2)
 yellow=$(tput setaf 3)
 reset=$(tput sgr0)
-""")
+"""
+        )
 
     script.write(
         """
@@ -1504,7 +1508,7 @@ export PERL5LIB=/home/ubuntu/perl5/lib/perl5:$PERL5LIB
 export PERL_LOCAL_LIB_ROOT=/home/ubuntu/perl5:$PERL_LOCAL_LIB_ROOT
 
 # shared library stuff
-export LD_LIBRARY_PATH={WORKING}/bin:/usr/lib64:/usr/local/lib/:$LB_LIBRARY_PATH
+export LD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib64:/usr/local/lib/:$LB_LIBRARY_PATH
 export LD_PRELOAD={WORKING}/bin/libz.so.1.2.11.zlib-ng
 
 # handy path
@@ -1612,9 +1616,9 @@ def defineArguments() -> Namespace:
         "--aligner",
         action="store",
         dest="aligner",
-        default="bwa",
-        choices=["bwa", "hisat2"],
-        help="Use 'bwa' or 'hisat2' as the aligner.",
+        default="bwa-mem2",
+        choices=["bwa", "bwa-mem2"],
+        help="Use 'bwa' or 'bwa-mem2' as the aligner.",
     )
 
     parser.add_argument(
@@ -1732,6 +1736,13 @@ def defineArguments() -> Namespace:
         dest="bin",
         default="$HOME/bin",
         help="Install location of all tooling",
+    )
+    parser.add_argument(
+        "--vep-dir",
+        action="store",
+        metavar="VEP_DATA",
+        dest="vep_data_dir",
+        help="Location of the current VEP data",
     )
 
     parser.add_argument(
@@ -1892,7 +1903,7 @@ def verifyOptions(options: OptionsDict):
 def main():
     opts = defineArguments()
     options = fixupPathOptions(opts)
-
+    
     verifyOptions(options)
 
     filenames = getFileNames(options)
@@ -1939,7 +1950,7 @@ def main():
             annotate(
                 script,
                 options,
-                "{WORKING}/vep_data".format(WORKING=options["working"]),
+                "{VEP_DATA}".format(VEP_DATA=options["vep_data_dir"]),
                 "{PIPELINE}/{SAMPLE}.unannotated.vcf.gz".format(
                     PIPELINE=options["pipeline"], SAMPLE=options["sample"]
                 ),
