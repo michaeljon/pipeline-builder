@@ -3,10 +3,11 @@
 import sys
 import json
 import gzip
-import numpy as np
+from os.path import exists, expandvars
 
-if len(sys.argv) != 4:
-    print("usage: " + sys.argv[0] + " <sample> <organism> <depth>")
+
+if len(sys.argv) != 5:
+    print("usage: " + sys.argv[0] + " <sample> <organism> <depth> <destpath>")
     exit(1)
 
 feature_data = {}
@@ -16,10 +17,19 @@ with open("hcov-regions.json") as f:
 sample = sys.argv[1]
 organism = sys.argv[2]
 depth_file = sys.argv[3]
+dest = sys.argv[4]
 
 if organism != "*" and organism not in feature_data:
     print("Unknown organism " + organism + " check region data")
     exit(2)
+
+if exists(expandvars(depth_file)) == False:
+    print("Unable to location depth file")
+    exit(3)
+
+if exists(expandvars(dest)) == False:
+    print("Unable to location destination")
+    exit(4)
 
 sequence_organisms = {v["sequence"]: k for _, (k, v) in enumerate(feature_data.items())}
 organism_sequences = {k: v["sequence"] for _, (k, v) in enumerate(feature_data.items())}
@@ -52,58 +62,32 @@ with gzip.open(depth_file, "rt") as f:
 
 to_process = [k for k in feature_data if organism == "*" or organism == k]
 
-print("sample\torganism\tgene\tmeandepth\tmediandepth\tmindepth\tmaxdepth\tstdev\tbases\tseen\tcoverage")
 for ok in to_process:
     region_data = feature_data[ok]["region_data"]
+    with open(dest + "/" + sample + "_" + ok + "__all" + ".tsv", "w") as f:
+        f.write("sample\torganism\tgene\tposition\tdepth\n")
+        for position in range(len(region_data)):
+            target = feature_data[ok]
+            genes = target["genes"]
 
-    mean = np.mean(region_data)
-    median = np.median(region_data)
-    min = np.min(region_data)
-    max = np.max(region_data)
-    stdev = np.std(region_data)
-    read_count = sum([1 for dp in region_data if dp != 0])
-    width = feature_data[ok]["region"]["stop"] - feature_data[ok]["region"]["start"] + 1
+            gene_name = "<*>"
+            for g in genes:
+                gene = genes[g]
+                if genes[g]["start"] <= position and position <= genes[g]["stop"]:
+                    gene_name = g
 
-    print(
-        "{}\t{}\t{}\t{:.1f}\t{:.0f}\t{:.0f}\t{:.0f}\t{:.2f}\t{:.0f}\t{:.0f}\t{:.2f}".format(
-            sample,
-            ok,
-            "*",
-            mean,
-            median,
-            min,
-            max,
-            stdev,
-            width,
-            read_count,
-            read_count / width * 100.0,
-        )
-    )
+            f.write("{}\t{}\t{}\t{:.0f}\t{:.0f}\n".format(sample, ok, gene_name, position, region_data[position]))
 
     genes = feature_data[ok]["genes"]
     for gk in genes:
-        region_data = genes[gk]["region_data"]
+        with open(dest + "/" + sample + "_" + ok + "_" + gk + ".tsv", "w") as f:
+            f.write("sample\torganism\tgene\tpos_in_gene\tpos_in_genome\tdepth\n")
 
-        mean = np.mean(region_data)
-        median = np.median(region_data)
-        min = np.min(region_data)
-        max = np.max(region_data)
-        stdev = np.std(region_data)
-        read_count = sum([1 for dp in region_data if dp != 0])
-        width = genes[gk]["stop"] - genes[gk]["start"] + 1
-
-        print(
-            "{}\t{}\t{}\t{:.1f}\t{:.0f}\t{:.0f}\t{:.0f}\t{:.2f}\t{:.0f}\t{:.0f}\t{:.2f}".format(
-                sample,
-                ok,
-                gk,
-                mean,
-                median,
-                min,
-                max,
-                stdev,
-                width,
-                read_count,
-                read_count / width * 100.0,
-            )
-        )
+            region_data = genes[gk]["region_data"]
+            start_pos = genes[gk]["start"]
+            for position in range(len(region_data)):
+                f.write(
+                    "{}\t{}\t{}\t{:.0f}\t{:.0f}\t{:.0f}\n".format(
+                        sample, ok, gk, position + 1, start_pos + position, region_data[position]
+                    )
+                )
