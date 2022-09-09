@@ -3,18 +3,19 @@
 echo "This script uses a handful of, well, interesting build components that "
 echo "do not come standard on MacOS. So, before you get started you'll want to"
 echo ""
-echo "brew install cmake jsoncpp gcc boost nasm"
+echo "brew install cmake jsoncpp gcc@11 boost nasm"
 echo ""
 
 ROOT=$(pwd)
 
-mkdir -p src
-mkdir -p output
-mkdir -p bin
-mkdir -p stats
-mkdir -p components
-mkdir -p tmp
-mkdir -p perl5
+mkdir -p \
+    src \
+    output \
+    bin \
+    stats \
+    components \
+    tmp \
+    perl5
 
 mkdir -p \
     reference/GRCh38.p14 \
@@ -32,6 +33,9 @@ cd ${ROOT}/bin
 
 curl -L -O http://xrl.us/cpanm >cpanm
 chmod 755 cpanm
+
+pip install --upgrade pip setuptools
+pip install --user cutadapt
 
 # download and unpack
 cd ${ROOT}/components
