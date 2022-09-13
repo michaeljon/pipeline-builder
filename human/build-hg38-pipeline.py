@@ -658,8 +658,9 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
 
     script.write(
         """
-    samtools view --header-only {BAM} | \\
-        awk 'BEGIN {{ FS="\\t"; print "interval","root"; }} /^@SQ/ {{ gsub("SN:", "", $2); gsub("LN:", "", $3); print $2,$3 }}' > {PIPELINE}/{SAMPLE}.intervals.tsv
+# Write intervals file computed from aligned and sorted BAM
+samtools view --header-only {BAM} | \\
+    awk 'BEGIN {{ FS="\\t"; print "interval","root"; }} /^@SQ/ {{ gsub("SN:", "", $2); gsub("LN:", "", $3); print $2,$3 }}' > {PIPELINE}/{SAMPLE}.intervals.tsv
 """.format(
             BAM=output, PIPELINE=pipeline, SAMPLE=sample
         )
