@@ -17,60 +17,6 @@ OptionsDict = Dict[str, Any]
 FastqSet = Tuple[str, str]
 
 
-def computeIntervals(options: OptionsDict):
-    intervals = []
-
-    rulesFile = options["chromosomeSizes"]
-    segmentSize = options["segmentSize"]
-    factor = options["factor"]
-    lastBlockMax = math.floor(segmentSize * factor)
-
-    with open(rulesFile, "r") as file:
-        rules = json.load(file)
-
-        for rule in rules:
-            remainder = rule["length"] - segmentSize
-            segments = ceil(rule["length"] / segmentSize)
-            segment = 0
-
-            while remainder > lastBlockMax:
-                lower = segment * segmentSize + 1
-                upper = (segment + 1) * segmentSize
-                intervals.append(
-                    "{accession}:{lower}-{upper}".format(accession=rule["accession"], lower=lower, upper=upper)
-                )
-
-                segment += 1
-                remainder -= segmentSize
-
-            if remainder > 0:
-                lower = (segments - 2) * segmentSize
-                if lower % 10 == 0:
-                    lower += 1
-
-                intervals.append(
-                    "{accession}:{lower}-{upper}".format(
-                        accession=rule["accession"],
-                        lower=lower,
-                        upper=rule["length"],
-                    )
-                )
-            else:
-                lower = (segments - 1) * segmentSize
-                if lower % 10 == 0:
-                    lower += 1
-
-                intervals.append(
-                    "{accession}:{lower}-{upper}".format(
-                        accession=rule["accession"],
-                        lower=lower,
-                        upper=rule["length"],
-                    )
-                )
-
-    return [(interval, interval.replace(":", "_").replace("-", "_")) for interval in intervals]
-
-
 def writeFragmentList(options: OptionsDict):
     fragmentCount = int(options["fragmentCount"])
 
@@ -93,14 +39,43 @@ def writeFragmentList(options: OptionsDict):
             )
 
 
+fallback_warning_shown = False
+
+
 def getFileNames(options: OptionsDict) -> FastqSet:
+    global fallback_warning_shown
+
     sample = options["sample"]
     fastq_dir = options["fastq_dir"]
 
-    return (
+    # assume we have the _001 pattern first
+    filenames = (
         "{FASTQ_DIR}/{SAMPLE}_R1_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
         "{FASTQ_DIR}/{SAMPLE}_R2_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
     )
+
+    if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
+        if fallback_warning_shown == False:
+            print("Falling back to shortened fastq file names")
+            fallback_warning_shown = True
+
+        # if that didn't work, try for the redacted names
+        filenames = (
+            "{FASTQ_DIR}/{SAMPLE}_R1.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+            "{FASTQ_DIR}/{SAMPLE}_R2.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        )
+
+        if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
+            print(
+                "Unable to locate the R1 or R2 files at {R1} and {R2}".format(
+                    R1=filenames[0],
+                    R2=filenames[1],
+                )
+            )
+            print("Check your --sample and --fastq-dir parameters")
+            quit(1)
+
+    return filenames
 
 
 def getTrimmedFileNames(options: OptionsDict) -> FastqSet:
