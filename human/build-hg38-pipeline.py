@@ -13,36 +13,8 @@ from math import ceil
 from os.path import exists, expandvars
 from os import cpu_count, system
 
-# This script generates an Illumina paired-read VCF annotation pipeline.
-# There are some short-circuit options generated as part of this script,
-# but they will not normally be used in production. They are meant to
-# prevent a developer from re-running various steps in the pipeline in
-# the case that the output files are already present.
-
-# a good example of how to run this might be:
-# python ./build-pipeline.py \
-#   --sample S119813_no_sonication \
-#   --work-dir $WORKING \
-#   --temp-dir $WORKING/stats/temp \
-#   --script ../pipeline-runner \
-#   --watchdog 240 \
-#   --skip-fastp \
-#   --align-only
-#
-# which sets the working and temp dir (important for large sequences)
-# specifies the target script
-# sets the watchdog timer
-# skips fastp processing
-# only runs the alignment steps
-
 OptionsDict = Dict[str, Any]
 FastqSet = Tuple[str, str]
-
-
-def loadIntervals(rulesFile: str):
-    with open(rulesFile, "r") as file:
-        chromosomeSizes = json.load(file)
-        return chromosomeSizes
 
 
 def computeIntervals(options: OptionsDict):
@@ -118,8 +90,8 @@ def writeIntervalList(options: OptionsDict):
     sample = options["sample"]
     intervals = computeIntervals(options)
 
-    mergeList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
-    with open(mergeList, "w") as il:
+    intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
+    with open(intervalList, "w") as il:
         il.truncate()
         il.write("interval\troot\n")
 
@@ -166,52 +138,6 @@ def getTrimmedFileNames(options: OptionsDict) -> FastqSet:
     return (
         "{PIPELINE}/{SAMPLE}_R1.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
         "{PIPELINE}/{SAMPLE}_R2.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
-    )
-
-
-def updateDictionary(script: TextIOWrapper, options: OptionsDict):
-    bin = options["bin"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
-
-    script.write("#\n")
-    script.write("# Build the reference dictionary and interval list\n")
-    script.write("#\n")
-
-    chromosomes = [c["accession"] for c in loadIntervals(options["chromosomeSizes"])]
-    regex = "|".join(chromosomes)
-
-    script.write(
-        """
-if [[ ! -f {REFERENCE}/{ASSEMBLY}.dict ]]; then
-    logthis "${{yellow}}Creating sequence dictionary${{reset}}"
-
-    java -jar {BIN}/picard.jar CreateSequenceDictionary -R {REFERENCE}/{ASSEMBLY}.fna -O {REFERENCE}/{ASSEMBLY}.dict
-
-    logthis "Sequence dictionary completed"
-else
-    logthis "Reference dictionary {REFERENCE}/{ASSEMBLY}.dict ${{green}}already completed${{reset}}"
-fi
-
-if [[ ! -f {REFERENCE}/{ASSEMBLY}_autosomal.interval_list ]]; then
-    # build the interval list, this is only done in the case where we're
-    # processing a partial set of chromosomes. in the typical case this would
-    # be a WGS collection.
-
-    logthis "${{yellow}}Building {REFERENCE}/{ASSEMBLY}.interval_list${{reset}}"
-
-    egrep '^({REGEX})\\s' {REFERENCE}/{ASSEMBLY}.fna.fai |
-        awk '{{print $1"\\t1\\t"$2"\\t+\\t"$1}}' |
-        cat {REFERENCE}/{ASSEMBLY}.dict - >{REFERENCE}/{ASSEMBLY}_autosomal.interval_list
-
-    logthis "Building {REFERENCE}/{ASSEMBLY}_autosomal.interval_list finished"
-else
-    logthis "Interval list {REFERENCE}/{ASSEMBLY}_autosomal.interval_list ${{green}}already completed${{reset}}"
-fi
-
-""".format(
-            REFERENCE=reference, ASSEMBLY=assembly, BIN=bin, REGEX=regex
-        )
     )
 
 
@@ -712,6 +638,9 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
     alignOnly = options["alignOnly"]
     fragmentCount = options["fragmentCount"]
 
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
     script.write("#\n")
@@ -726,6 +655,15 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
         alignFragments(script, options)
         sortFragments(script, options)
         combine(script, options, output)
+
+    script.write(
+        """
+    samtools view --header-only {BAM} | \\
+        awk 'BEGIN {{ FS="\\t"; print "interval","root"; }} /^@SQ/ {{ gsub("SN:", "", $2); gsub("LN:", "", $3); print $2,$3 }}' > {PIPELINE}/{SAMPLE}.intervals.tsv
+""".format(
+            BAM=output, PIPELINE=pipeline, SAMPLE=sample
+        )
+    )
 
     if processUnmapped == True:
         extractUmappedReads(script, options)
@@ -1426,24 +1364,6 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastqSet
     script.write("#   R2 = {F}\n".format(F=filenames[1]))
     script.write("#\n")
 
-    script.write("#\n")
-    script.write("# Assumed chromosome sizes (from {SIZES})\n".format(SIZES=options["chromosomeSizes"]))
-    intervals = loadIntervals(options["chromosomeSizes"])
-    for interval in intervals:
-        script.write(
-            "#   {CHROME} => {ACCESSION} {SIZE}\n".format(
-                CHROME=interval["chromosome"], ACCESSION=interval["accession"], SIZE=interval["length"]
-            )
-        )
-    script.write("#\n")
-
-    script.write("#\n")
-    script.write("# Intervals\n")
-    intervals = computeIntervals(options)
-    for i, f in intervals:
-        script.write("#   {INTERVAL} -> {FILE}\n".format(INTERVAL=i, FILE=f))
-    script.write("#\n")
-
     segmentSize = options["segmentSize"]
     factor = options["factor"]
 
@@ -1903,7 +1823,7 @@ def verifyOptions(options: OptionsDict):
 def main():
     opts = defineArguments()
     options = fixupPathOptions(opts)
-    
+
     verifyOptions(options)
 
     filenames = getFileNames(options)
@@ -1931,8 +1851,6 @@ def main():
         script.write("\n")
         script.write("touch {PIPELINE}/00-started\n".format(PIPELINE=options["pipeline"]))
         script.write("\n")
-
-        updateDictionary(script, options)
 
         alignAndSort(script, options, sorted)
 
