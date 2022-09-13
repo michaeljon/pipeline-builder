@@ -1,0 +1,108 @@
+#!/usr/bin/env python
+
+import argparse
+import math
+
+from math import ceil
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument(
+    "--input",
+    type=str,
+    action="store",
+    metavar="INPUT",
+    dest="input",
+    default="/dev/stdin",
+    help="Input file holding list of @SQ headers",
+)
+
+parser.add_argument(
+    "--output",
+    type=str,
+    action="store",
+    metavar="OUTPUT",
+    dest="output",
+    default="/dev/stdout",
+    help="Output interval file",
+)
+
+parser.add_argument(
+    "--segment",
+    type=int,
+    action="store",
+    metavar="SEGMENT_SIZE",
+    dest="segmentSize",
+    default=50_000_000,
+    help="Size of interval partition (ADVANCED)",
+)
+parser.add_argument(
+    "--factor",
+    type=float,
+    action="store",
+    metavar="FACTOR",
+    dest="factor",
+    default=0.25,
+    help="Interval remainder buffer (between 0.10 and 0.50) (ADVANCED)",
+)
+
+opts = parser.parse_args()
+options = vars(opts)
+
+intervals = []
+
+segmentSize = options["segmentSize"]
+factor = options["factor"]
+lastBlockMax = math.floor(segmentSize * factor)
+
+with open("/dev/stdin", "r") as file:
+    while line := file.readline().rstrip():
+        rule = line.split(" ")
+
+        accession = rule[0]
+        length = int(rule[1])
+
+        remainder = length - segmentSize
+        segments = ceil(length / segmentSize)
+        segment = 0
+
+        while remainder > lastBlockMax:
+            lower = segment * segmentSize + 1
+            upper = (segment + 1) * segmentSize
+            intervals.append("{accession}:{lower}-{upper}".format(accession=accession, lower=lower, upper=upper))
+
+            segment += 1
+            remainder -= segmentSize
+
+        if remainder > 0:
+            lower = (segments - 2) * segmentSize
+            if lower % 10 == 0:
+                lower += 1
+
+            intervals.append(
+                "{accession}:{lower}-{upper}".format(
+                    accession=accession,
+                    lower=lower,
+                    upper=length,
+                )
+            )
+        else:
+            lower = (segments - 1) * segmentSize
+            if lower % 10 == 0:
+                lower += 1
+
+            intervals.append(
+                "{accession}:{lower}-{upper}".format(
+                    accession=accession,
+                    lower=lower,
+                    upper=length,
+                )
+            )
+
+final_intervals = [(interval, interval.replace(":", "_").replace("-", "_")) for interval in intervals]
+
+with open("/dev/stdout", "w") as f:
+    f.write("interval\troot\n")
+
+    for i in final_intervals:
+        f.write("{INTERVAL}\t{ROOT}\n".format(INTERVAL=i[0], ROOT=i[1]))
