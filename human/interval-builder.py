@@ -20,6 +20,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--primaryOnly",
+    action="store_true",
+    dest="primaryOnly",
+    default=False,
+    help="Generate only the 'primary' sequences NC_*",
+)
+
+parser.add_argument(
     "--root",
     type=str,
     required=False,
@@ -58,6 +66,7 @@ parser.add_argument(
     default=50_000_000,
     help="Size of interval partition (ADVANCED)",
 )
+
 parser.add_argument(
     "--factor",
     type=float,
@@ -87,6 +96,9 @@ with open("/dev/stdin", "r") as file:
 
         accession = rule[1].replace("SN:", "")
         length = int(rule[2].replace("LN:", ""))
+
+        if options["primaryOnly"] == True and not accession.startswith("NC_"):
+            continue
 
         remainder = length - segmentSize
         segments = ceil(length / segmentSize)
