@@ -4,8 +4,30 @@ import argparse
 import math
 
 from math import ceil
+from sys import stderr
 
 parser = argparse.ArgumentParser()
+
+parser.add_argument(
+    "--process",
+    type=str,
+    required=True,
+    action="store",
+    metavar="PROCESS",
+    dest="process",
+    choices=["intervalList", "mergeList"],
+    help="Generate an interval list or a VCF merge list from samtools --header-only input",
+)
+
+parser.add_argument(
+    "--root",
+    type=str,
+    required=False,
+    action="store",
+    metavar="ROOT",
+    dest="root",
+    help="Root filename segment for VCF cleanup",
+)
 
 parser.add_argument(
     "--input",
@@ -49,6 +71,10 @@ parser.add_argument(
 opts = parser.parse_args()
 options = vars(opts)
 
+if options["process"] == "mergeList" and options["root"] == None:
+    stderr.write("When processing a merge list the VCF root component must be provided")
+    exit(99)
+
 intervals = []
 
 segmentSize = options["segmentSize"]
@@ -57,10 +83,10 @@ lastBlockMax = math.floor(segmentSize * factor)
 
 with open("/dev/stdin", "r") as file:
     while line := file.readline().rstrip():
-        rule = line.split(" ")
+        rule = line.split("\t")
 
-        accession = rule[0]
-        length = int(rule[1])
+        accession = rule[1].replace("SN:", "")
+        length = int(rule[2].replace("LN:", ""))
 
         remainder = length - segmentSize
         segments = ceil(length / segmentSize)
@@ -99,10 +125,15 @@ with open("/dev/stdin", "r") as file:
                 )
             )
 
-final_intervals = [(interval, interval.replace(":", "_").replace("-", "_")) for interval in intervals]
-
 with open("/dev/stdout", "w") as f:
-    f.write("interval\troot\n")
+    if options["process"] == "intervalList":
+        f.write("interval\troot\n")
 
-    for i in final_intervals:
-        f.write("{INTERVAL}\t{ROOT}\n".format(INTERVAL=i[0], ROOT=i[1]))
+        for i in [(interval, interval.replace(":", "_").replace("-", "_")) for interval in intervals]:
+            f.write("{INTERVAL}\t{ROOT}\n".format(INTERVAL=i[0], ROOT=i[1]))
+    elif options["process"] == "mergeList": 
+        for i in sorted([interval.replace(":", "_").replace("-", "_") for interval in intervals], key=lambda k: (k.split("_")[0], k.split("_")[1], k.split("_")[2])):
+            f.write("{ROOT}.{INTERVAL}.vcf\n".format(ROOT=options["root"], INTERVAL=i))
+    else:
+        stderr.write("Invalid --process option??!!")
+        exit(99)

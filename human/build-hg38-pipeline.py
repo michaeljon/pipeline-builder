@@ -71,34 +71,6 @@ def computeIntervals(options: OptionsDict):
     return [(interval, interval.replace(":", "_").replace("-", "_")) for interval in intervals]
 
 
-def writeMergeList(options: OptionsDict):
-    pipeline = options["pipeline"]
-    sample = options["sample"]
-    intervals = computeIntervals(options)
-
-    mergeList = "{PIPELINE}/{SAMPLE}.merge.list".format(PIPELINE=pipeline, SAMPLE=sample)
-    with open(mergeList, "w") as ml:
-        ml.truncate()
-        for interval in intervals:
-            ml.write(
-                "{PIPELINE}/{SAMPLE}.{INTERVAL}.vcf\n".format(INTERVAL=interval[1], PIPELINE=pipeline, SAMPLE=sample)
-            )
-
-
-def writeIntervalList(options: OptionsDict):
-    pipeline = options["pipeline"]
-    sample = options["sample"]
-    intervals = computeIntervals(options)
-
-    intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
-    with open(intervalList, "w") as il:
-        il.truncate()
-        il.write("interval\troot\n")
-
-        for interval in intervals:
-            il.write("{INTERVAL}\t{ROOT}\n".format(INTERVAL=interval[0], ROOT=interval[1]))
-
-
 def writeFragmentList(options: OptionsDict):
     fragmentCount = int(options["fragmentCount"])
 
@@ -638,8 +610,12 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
     alignOnly = options["alignOnly"]
     fragmentCount = options["fragmentCount"]
 
+    bin = options["bin"]
     pipeline = options["pipeline"]
     sample = options["sample"]
+
+    segmentSize = options["segmentSize"]
+    factor = options["factor"]
 
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
@@ -660,9 +636,15 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
         """
 # Write intervals file computed from aligned and sorted BAM
 samtools view --header-only {BAM} | \\
-    awk 'BEGIN {{ FS="\\t"; print "interval","root"; }} /^@SQ/ {{ gsub("SN:", "", $2); gsub("LN:", "", $3); print $2,$3 }}' > {PIPELINE}/{SAMPLE}.intervals.tsv
+    grep --color=never '^@SQ' | \\
+    python {BIN}/interval-builder.py --segment {SEGMENT} --factor {FACTOR} --process intervalList > {PIPELINE}/{SAMPLE}.intervals.tsv
+
+# Write VCF merge list file computed from aligned and sorted BAM
+samtools view --header-only {BAM} | \\
+    grep --color=never '^@SQ' | \\
+    python {BIN}/interval-builder.py --segment {SEGMENT} --factor {FACTOR} --process mergeList --root {PIPELINE}/{SAMPLE} > {PIPELINE}/{SAMPLE}.merge.list
 """.format(
-            BAM=output, PIPELINE=pipeline, SAMPLE=sample
+            BIN=bin, BAM=output, PIPELINE=pipeline, SAMPLE=sample, SEGMENT=segmentSize, FACTOR=factor
         )
     )
 
@@ -1024,11 +1006,11 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
     logthis "Building merge list for {SAMPLE}"
 
     # for now this is hard-coded, but we need to get this from the json rules
-    /bin/ls -1 {PIPELINE}/{SAMPLE}.NC_*.vcf | sort -k1,1V >{PIPELINE}/{SAMPLE}.merge.list
+    /bin/ls -1 {PIPELINE}/{SAMPLE}.[A-Z][A-Z]_*.vcf | sort -k1,1V >{PIPELINE}/{SAMPLE}.vcfmerge.list
 
     logthis "Concatenating intermediate VCFs into final {PIPELINE}/{SAMPLE}.unannotated.vcf.gz"
 
-    vcf-concat --files {PIPELINE}/{SAMPLE}.merge.list \\
+    vcf-concat --files {PIPELINE}/{SAMPLE}.vcfmerge.list \\
         | bgzip >{PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
     logthis "VCF concatenation complete for {PIPELINE}/{SAMPLE}.unannotated.vcf.gz"
@@ -1327,25 +1309,26 @@ logthis "Starting QC processes"
         runMultiQC(script, options)
 
 
-def cleanup(script: TextIOWrapper, prefix: str, options: OptionsDict):
+def cleanup(script: TextIOWrapper, options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
-    intervals = computeIntervals(options)
 
     script.write("\n")
     script.write("#\n")
     script.write("# Clean up all intermediate interval files\n")
     script.write("#\n")
 
-    for interval in intervals:
-        script.write(
-            """
-rm -f {PIPELINE}/{SAMPLE}.{INTERVAL}*
-rm -f {PIPELINE}/{SAMPLE}.merge.list
+    script.write(
+        """
+for i in $(cut -d $'\\t' -f 2 zr5654_9_S5.intervals.tsv); do        
+    rm -f {PIPELINE}/{SAMPLE}.${{i}}*
+done
+
+rm -f {PIPELINE}/{SAMPLE}.vcfmerge.list
 """.format(
-                INTERVAL=interval[1], PIPELINE=pipeline, SAMPLE=sample
-            )
+            PIPELINE=pipeline, SAMPLE=sample
         )
+    )
 
     script.write("\n")
 
@@ -1834,10 +1817,6 @@ def main():
 
     skipIntervalProcessing = options["skipIntervalProcessing"]
 
-    if skipIntervalProcessing == False:
-        writeMergeList(options)
-
-    writeIntervalList(options)
     writeFragmentList(options)
 
     with open(options["script"], "w+") as script:
@@ -1863,7 +1842,7 @@ def main():
 
             # and cleanup the interval files so we have some space
             if options["cleanIntermediateFiles"] == True:
-                cleanup(script, cleantarget, options)
+                cleanup(script, options)
 
         if options["skipAnnotation"] == False:
             annotate(
