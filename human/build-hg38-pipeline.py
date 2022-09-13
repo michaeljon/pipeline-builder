@@ -980,12 +980,9 @@ def gather(script: TextIOWrapper, options: OptionsDict):
 if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
     logthis "Building merge list for {SAMPLE}"
 
-    # for now this is hard-coded, but we need to get this from the json rules
-    /bin/ls -1 {PIPELINE}/{SAMPLE}.[A-Z][A-Z]_*.vcf | sort -k1,1V >{PIPELINE}/{SAMPLE}.vcfmerge.list
-
     logthis "Concatenating intermediate VCFs into final {PIPELINE}/{SAMPLE}.unannotated.vcf.gz"
 
-    vcf-concat --files {PIPELINE}/{SAMPLE}.vcfmerge.list \\
+    vcf-concat --files {PIPELINE}/{SAMPLE}.merge.list \\
         | bgzip >{PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
     logthis "VCF concatenation complete for {PIPELINE}/{SAMPLE}.unannotated.vcf.gz"
@@ -1298,8 +1295,6 @@ def cleanup(script: TextIOWrapper, options: OptionsDict):
 for i in $(cut -d $'\\t' -f 2 zr5654_9_S5.intervals.tsv); do        
     rm -f {PIPELINE}/{SAMPLE}.${{i}}*
 done
-
-rm -f {PIPELINE}/{SAMPLE}.vcfmerge.list
 """.format(
             PIPELINE=pipeline, SAMPLE=sample
         )
