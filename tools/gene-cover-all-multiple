@@ -23,5 +23,14 @@ for FILENAME in $(find ~/tmp/multiple -name '*.depth.gz' -print | sort); do
     echo -ne "\033[0K${SAMPLE}:*: generating plots...\r"
     Rscript gene_coverage.R ${FILES[@]} >/dev/null 2>&1
 
+    FILES=()
+    for TSV in $(find ${LOCATION} -name "${SAMPLE}*.tsv" | grep "__all" | sort); do
+        ORGANISM_GENE=$(basename $TSV | sed "s/${SAMPLE}_//;s/.tsv//")
+
+        FILES=(${FILES[@]} ${LOCATION}/${SAMPLE}_${ORGANISM_GENE})
+    done
+
+    Rscript organism_coverage.R ${FILES[@]} >/dev/null 2>&1
+
     echo -ne "\033[0K${SAMPLE}:*: finished.\n"
 done

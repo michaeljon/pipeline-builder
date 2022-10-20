@@ -3,7 +3,7 @@
 echo "This script uses a handful of, well, interesting build components that "
 echo "do not come standard on MacOS. So, before you get started you'll want to"
 echo ""
-echo "brew install cmake jsoncpp gcc boost nasm"
+echo "brew install cmake jsoncpp gcc-11 boost nasm"
 echo ""
 
 ROOT=$(pwd)
@@ -156,6 +156,15 @@ else
     echo "Nextclade not supported on your platform, maybe"
 fi
 
+echo "RNA-seq: Downloading STAR"
+if [[ ! -d ${ROOT}/src/STAR ]]; then
+    git clone git@github.com:alexdobin/STAR.git ${ROOT}/src/STAR
+fi
+
+##
+## unpack and build
+##
+
 echo "Unpacking source code"
 cd ${ROOT}/src
 for t in ${ROOT}/components/*.tgz ${ROOT}/components/*.tar.gz ${ROOT}/components/*.tar.bz2; do
@@ -282,6 +291,11 @@ make install
 cd ${ROOT}/src/libdeflate
 make
 make install PREFIX=${ROOT}
+
+echo "Building STAR and other RNA-seq tools"
+cd ${ROOT}/src/STAR/source
+make STARforMacStatic
+cp STAR ${ROOT}/bin
 
 echo "Building fastp last, make sure you applied the patch"
 echo "TODO: apply fastp.patch"
