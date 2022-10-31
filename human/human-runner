@@ -17,7 +17,6 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
         --reference-dir ${HOME}/reference/GRCh38.p14 \
         --reference-assembly GCF_000001405.40_GRCh38.p14_genomic \
         --known-sites GCF_000001405.39.gz \
-        --sizes ${HOME}/pipeline-builder/human/GRCh38-p14-chromosomeSizes.json \
         --segment 25000000 \
         --vep-dir ${HOME}/reference/vep_data \
         --pipeline-dir ${HOME}/pipeline/${SAMPLE} \

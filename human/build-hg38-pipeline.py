@@ -1668,15 +1668,6 @@ def defineArguments() -> Namespace:
     )
 
     parser.add_argument(
-        "--sizes",
-        action="store",
-        metavar="CHROME_SIZES",
-        dest="chromosomeSizes",
-        default="hg38-chromosomeSizes.json",
-        help="Name of JSON file containing chromosome sizes (ADVANCED)",
-    )
-
-    parser.add_argument(
         "--segment",
         type=int,
         action="store",
@@ -1726,7 +1717,6 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
         "temp",
         "bin",
         "script",
-        "chromosomeSizes",
     ]:
         options[opt] = expandvars(options[opt])
 
