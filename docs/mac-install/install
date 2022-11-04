@@ -3,18 +3,19 @@
 echo "This script uses a handful of, well, interesting build components that "
 echo "do not come standard on MacOS. So, before you get started you'll want to"
 echo ""
-echo "brew install cmake jsoncpp gcc boost nasm"
+echo "brew install cmake jsoncpp gcc-11 boost nasm libgit2"
 echo ""
 
 ROOT=$(pwd)
 
-mkdir -p src
-mkdir -p output
-mkdir -p bin
-mkdir -p stats
-mkdir -p components
-mkdir -p tmp
-mkdir -p perl5
+mkdir -p \
+    src \
+    output \
+    bin \
+    stats \
+    components \
+    tmp \
+    perl5
 
 mkdir -p \
     reference/GRCh38.p14 \
@@ -32,6 +33,9 @@ cd ${ROOT}/bin
 
 curl -L -O http://xrl.us/cpanm >cpanm
 chmod 755 cpanm
+
+pip install --upgrade pip setuptools
+pip install --user cutadapt
 
 # download and unpack
 cd ${ROOT}/components
@@ -156,6 +160,50 @@ else
     echo "Nextclade not supported on your platform, maybe"
 fi
 
+#
+#
+# The following are RNA-seq tools. Some work for all sequence informatics, but they're lumped
+# in here to handle a specific protocol
+#
+#
+
+echo "RNA-seq: Downloading STAR"
+if [[ ! -d ${ROOT}/src/STAR ]]; then
+    git clone git@github.com:alexdobin/STAR.git ${ROOT}/src/STAR
+fi
+
+echo "RNA-seq: Downloading bowtie2"
+if [[ ! -d ${ROOT}/src/bowtie2 ]]; then
+    git clone git@github.com:BenLangmead/bowtie2.git ${ROOT}/src/bowtie2
+fi
+
+# echo "RNA-seq: Downloading tophat"
+# if [[ ! -d ${ROOT}/src/tophat ]]; then
+#     git clone git@github.com:DaehwanKimLab/tophat.git ${ROOT}/src/tophat
+# fi
+
+echo "RNA-seq: Downloading hisat2"
+if [[ ! -d ${ROOT}/src/hisat2 ]]; then
+    git clone git@github.com:DaehwanKimLab/hisat2.git ${ROOT}/src/hisat2
+fi
+
+echo "RNA-seq: Downloading minimap2"
+if [[ ! -d ${ROOT}/src/minimap2 ]]; then
+    git clone git@github.com:lh3/minimap2.git ${ROOT}/src/minimap2
+fi
+
+echo "RNA-seq: Downloading kallisto"
+if [[ ! -d ${ROOT}/src/kallisto ]]; then
+    git clone https://github.com/pachterlab/kallisto.git ${ROOT}/src/kallisto
+fi
+
+echo "RNA-seq: Downloading QualiMap"
+curl --silent https://bitbucket.org/kokonech/qualimap/downloads/qualimap_v2.2.1.zip --location -O
+
+##
+## unpack and build
+##
+
 echo "Unpacking source code"
 cd ${ROOT}/src
 for t in ${ROOT}/components/*.tgz ${ROOT}/components/*.tar.gz ${ROOT}/components/*.tar.bz2; do
@@ -171,9 +219,11 @@ cp ${ROOT}/components/nextclade ${ROOT}/bin/nextclade && chmod +x ${ROOT}/bin/ne
 mv ${ROOT}/src/snpEff ${ROOT}/bin/snpEff
 
 echo "Setting environment variables for build (gcc and friends)"
-export CC=/usr/local/bin/gcc-11
-export CXX=/usr/local/bin/g++-11
-export CXXCPP=/usr/local/bin/cpp-11
+export CCPATH=/usr/local/bin
+export CCVERSION=12
+export CC=/usr/local/bin/gcc-12
+export CXX=/usr/local/bin/g++-12
+export CXXCPP=/usr/local/bin/cpp-12
 export CFLAGS="-I/usr/local/include -Wno-deprecated-declarations  -Wno-unused-result"
 export CXXFLAGS=${CFLAGS}
 export LDFLAGS="-L/usr/local/lib"
@@ -283,6 +333,39 @@ cd ${ROOT}/src/libdeflate
 make
 make install PREFIX=${ROOT}
 
+echo "Building STAR and other RNA-seq tools"
+cd ${ROOT}/src/STAR/source
+make STARforMacStatic
+cp STAR ${ROOT}/bin
+
+cd ${ROOT}/src/bowtie2
+make PREFIX=${ROOT}
+make install PREFIX=${ROOT}
+
+# cd ${ROOT}/src/tophat
+# make PREFIX=${ROOT}
+# cp tophat ${ROOT}/bin
+
+cd ${ROOT}/src/hisat2
+make GCC_PREFIX=${CCPATH} GCC_SUFFIX=-${CCVERSION}
+HISAT2_BIN_LIST=(hisat2 hisat2-build hisat2-build-s hisat2-build-l hisat2-align-s hisat2-align-l hisat2-inspect hisat2-inspect-s hisat2-inspect-l hisat2-repeat)
+for f in ${HISAT2_BIN_LIST}; do cp $f ${ROOT}/bin; done
+cp *.py ${ROOT}/bin
+
+cd ${ROOT}/src/minimap2
+make
+mv minimap2 ${ROOT}/bin
+
+echo "Building fastp last, make sure you applied the patch"
+echo "TODO: apply kallisto.patch"
+
+cd ${ROOT}/src/kallisto
+rm -rf build && mkdir build
+cd build
+cmake .. -DCMAKE_INSTALL_PREFIX:PATH=${ROOT}
+make
+make install
+
 echo "Building fastp last, make sure you applied the patch"
 echo "TODO: apply fastp.patch"
 
@@ -326,3 +409,26 @@ perl INSTALL.pl \
     --NO_HTSLIB \
     --NO_TEST \
     --SPECIES homo_sapiens_merged
+
+#
+# python stuff, this should really be in a virtualenv, but this'll do
+#
+pip install --user HTSeq
+
+#
+# and some R stuff, more of the same fun, DESeq2 takes a long time to build / install
+#
+Rscript <<EOF
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("DESeq2")
+BiocManager::install("rhdf5")
+BiocManager::install("Rsubread")
+
+install.packages("pheatmap")
+install.packages("devtools")
+install.packages("MASS")
+
+devtools::install_github("pachterlab/sleuth")
+EOF

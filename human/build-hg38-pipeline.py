@@ -1,15 +1,12 @@
 #!/usr/bin/env python
 
 from io import TextIOWrapper
-import json
 import argparse
 import math
 
 from argparse import Namespace
-from optparse import Option
-from typing import Dict, Tuple, Sequence, List, Any
+from typing import Dict, Tuple, List, Any
 from datetime import datetime
-from math import ceil
 from os.path import exists, expandvars
 from os import cpu_count, system
 
@@ -1671,15 +1668,6 @@ def defineArguments() -> Namespace:
     )
 
     parser.add_argument(
-        "--sizes",
-        action="store",
-        metavar="CHROME_SIZES",
-        dest="chromosomeSizes",
-        default="hg38-chromosomeSizes.json",
-        help="Name of JSON file containing chromosome sizes (ADVANCED)",
-    )
-
-    parser.add_argument(
         "--segment",
         type=int,
         action="store",
@@ -1729,7 +1717,6 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
         "temp",
         "bin",
         "script",
-        "chromosomeSizes",
     ]:
         options[opt] = expandvars(options[opt])
 

@@ -1,0 +1,28 @@
+diff --git a/ext/htslib/configure.ac b/ext/htslib/configure.ac
+index ba15331..2648756 100644
+--- a/ext/htslib/configure.ac
++++ b/ext/htslib/configure.ac
+@@ -47,6 +47,9 @@ AH_TOP([/* If you use configure, this file provides @%:@defines reflecting your
+    accurate PACKAGE_VERSION as computed by the Makefile.  */])
+ 
+ AC_PROG_CC
++AC_CANONICAL_HOST 
++AC_PROG_INSTALL 
++
+ AC_PROG_RANLIB
+ 
+ dnl Avoid chicken-and-egg problem where pkg-config supplies the
+diff --git a/src/common.h b/src/common.h
+index 47f65f0..58cf99a 100644
+--- a/src/common.h
++++ b/src/common.h
+@@ -7,9 +7,7 @@
+ #include <vector>
+ #include <iostream>
+ 
+-#ifdef _WIN64
+ typedef unsigned int uint;
+-#endif
+ 
+ struct BUSOptionSubstr {
+   BUSOptionSubstr() : fileno(-1), start(0), stop(0) {}
