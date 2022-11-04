@@ -11,19 +11,18 @@ for (arg in args) {
   df <- read_tsv(input, col_names = TRUE, show_col_types = FALSE)
   sample <- df[1, 1]
   organism <- df[1, 2]
-  gene <- df[1, 3]
 
   median_depth <- df %>%
     pull(depth) %>%
     sort() %>%
     median(na.rm = FALSE)
 
-  if (median_depth >= 30) {
+  if (median_depth > 50) {
     png(output)
 
-    plt <- ggplot(data = df, mapping = aes(x = pos_in_gene, y = depth)) +
+    plt <- ggplot(data = df, mapping = aes(x = position, y = depth)) +
       ylim(0, NA) +
-      xlab(sprintf("Position in gene %s", gene)) +
+      xlab(sprintf("Position in organism %s", organism)) +
       ylab("Depth") +
       geom_hline(
         yintercept = median_depth,
@@ -35,7 +34,7 @@ for (arg in args) {
       geom_smooth() +
       theme_hc() +
       labs(
-        title = sprintf("Depth by position in gene %s for %s", gene, sample),
+        title = sprintf("Depth by position in organism for %s", sample),
         subtitle = sprintf("Organism: %s", organism)
       )
 

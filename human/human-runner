@@ -24,12 +24,12 @@ if [[ -n ${HOME}/pipeline/${SAMPLE}.tgz ]]; then
         --stats-dir ${HOME}/stats/${SAMPLE} \
         --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
         --temp-dir ${HOME}/stats/temp \
-        --fastq-dir ${HOME}/stats/fastq \
-        --preprocessor fastp \
+        --fastq-dir ${HOME}/fastq \
+        --preprocessor none \
         --aligner bwa-mem2 \
         --sorter biobambam \
         --caller gatk \
-        --unmapped
+        --clean
 
     cp ${HOME}/pipeline-builder/assets/software_versions_mqc.html ${HOME}/stats/${SAMPLE}
     cp ${HOME}/pipeline-builder/assets/ovationlogo.png ${HOME}/stats/${SAMPLE}

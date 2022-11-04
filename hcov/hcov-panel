@@ -25,7 +25,7 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-runner.py \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner \
     --temp-dir ${HOME}/stats/temp \
-    --fastq-dir ${HOME}/fastq \
+    --fastq-dir ${HOME}/fastq/luxor \
     --skip-multi-qc \
     --skip-variant-qc \
     --skip-fastqc \

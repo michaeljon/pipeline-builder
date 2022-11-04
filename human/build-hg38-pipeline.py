@@ -743,7 +743,7 @@ def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
     # 8 hmm threads / 9 jobs
     # [2022-07-11 23:04:40] Calling variants using GATK
     # [2022-07-12 00:56:43] GATK variant calling completed
-    cores = options["cores"]
+    cores = int(options["cores"] * .75) # set aside some cpu so we can use the ec2 still
     hmmThreads = 1
     jobs = int(cores / hmmThreads)
 
