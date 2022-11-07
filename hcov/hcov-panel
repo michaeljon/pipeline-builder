@@ -25,10 +25,8 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-runner.py \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner \
     --temp-dir ${HOME}/stats/temp \
-    --fastq-dir ${HOME}/fastq/luxor \
-    --skip-multi-qc \
+    --fastq-dir ${HOME}/fastq/zymo/ecov \
     --skip-variant-qc \
-    --skip-fastqc \
     --skip-annotation \
     --caller bcftools \
     --aligner bwa \
@@ -41,48 +39,4 @@ cp ${PIPELINE_ROOT}/pipeline-builder/assets/ovationlogo.png ${PIPELINE_ROOT}/pip
 # run the pipeline
 bash ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner >${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
 
-# R --vanilla >/dev/null 2>&1 <<SCRIPT
-# library(ggplot2)
-# library(ggthemes)
-# library(tidyverse)
-
-# cov <- read_delim("${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}.bedtools.coverage", delim = " ", col_names = FALSE)
-# names(cov) <- c("organism", "position", "depth")
-
-# mean_cov <- cov %>%
-#     pull(depth) %>%
-#     mean()
-
-# plt <- ggplot(data = cov, mapping = aes(x = position, y = depth, color = organism)) +
-#     ylim(0, NA) +
-#     xlab("Position") +
-#     ylab("Depth") +
-#     geom_line(aes(color = organism)) +
-#     # geom_smooth(aes(color = organism), color = "black") +
-#     geom_hline(yintercept = mean_cov, color = "black") +
-#     theme(legend.position = "right") +
-#     theme_hc() +
-#     labs(
-#         title = "Sample depth MAPQ>30",
-#         color = "Organism",
-#         subtitle = sprintf("Mean read depth at %d", as.integer(mean_cov))
-#     ) +
-#     theme(legend.position = "right")
-
-# png("${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}.depth.png")
-# print(plt)
-# SCRIPT
-
-echo Run ${SAMPLE} completed, packaging
-
 echo Finished ${SAMPLE} run
-
-# (echo -e "#sample\torganism\tnumreads\tcovbases\tcoverage\tmeandepth\tmeanbaseq\tmeanmaq" &&
-#     for c in */*.samtools.coverage; do
-#         grep -v '^#' $c |
-#         sort -t $'\t' -k4 -g -r |
-#         head -n 2 |
-#         awk -vC=$(echo $c | cut -d/ -f2 | cut -d. -f1) 'BEGIN{OFS=FS="\t"}{print C,$1,$4,$5,$6,$7,$8,$9}'
-#     done |
-#         sed "s/AF304460.1/hcov_229e/;s/JX869059.2/hcov_emc/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl64/;s/AY585228.1/hcov_oc43/;s/MN908947.3/sars_cov_2/") \
-#     >~/pipeline/calls.tsv

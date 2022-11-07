@@ -28,10 +28,8 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-runner.py \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner \
     --temp-dir ${PIPELINE_ROOT}/stats/temp \
-    --fastq-dir ${PIPELINE_ROOT}/fastq \
-    --skip-multi-qc \
+    --fastq-dir ${HOME}/fastq/zymo/ecov \
     --skip-variant-qc \
-    --skip-fastqc \
     --skip-annotation \
     --caller bcftools \
     --aligner bwa \
