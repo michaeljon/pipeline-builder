@@ -609,12 +609,12 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
 # Write intervals file computed from aligned and sorted BAM
 samtools view --header-only {BAM} | \\
     grep --color=never '^@SQ' | \\
-    python {BIN}/interval-builder.py --segment {SEGMENT} --factor {FACTOR} --process intervalList > {PIPELINE}/{SAMPLE}.intervals.tsv
+    python {BIN}/interval-builder.py --primaryOnly --segment {SEGMENT} --factor {FACTOR} --process intervalList > {PIPELINE}/{SAMPLE}.intervals.tsv
 
 # Write VCF merge list file computed from aligned and sorted BAM
 samtools view --header-only {BAM} | \\
     grep --color=never '^@SQ' | \\
-    python {BIN}/interval-builder.py --segment {SEGMENT} --factor {FACTOR} --process mergeList --root {PIPELINE}/{SAMPLE} > {PIPELINE}/{SAMPLE}.merge.list
+    python {BIN}/interval-builder.py --primaryOnly --segment {SEGMENT} --factor {FACTOR} --process mergeList --root {PIPELINE}/{SAMPLE} > {PIPELINE}/{SAMPLE}.merge.list
 """.format(
             BIN=bin, BAM=output, PIPELINE=pipeline, SAMPLE=sample, SEGMENT=segmentSize, FACTOR=factor
         )
