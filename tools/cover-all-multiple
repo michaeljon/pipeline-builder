@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-TARGET=galatea
+TARGET=ecov
 
 mkdir -p ~/tmp/${TARGET}
 rm -rf ~/tmp/${TARGET}/*
