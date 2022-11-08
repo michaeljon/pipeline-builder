@@ -1289,7 +1289,7 @@ def cleanup(script: TextIOWrapper, options: OptionsDict):
 
     script.write(
         """
-for i in $(cut -d $'\\t' -f 2 {SAMPLE}.intervals.tsv); do
+for i in $(cut -d $'\\t' -f 2 {PIPELINE}/{SAMPLE}.intervals.tsv); do
     rm -f {PIPELINE}/{SAMPLE}.${{i}}*
 done
 """.format(
