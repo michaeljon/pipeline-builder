@@ -21,7 +21,7 @@ python ${HOME}/pipeline-builder/human/build-hg38-pipeline.py \
     --stats-dir ${HOME}/stats/${SAMPLE} \
     --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
     --temp-dir ${HOME}/stats/temp \
-    --fastq-dir ${HOME}/fastq/zymo/wgs \
+    --fastq-dir ${HOME}/fastq \
     --preprocessor fastp \
     --aligner bwa-mem2 \
     --sorter biobambam \
