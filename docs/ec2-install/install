@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
 # format the drives
-mkfs.ext4 -E discard -m 1 /dev/nvme1n1
-tune2fs -O ^has_journal /dev/nvme1n1
+sudo mkfs.ext4 -E discard -m 1 /dev/nvme1n1
+sudo tune2fs -O ^has_journal /dev/nvme1n1
 
-mkfs.ext4 -E discard -m 1 /dev/nvme2n1
-tune2fs -O ^has_journal /dev/nvme2n1
+sudo mkfs.ext4 -E discard -m 1 /dev/nvme2n1
+sudo tune2fs -O ^has_journal /dev/nvme2n1
 
 # make our working directory and mount point
 mkdir -p /pipeline
@@ -16,8 +16,8 @@ mkdir -p /pipeline/working
 mkdir -p /pipeline/reference
 
 # mount the SSDs on our mount points
-mount /dev/nvme1n1 /pipeline/temp
-mount /dev/nvme2n1 /pipeline/working
+sudo mount /dev/nvme1n1 /pipeline/stats
+sudo mount /dev/nvme2n1 /pipeline/working
 
 mkdir /pipeline/working/input
 mkdir /pipeline/working/output

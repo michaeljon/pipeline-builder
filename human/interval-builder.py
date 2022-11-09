@@ -137,14 +137,16 @@ with open("/dev/stdin", "r") as file:
                 )
             )
 
+sorted_intervals = sorted(intervals, key=lambda k: (k.split(':')[0], int(k.split(':')[1].split('-')[0])))
+
 with open("/dev/stdout", "w") as f:
     if options["process"] == "intervalList":
         f.write("interval\troot\n")
 
-        for i in [(interval, interval.replace(":", "_").replace("-", "_")) for interval in intervals]:
+        for i in [(interval, interval.replace(":", "_").replace("-", "_")) for interval in sorted_intervals]:
             f.write("{INTERVAL}\t{ROOT}\n".format(INTERVAL=i[0], ROOT=i[1]))
     elif options["process"] == "mergeList": 
-        for i in sorted([interval.replace(":", "_").replace("-", "_") for interval in intervals], key=lambda k: (k.split("_")[0], k.split("_")[1], k.split("_")[2])):
+        for i in [interval.replace(":", "_").replace("-", "_") for interval in sorted_intervals]:
             f.write("{ROOT}.{INTERVAL}.vcf\n".format(ROOT=options["root"], INTERVAL=i))
     else:
         stderr.write("Invalid --process option??!!")

@@ -58,10 +58,10 @@ sudo mount /dev/nvme2n1 ${WORKING}/stats
 sudo chown -R ubuntu:ubuntu ${WORKING}/pipeline
 sudo chown -R ubuntu:ubuntu ${WORKING}/stats
 
-# sudo dd if=/dev/zero of=$HOME/stats/swap bs=1M count=131072
-# sudo chmod 0600 $HOME/stats/swap
-# sudo mkswap $HOME/stats/swap
-# sudo swapon $HOME/stats/swap
+sudo dd if=/dev/zero of=$HOME/stats/swap bs=1M count=131072
+sudo chmod 0600 $HOME/stats/swap
+sudo mkswap $HOME/stats/swap
+sudo swapon $HOME/stats/swap
 
 # pipeline tooling
 cd ${WORKING}/src

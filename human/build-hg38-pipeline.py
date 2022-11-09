@@ -609,12 +609,12 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
 # Write intervals file computed from aligned and sorted BAM
 samtools view --header-only {BAM} | \\
     grep --color=never '^@SQ' | \\
-    python {BIN}/interval-builder.py --segment {SEGMENT} --factor {FACTOR} --process intervalList > {PIPELINE}/{SAMPLE}.intervals.tsv
+    python {BIN}/interval-builder.py --primaryOnly --segment {SEGMENT} --factor {FACTOR} --process intervalList > {PIPELINE}/{SAMPLE}.intervals.tsv
 
 # Write VCF merge list file computed from aligned and sorted BAM
 samtools view --header-only {BAM} | \\
     grep --color=never '^@SQ' | \\
-    python {BIN}/interval-builder.py --segment {SEGMENT} --factor {FACTOR} --process mergeList --root {PIPELINE}/{SAMPLE} > {PIPELINE}/{SAMPLE}.merge.list
+    python {BIN}/interval-builder.py --primaryOnly --segment {SEGMENT} --factor {FACTOR} --process mergeList --root {PIPELINE}/{SAMPLE} > {PIPELINE}/{SAMPLE}.merge.list
 """.format(
             BIN=bin, BAM=output, PIPELINE=pipeline, SAMPLE=sample, SEGMENT=segmentSize, FACTOR=factor
         )
@@ -740,7 +740,7 @@ def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
     # 8 hmm threads / 9 jobs
     # [2022-07-11 23:04:40] Calling variants using GATK
     # [2022-07-12 00:56:43] GATK variant calling completed
-    cores = options["cores"]
+    cores = int(options["cores"] * .75) # set aside some cpu so we can use the ec2 still
     hmmThreads = 1
     jobs = int(cores / hmmThreads)
 
@@ -1289,7 +1289,7 @@ def cleanup(script: TextIOWrapper, options: OptionsDict):
 
     script.write(
         """
-for i in $(cut -d $'\\t' -f 2 {SAMPLE}.intervals.tsv); do
+for i in $(cut -d $'\\t' -f 2 {PIPELINE}/{SAMPLE}.intervals.tsv); do
     rm -f {PIPELINE}/{SAMPLE}.${{i}}*
 done
 """.format(

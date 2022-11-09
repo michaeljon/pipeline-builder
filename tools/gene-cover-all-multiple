@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-for FILENAME in $(find ~/tmp/multiple -name '*.depth.gz' -print | sort); do
+TARGET=ecov
+
+for FILENAME in $(find ~/pipeline/${TARGET} -name '*.depth.gz' -print | sort); do
     LOCATION=$(dirname $FILENAME)
     SAMPLE=$(echo $FILENAME | cut -d/ -f6)
 
@@ -17,19 +19,22 @@ for FILENAME in $(find ~/tmp/multiple -name '*.depth.gz' -print | sort); do
     for TSV in $(find ${LOCATION} -name "${SAMPLE}*.tsv" | grep -v "__all" | sort); do
         ORGANISM_GENE=$(basename $TSV | sed "s/${SAMPLE}_//;s/.tsv//")
 
-        FILES=(${FILES[@]} ${LOCATION}/${SAMPLE}_${ORGANISM_GENE})
+        FILES+=(${LOCATION}/${SAMPLE}_${ORGANISM_GENE})
     done
 
-    echo -ne "\033[0K${SAMPLE}:*: generating plots...\r"
+    echo -ne "\033[0K${SAMPLE}:*: generating gene plots...\r"
     Rscript gene_coverage.R ${FILES[@]} >/dev/null 2>&1
 
     FILES=()
     for TSV in $(find ${LOCATION} -name "${SAMPLE}*.tsv" | grep "__all" | sort); do
         ORGANISM_GENE=$(basename $TSV | sed "s/${SAMPLE}_//;s/.tsv//")
 
-        FILES=(${FILES[@]} ${LOCATION}/${SAMPLE}_${ORGANISM_GENE})
+        FILES+=(${LOCATION}/${SAMPLE}_${ORGANISM_GENE})
     done
 
+    echo ${FILES[@]}
+
+    echo -ne "\033[0K${SAMPLE}:*: generating organism plot...\r"
     Rscript organism_coverage.R ${FILES[@]} >/dev/null 2>&1
 
     echo -ne "\033[0K${SAMPLE}:*: finished.\n"
