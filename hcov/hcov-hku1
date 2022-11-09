@@ -5,6 +5,11 @@ ORGANISM=hcov-hku1
 ASSEMBLY=GCA_000858765.1_ViralProj15139_genomic
 REFNAME=AY597011.2
 
+if [[ -z ${PIPELINE_ROOT} ]]; then
+    echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
+    exit 1
+fi
+    
 echo Starting ${SAMPLE} run
 
 # give us a place to work
@@ -23,7 +28,7 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-runner.py \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner \
     --temp-dir ${PIPELINE_ROOT}/stats/temp \
-    --fastq-dir ${HOME}/fastq/zymo/ecov \
+    --fastq-dir ${HOME}/fastq \
     --skip-variant-qc \
     --skip-annotation \
     --caller bcftools \

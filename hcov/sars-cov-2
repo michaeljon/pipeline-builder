@@ -5,6 +5,11 @@ ORGANISM=sars-cov-2
 ASSEMBLY=GCA_009858895.3_ASM985889v3_genomic
 REFNAME=MN908947.3
 
+if [[ -z ${PIPELINE_ROOT} ]]; then
+    echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
+    exit 1
+fi
+    
 # download the reference data
 if [[ ! -d ${PIPELINE_ROOT}/reference/sars-cov-2/nextclade-data ]]; then
     nextclade dataset get --name='sars-cov-2' --output-dir=${PIPELINE_ROOT}/reference/sars-cov-2/nextclade-data
@@ -17,8 +22,8 @@ mkdir -p ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}
 
 # build the pipeline
 python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-runner.py \
-    --cores 8 \
     --no-color \
+    --cores 72 \
     --sample ${SAMPLE} \
     --work-dir ${PIPELINE_ROOT} \
     --reference-dir ${PIPELINE_ROOT}/reference/${ORGANISM} \
@@ -28,9 +33,7 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-runner.py \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner \
     --temp-dir ${PIPELINE_ROOT}/stats/temp \
-    --fastq-dir ${HOME}/fastq/zymo/ecov \
-    --skip-variant-qc \
-    --skip-annotation \
+    --fastq-dir ${HOME}/fastq \
     --caller bcftools \
     --aligner bwa \
     --preprocessor trimgalore \

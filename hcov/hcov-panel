@@ -5,6 +5,11 @@ ORGANISM=hcov-panel
 ASSEMBLY=hcov-panel
 REFNAME=panel
 
+if [[ -z ${PIPELINE_ROOT} ]]; then
+    echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
+    exit 1
+fi
+    
 echo Starting ${SAMPLE} run
 
 set -e
@@ -25,7 +30,7 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-runner.py \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner \
     --temp-dir ${HOME}/stats/temp \
-    --fastq-dir ${HOME}/fastq/zymo/ecov \
+    --fastq-dir ${HOME}/fastq \
     --skip-variant-qc \
     --skip-annotation \
     --caller bcftools \
