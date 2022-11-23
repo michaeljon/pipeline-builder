@@ -33,7 +33,6 @@ hisat2-build -p 16 reference.fasta reference
 minimap2 -d reference.mmi reference.fasta
 ```
 
-
 ### samtools indexes
 
 ```bash
@@ -62,6 +61,14 @@ This file is built per-organism right now. For humans the build is based off the
     egrep '(MN908947.3)\\s' ${REFERENCE}/GCA_009858895.3_ASM985889v3_genomic.fna.fai |
         awk '{{print $1"\\t1\\t"$2"\\t+\\t"$1}}' |
         cat ${REFERENCE}/GCA_009858895.3_ASM985889v3_genomic.dict - >${REFERENCE}/ref_genome_autosomal.interval_list
+```
+
+Or, all at once assuming a reference with "named" sequences (this should also work for the human hg38 reference below, just check the sequence names).
+
+```bash
+grep '^N[CTW]_' ${REFERENCE}.fna.fai |
+    awk 'BEGIN{OFS="\t"}{print $1,1,$2,"+",$1}' |
+    cat ${REFERENCE}.dict - > ${REFERENCE}_autosomal.interval_list
 ```
 
 But for the human FASTA which contain all of the individual chromosome references the process involves parsing the chromosome "names" from the JSON to build a larger regular expression.
@@ -100,7 +107,6 @@ gatk IndexFeatureFile -I GCF_000001405.39.gz
 ```
 
 ## Additional reference data
-
 
 ```bash
 nextclade dataset get --name='sars-cov-2' --output-dir=$HOME/reference/sars-cov-2/nextclade-data/sars-cov-2
