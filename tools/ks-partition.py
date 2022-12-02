@@ -3,7 +3,9 @@
 import argparse
 import math
 import gzip
+import json
 import sys
+import csv
 
 from math import ceil
 from os.path import exists, expandvars
@@ -161,7 +163,7 @@ def write_vcf_header(options: OptionsDict, interval, headers: list[str]):
 def write_vcf_headers(options: OptionsDict, features, headers: list[str]):
     for feature, intervals in features.items():
         for interval in intervals:
-            interval["filename"] = write_vcf_header(options, interval, headers)
+            interval["output-file"] = write_vcf_header(options, interval, headers)
 
 
 def read_features(options: OptionsDict):
@@ -182,6 +184,7 @@ def read_features(options: OptionsDict):
 
         sequence_id = rule[1]
         length = int(rule[3])
+        type = "primary" if sequence_id.startswith("NC_") else "secondary"
 
         # if this is a primary contig (NC_*) and we're not processing them, skip
         if not (options["process-set"] == "all" or options["process-set"] == "primary") and sequence_id.startswith(
@@ -213,11 +216,12 @@ def read_features(options: OptionsDict):
 
             features[sequence_id].append(
                 {
+                    "type": type,
                     "sequence_id": sequence_id,
                     "lower": lower,
                     "upper": upper,
                     "filename": filename,
-                    "file": None,
+                    "interval": filename,
                 }
             )
 
@@ -237,11 +241,12 @@ def read_features(options: OptionsDict):
 
             features[sequence_id].append(
                 {
+                    "type": type,
                     "sequence_id": sequence_id,
                     "lower": int(lower),
                     "upper": int(length),
                     "filename": filename,
-                    "file": None,
+                    "interval": filename,
                 }
             )
         else:
@@ -257,11 +262,12 @@ def read_features(options: OptionsDict):
 
             features[sequence_id].append(
                 {
+                    "type": type,
                     "sequence_id": sequence_id,
                     "lower": int(lower),
                     "upper": int(length),
                     "filename": filename,
-                    "file": None,
+                    "interval": filename,
                 }
             )
 
@@ -276,7 +282,7 @@ def get_file_from_locus_in_features(sequence_id: str, position: int, features):
     chromosome = features[sequence_id]
     for interval in chromosome:
         if interval["lower"] <= position and position <= interval["upper"]:
-            return interval["filename"]
+            return interval["output-file"]
 
     print("Unable to locate interval for {CHROM} at {POSITION}".format(CHROM=chromosome, POSITION=position))
     quit(1)
@@ -328,6 +334,54 @@ def process_known_sites(options: OptionsDict, features):
     print(" finished with " + str(options["limit"] - reads_remaining) + " processed", flush=True)
 
 
+def dump_features(features):
+    json_object = json.dumps(features, indent=2)
+    with open("features.json", "w") as f:
+        f.write(json_object)
+
+
+def dump_intervals_1(features):
+    with open("features.csv", "w") as f:
+        writer = csv.writer(f)
+        writer.writerow(["sequence_id", "cut-point", "interval"])
+
+        for feature, intervals in features.items():
+            if len(intervals) > 1:
+                for interval in intervals[:-1]:
+                    if interval["type"] == "primary":
+                        writer.writerow([interval["sequence_id"], interval["upper"], interval["interval"]])
+
+
+def dump_intervals_2(features):
+    with open("intervals.csv", "w") as f:
+        writer = csv.writer(f)
+        writer.writerow(["type", "sequence_id", "lower", "upper", "interval"])
+
+        for feature, intervals in features.items():
+            for interval in intervals:
+                writer.writerow(
+                    [
+                        interval["type"],
+                        interval["sequence_id"],
+                        interval["lower"],
+                        interval["upper"],
+                        interval["interval"],
+                    ]
+                )
+
+
+def dump_intervals_3(features):
+    with open("cutpoints.csv", "w") as f:
+        writer = csv.writer(f)
+        writer.writerow(["sequence_id", "cut-points", "interval"])
+
+        for feature, intervals in features.items():
+            interval = intervals[0]
+            if len(intervals) > 1 and interval["type"] == "primary":
+                cuts = " ".join([str(i["upper"] / 1_000_000) + "mbp" for i in intervals[:-1]])
+                writer.writerow([interval["sequence_id"], cuts, interval["interval"]])
+
+
 def main():
     options = get_options()
     verifyOptions(options)
@@ -336,6 +390,12 @@ def main():
     print("Reading features...", end="", flush=True)
     features = read_features(options)
     print(str(len(features.keys())) + " loaded", flush=True)
+
+    dump_features(features)
+    dump_intervals_3(features)
+    dump_intervals_1(features)
+    dump_intervals_2(features)
+    quit(0)
 
     # read the vcf headers from the known sites file
     print("Reading known site VCF headers...", end="", flush=True)
@@ -355,7 +415,7 @@ def main():
     print("Closing interval files", flush=True)
     for feature, intervals in features.items():
         for interval in intervals:
-            interval["filename"].close()
+            interval["output-file"].close()
 
 
 if __name__ == "__main__":
