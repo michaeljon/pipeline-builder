@@ -154,10 +154,59 @@ The BQSR process takes a "known sites" input that helps drive the score normaliz
 
 Likewise, variant calling takes that same "known sites" as an input. Again we can make the assumption that the iteration is likely the same (same developers, same pipeline, two interrelated operations) and therefore we might find an optimization through interval partitioning.
 
-Note, the known sites file is a 40gb+ compressed VCF with minimal or no indexing. The tooling appears, through watching open file handles, to ignore any index file supplied on the command line even though the warnings indicate that an index file should be supplied. We're incurring an I/O performance hit here -- we need to copy the file to the processing node on startup, we have to open and read the file on demand, and we need to decompress and search over the decompressed stream -- without an index this could result in a multi-pass scan over the stream.
+Note, the known sites file is a 26gb+ compressed VCF with minimal or no indexing. The tooling appears, through watching open file handles, to ignore any index file supplied on the command line even though the warnings indicate that an index file should be supplied. We're incurring an I/O performance hit here -- we need to copy the file to the processing node on startup, we have to open and read the file on demand, and we need to decompress and search over the decompressed stream -- without an index this could result in a multi-pass scan over the stream.
 
 We'll want to partition the "known sites" VCF using the same intervals as the sample BAM, including the overlap intervals. Again, we'll have a matched set of files (133 interval files plus 132 interval overlaps).
 
 # Conclusions and next steps
 
-To be completed
+- more stuff to complete here
+- write tooling to partition the known sites into smaller files: this could be as simple as per sequence identifier / chromosome, or as detailed as per-interval. In the latter case we'll need to come back around and re-think how and when we construct intervals. Right now intervals are constructed dynamically based on the output of `samtools view --header-only` where we only pull out the `@SQ` lines. While this provides a per-sample interval model (sequences that were not identified and / or aligned won't have any associated intervals) it does mean that we won't have "custom" intervals. This is a minor inconvenience and could be handled by creating intervals for all contigs present in the reference (a non-present contig can't, by definition, be aligned to).
+
+Assuming that the above experiment work (partitioning the known sites to reduce the time to call variants), integrate those changes into the pipeline builders and runners. Determine optimal overlap.
+
+Using a feature-driven interval algorithm results in over 700 individual interval files. Many of these are quite small, with an average size of about 300,000 base pairs. These intervals should be coalesced into batches of approximately the same size as our cut factor to more evenly distribute the processing.
+
+# Appendix
+
+As an example of the possible problems introduced, this is the set of features cut by the first interval in `NC_000001.11` (at 50mpb):
+
+```
+NC_000001.11 BestRefSeq%2CGnomon gene 48522511 50023954 ID=gene-AGBL4;Dbxref=GeneID:84871,HGNC:HGNC:25892,MIM:616476;Name=AGBL4;description=AGBL
+NC_000001.11 BestRefSeq transcript 48532854 50023954 ID=rna-NR_136623.2;Parent=gene-AGBL4;Dbxref=GeneID:84871,Genbank:NR_136623.2,HGNC:HGNC:25892,MIM:616476;Name=NR_136623.2;gbkey=misc_RNA;gene=AGBL4;product=AGBL
+NC_000001.11 Gnomon mRNA 48522511 50023954 ID=rna-XM_017002595.3;Parent=gene-AGBL4;Dbxref=GeneID:84871,Genbank:XM_017002595.3,HGNC:HGNC:25892,MIM:616476;Name=XM_017002595.3;experiment=COORDINATES:
+NC_000001.11 BestRefSeq mRNA 48532854 50023954 ID=rna-NM_001323575.2;Parent=gene-AGBL4;Dbxref=GeneID:84871,Genbank:NM_001323575.2,HGNC:HGNC:25892,MIM:616476;Name=NM_001323575.2;gbkey=mRNA;gene=AGBL4;product=AGBL
+NC_000001.11 BestRefSeq mRNA 48532854 50023954 ID=rna-NM_032785.4;Parent=gene-AGBL4;Dbxref=Ensembl:ENST00000371839.6,GeneID:84871,Genbank:NM_032785.4,HGNC:HGNC:25892,MIM:616476;Name=NM_032785.4;gbkey=mRNA;gene=AGBL4;product=AGBL
+NC_000001.11 BestRefSeq mRNA 48532854 50023954 ID=rna-NM_001323573.2;Parent=gene-AGBL4;Dbxref=GeneID:84871,Genbank:NM_001323573.2,HGNC:HGNC:25892,MIM:616476;Name=NM_001323573.2;gbkey=mRNA;gene=AGBL4;product=AGBL
+NC_000001.11 BestRefSeq mRNA 48532854 50023954 ID=rna-NM_001323574.2;Parent=gene-AGBL4;Dbxref=GeneID:84871,Genbank:NM_001323574.2,HGNC:HGNC:25892,MIM:616476;Name=NM_001323574.2;gbkey=mRNA;gene=AGBL4;product=AGBL
+NC_000001.11 Gnomon mRNA 48532854 50023954 ID=rna-XM_011542308.3;Parent=gene-AGBL4;Dbxref=GeneID:84871,Genbank:XM_011542308.3,HGNC:HGNC:25892,MIM:616476;Name=XM_011542308.3;gbkey=mRNA;gene=AGBL4;model_evidence=Supporting
+NC_000001.11 Gnomon mRNA 48534885 50023954 ID=rna-XM_017002596.3;Parent=gene-AGBL4;Dbxref=GeneID:84871,Genbank:XM_017002596.3,HGNC:HGNC:25892,MIM:616476;Name=XM_017002596.3;experiment=COORDINATES:
+NC_000001.11 Gnomon mRNA 48858265 50023954 ID=rna-XM_017002598.3;Parent=gene-AGBL4;Dbxref=GeneID:84871,Genbank:XM_017002598.3,HGNC:HGNC:25892,MIM:616476;Name=XM_017002598.3;experiment=COORDINATES:
+NC_000001.11 Gnomon mRNA 48863558 50023954 ID=rna-XM_011542310.3;Parent=gene-AGBL4;Dbxref=GeneID:84871,Genbank:XM_011542310.3,HGNC:HGNC:25892,MIM:616476;Name=XM_011542310.3;experiment=COORDINATES:
+```
+
+Current cut-points using a 50mbp factor:
+
+| sequence_id  | cut-points                 | interval                |
+| ------------ | -------------------------- | ----------------------- |
+| NC_000001.11 | 50mbp 100mbp 150mbp 200mbp | NC_000001.11:1-50000000 |
+| NC_000002.12 | 50mbp 100mbp 150mbp 200mbp | NC_000002.12:1-50000000 |
+| NC_000003.12 | 50mbp 100mbp 150mbp        | NC_000003.12:1-50000000 |
+| NC_000004.12 | 50mbp 100mbp 150mbp        | NC_000004.12:1-50000000 |
+| NC_000005.10 | 50mbp 100mbp 150mbp        | NC_000005.10:1-50000000 |
+| NC_000006.12 | 50mbp 100mbp 150mbp        | NC_000006.12:1-50000000 |
+| NC_000007.14 | 50mbp 100mbp               | NC_000007.14:1-50000000 |
+| NC_000008.11 | 50mbp 100mbp               | NC_000008.11:1-50000000 |
+| NC_000009.12 | 50mbp 100mbp               | NC_000009.12:1-50000000 |
+| NC_000010.11 | 50mbp 100mbp               | NC_000010.11:1-50000000 |
+| NC_000011.10 | 50mbp 100mbp               | NC_000011.10:1-50000000 |
+| NC_000012.12 | 50mbp 100mbp               | NC_000012.12:1-50000000 |
+| NC_000013.11 | 50mbp 100mbp               | NC_000013.11:1-50000000 |
+| NC_000014.9  | 50mbp                      | NC_000014.9:1-50000000  |
+| NC_000015.10 | 50mbp                      | NC_000015.10:1-50000000 |
+| NC_000016.10 | 50mbp                      | NC_000016.10:1-50000000 |
+| NC_000017.11 | 50mbp                      | NC_000017.11:1-50000000 |
+| NC_000018.10 | 50mbp                      | NC_000018.10:1-50000000 |
+| NC_000020.11 | 50mbp                      | NC_000020.11:1-50000000 |
+| NC_000023.11 | 50mbp 100mbp               | NC_000023.11:1-50000000 |
+|              |
