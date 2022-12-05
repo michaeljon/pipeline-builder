@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 
-mkdir -p ~/tmp/single-call-covers
-rm -rf ~/tmp/single-call-covers/*
+mkdir -p ${PIPELINE_ROOT}/tmp/single-call-covers
+rm -rf ${PIPELINE_ROOT}/tmp/single-call-covers/*
 
-for FILENAME in $(find ~/pipeline/ -name '*.sorted.bam' -print); do
+for FILENAME in $(find ${PIPELINE_ROOT}/pipeline -name '*.sorted.bam' -print); do
     LOCATION=$(dirname $FILENAME)
-    SAMPLE=$(echo $FILENAME | cut -d/ -f5)
-    ORGANISM=$(echo $FILENAME | cut -d/ -f6)
+    SAMPLE=$(echo $FILENAME | cut -d/ -f6)
+    ORGANISM=$(echo $FILENAME | cut -d/ -f7)
 
     if [[ ! -f ${LOCATION}/${SAMPLE}.depth.gz ]]; then
         printf "${SAMPLE} ${ORGANISM}: calculating depth...    \r"
-        samtools depth $FILENAME | gzip > ${LOCATION}/${SAMPLE}.depth.gz
+        samtools depth $FILENAME | gzip >${LOCATION}/${SAMPLE}.depth.gz
     fi
 
     printf "${SAMPLE} ${ORGANISM}: building report...       \r"
-    ./hcov-region-coverage.py ${SAMPLE} ${ORGANISM} ${LOCATION}/${SAMPLE}.depth.gz >~/tmp/single-call-covers/${SAMPLE}_${ORGANISM}.tsv
+    ./hcov-region-coverage.py ${SAMPLE} ${ORGANISM} ${LOCATION}/${SAMPLE}.depth.gz >${PIPELINE_ROOT}/tmp/single-call-covers/${SAMPLE}_${ORGANISM}.tsv
 
     printf "${SAMPLE} ${ORGANISM}: finished                 \n"
 done
 
-echo -e "sample	organism	gene	mean	median	min	max	stdev	bases	seen	coverage" >~/tmp/single-call-coverage.tsv
-cat ~/tmp/single-call-covers/* | grep -v '^sample' >>~/tmp/single-call-coverage.tsv
+echo -e "sample	organism	gene	mean	median	min	max	stdev	bases	seen	coverage" >${PIPELINE_ROOT}/tmp/single-call-coverage.tsv
+cat ${PIPELINE_ROOT}/tmp/single-call-covers/* | grep -v '^sample' >>${PIPELINE_ROOT}/tmp/single-call-coverage.tsv

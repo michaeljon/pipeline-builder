@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-TARGET=ecov
+TARGET=iontorrent
 
-mkdir -p ~/tmp/${TARGET}
-rm -rf ~/tmp/${TARGET}/*
+mkdir -p ${PIPELINE_ROOT}/tmp/${TARGET}
+rm -rf ${PIPELINE_ROOT}/tmp/${TARGET}/*
 
-for FILENAME in $(find ~/pipeline/${TARGET} -name '*.sorted.bam' -print); do
+for FILENAME in $(find ${PIPELINE_ROOT}/pipeline -name '*.sorted.bam' -print); do
     LOCATION=$(dirname $FILENAME)
     SAMPLE=$(echo $FILENAME | cut -d/ -f6)
 
@@ -15,10 +15,10 @@ for FILENAME in $(find ~/pipeline/${TARGET} -name '*.sorted.bam' -print); do
     fi
 
     printf "${SAMPLE} *: building report...       \r"
-    ./hcov-region-coverage.py ${SAMPLE} '*' ${LOCATION}/${SAMPLE}.depth.gz >~/tmp/${TARGET}/${SAMPLE}_star.tsv
+    ./hcov-region-coverage.py ${SAMPLE} '*' ${LOCATION}/${SAMPLE}.depth.gz >${PIPELINE_ROOT}/tmp/${TARGET}/${SAMPLE}_star.tsv
 
     printf "${SAMPLE} *: finished                 \n"
 done
 
-echo -e "sample	organism	gene	mean	median	min	max	stdev	bases	seen	coverage" >~/tmp/${TARGET}-multiple-call-coverage.tsv
-cat ~/tmp/${TARGET}/* | grep -v '^sample' >>~/tmp/${TARGET}-multiple-call-coverage.tsv
+echo -e "sample	organism	gene	mean	median	min	max	stdev	bases	seen	coverage" >${PIPELINE_ROOT}/tmp/${TARGET}-multiple-call-coverage.tsv
+cat ${PIPELINE_ROOT}/tmp/${TARGET}/* | grep -v '^sample' >>${PIPELINE_ROOT}/tmp/${TARGET}-multiple-call-coverage.tsv

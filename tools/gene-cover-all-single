@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-for FILENAME in $(find ~/pipeline -name '*.depth.gz' -print | sort); do
+for FILENAME in $(find ${PIPELINE_ROOT}/pipeline -name '*.sorted.bam' -print); do
     LOCATION=$(dirname $FILENAME)
-    SAMPLE=$(echo $FILENAME | cut -d/ -f5)
-    ORGANISM=$(echo $FILENAME | cut -d/ -f6)
+    SAMPLE=$(echo $FILENAME | cut -d/ -f6)
+    ORGANISM=$(echo $FILENAME | cut -d/ -f7)
 
     if [[ ! -f ${LOCATION}/${SAMPLE}.depth.gz ]]; then
         echo -ne "\033[0K${SAMPLE}:${ORGANISM}: calculating depth...\r"

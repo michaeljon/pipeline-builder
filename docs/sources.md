@@ -6,6 +6,8 @@ These two file sets have to be pulled via a UI link right now. Navigate to the f
 
 Repeat this for both sets. You will get two `tar` files. Un-tar them, then navigate into the 'ncbi' directory to find the associated `.gz`. Those are the files you want.
 
+- GRCh37.p13 - https://www.ncbi.nlm.nih.gov/assembly/GCF_000001405.25
+
 - GRCh38.p13 - https://www.ncbi.nlm.nih.gov/assembly/GCF_000001405.39/
 - GRCh38.p14 - https://www.ncbi.nlm.nih.gov/assembly/GCF_000001405.40/
 - CHM13v2.0 - https://www.ncbi.nlm.nih.gov/assembly/GCF_009914755.1

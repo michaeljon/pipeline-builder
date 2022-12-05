@@ -17,7 +17,7 @@ for (arg in args) {
     sort() %>%
     median(na.rm = FALSE)
 
-  if (median_depth > 50) {
+  if (median_depth > 30) {
     png(output)
 
     plt <- ggplot(data = df, mapping = aes(x = position, y = depth)) +

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-TARGET=ecov
+TARGET=iontorrent
 
-for FILENAME in $(find ~/pipeline/${TARGET} -name '*.depth.gz' -print | sort); do
+for FILENAME in $(find ${PIPELINE_ROOT}/pipeline -name '*.sorted.bam' -print); do
     LOCATION=$(dirname $FILENAME)
     SAMPLE=$(echo $FILENAME | cut -d/ -f6)
 
