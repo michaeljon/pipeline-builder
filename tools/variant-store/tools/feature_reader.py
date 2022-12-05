@@ -2,8 +2,10 @@
 
 import argparse
 import re
-from urllib import parse
 import csv
+import gzip
+
+from urllib import parse
 from os.path import exists, expandvars
 
 #
@@ -58,6 +60,15 @@ parser.add_argument(
     help="Path to FASTA file",
 )
 parser.add_argument(
+    "-r",
+    "--ref",
+    required=True,
+    action="store",
+    metavar="REFERENCE",
+    dest="ref",
+    help="Reference name to store",
+)
+parser.add_argument(
     "-o",
     "--output",
     required=True,
@@ -103,82 +114,85 @@ def processFeatures(writer):
 
     print("Processing features from GFF")
 
-    with open(options["gff"], "r") as gff:
-        while line := gff.readline().rstrip():
-            if line.startswith("#") == False:
-                lineNumber += 1
+    gff = gzip.open(options["gff"], "rt") if options["gff"].endswith("gz") else open(options["gff"], "r")
 
-                columns = line.split("\t")
+    while line := gff.readline().rstrip():
+        if line.startswith("#") == False:
+            lineNumber += 1
 
-                # if we've been asked to process a feature where there's no
-                # matching sequence in the FASTA, we have no choice but to bail
-                if not "sequenceTypeId" in sequences[columns[0]]:
-                    return
+            columns = line.split("\t")
 
-                sequenceTypeId = sequences[columns[0]]["sequenceTypeId"]
+            # if we've been asked to process a feature where there's no
+            # matching sequence in the FASTA, we have no choice but to bail
+            if not "sequenceTypeId" in sequences[columns[0]]:
+                return
 
-                sequence_id = columns[0]
-                feature_type = columns[2]
-                start_position = int(columns[3])
-                stop_position = int(columns[4])
+            sequenceTypeId = sequences[columns[0]]["sequenceTypeId"]
 
-                info = columns[8].split(";")
-                infos = {
-                    k: v for k, v in zip([k.split("=")[0] for k in info], [":".join(k.split("=")[1:]) for k in info])
-                }
+            sequence_id = columns[0]
+            feature_type = columns[2]
+            start_position = int(columns[3])
+            stop_position = int(columns[4])
 
-                id = infos["ID"] if "ID" in infos else None
-                gene = infos["gene"] if "gene" in infos else None
-                name = parse.unquote(infos["Name"]) if "Name" in infos else None
-                description = parse.unquote(infos["description"]) if "description" in infos else None
+            info = columns[8].split(";")
+            infos = {
+                k: v for k, v in zip([k.split("=")[0] for k in info], [":".join(k.split("=")[1:]) for k in info])
+            }
 
-                chromosome = sequences[columns[0]]["chromosome"]
-                startKey = 0x0000000000000000
+            id = infos["ID"] if "ID" in infos else None
+            gene = infos["gene"] if "gene" in infos else None
+            name = parse.unquote(infos["Name"]) if "Name" in infos else None
+            description = parse.unquote(infos["description"]) if "description" in infos else None
 
-                if chromosome == "X":
-                    startKey |= 23 << 48
-                elif chromosome == "Y":
-                    startKey |= 24 << 48
-                # mitochondria
-                elif chromosome == "M":
-                    startKey |= 25 << 48
-                # unplaced
-                elif chromosome == "Z":
-                    startKey |= 32 << 48
-                # a numeric chromosome
-                else:
-                    startKey |= int(chromosome) << 48
+            chromosome = sequences[columns[0]]["chromosome"]
+            startKey = 0x0000000000000000
 
-                startKey |= sequenceTypeId << 32
-                if sequences[columns[0]]["isPrimary"] == True:
-                    startKey |= ISPRIMARY_MASK
+            if chromosome == "X":
+                startKey |= 23 << 48
+            elif chromosome == "Y":
+                startKey |= 24 << 48
+            # mitochondria
+            elif chromosome == "M":
+                startKey |= 25 << 48
+            # unplaced
+            elif chromosome == "Z":
+                startKey |= 32 << 48
+            # a numeric chromosome
+            else:
+                startKey |= int(chromosome) << 48
 
-                # endkey has identical high-order bits
-                endKey = startKey
+            startKey |= sequenceTypeId << 32
+            if sequences[columns[0]]["isPrimary"] == True:
+                startKey |= ISPRIMARY_MASK
 
-                # but the lower-order 32 bits are different
-                startKey |= start_position
-                endKey |= stop_position
+            # endkey has identical high-order bits
+            endKey = startKey
 
-                chromosome = sequences[columns[0]]["chromosomeName"]
+            # but the lower-order 32 bits are different
+            startKey |= start_position
+            endKey |= stop_position
 
-                writer.writerow(
-                    [
-                        sequence_id,
-                        feature_type,
-                        start_position,
-                        stop_position,
-                        id,
-                        name,
-                        description,
-                        gene,
-                        startKey,
-                        endKey,
-                        None,
-                        None,
-                    ]
-                )
+            chromosome = sequences[columns[0]]["chromosomeName"]
 
+            writer.writerow(
+                [
+                    options["ref"],
+                    sequence_id,
+                    feature_type,
+                    start_position,
+                    stop_position,
+                    id,
+                    name,
+                    description,
+                    gene,
+                    startKey,
+                    endKey,
+                    None,
+                    None,
+                ]
+            )
+
+    gff.close()
     print(str(lineNumber) + " features processed from GFF")
 
 
@@ -229,11 +243,14 @@ def processSequences():
 
     print("Processing sequences from FASTA")
 
-    with open(options["fasta"], "r") as fasta:
-        while line := fasta.readline().rstrip():
-            if line.startswith(">"):
-                sequenceId += 1
-                processSequence(line, sequenceId)
+    fasta = gzip.open(options["fasta"], "rt") if options["fasta"].endswith("gz") else open(options["fasta"], "r")
+
+    while line := fasta.readline().rstrip():
+        if line.startswith(">"):
+            sequenceId += 1
+            processSequence(line, sequenceId)
+
+    fasta.close()
 
     print(str(sequenceId - 1024) + " sequences processed from FASTA")
 
@@ -248,6 +265,7 @@ def main():
         writer = csv.writer(tsv, delimiter="\t")
         writer.writerow(
             [
+                "reference",
                 "sequence_id",
                 "feature_type",
                 "start_position",

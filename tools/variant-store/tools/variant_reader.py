@@ -3,18 +3,28 @@
 import argparse
 import csv
 import gzip
+
 from os.path import exists, expandvars
 from sys import stderr
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "-i",
-    "--input",
+    "-d",
+    "--dbsnp",
     required=True,
     action="store",
     metavar="VCF",
     dest="vcf",
-    help="Path to clinvar VCF",
+    help="Path to dbsnp VCF",
+)
+parser.add_argument(
+    "-r",
+    "--ref",
+    required=True,
+    action="store",
+    metavar="REFERENCE",
+    dest="ref",
+    help="Reference name to store",
 )
 parser.add_argument(
     "-o",
@@ -35,6 +45,15 @@ parser.add_argument(
     default=0,
     type=int,
     help="Limit number of input variants to process",
+)
+parser.add_argument(
+    "-c",
+    "--rare-variants",
+    required=False,
+    action="store_true",
+    dest="rare-variants",
+    default=False,
+    help="Process rare variants",
 )
 opts = parser.parse_args()
 options = vars(opts)
@@ -97,6 +116,7 @@ with open(options["tsv"], "w") as tsv:
     writer = csv.writer(tsv, delimiter="\t")
     writer.writerow(
         [
+            "reference",
             "sequence_id",
             "position",
             "ref",
@@ -112,78 +132,80 @@ with open(options["tsv"], "w") as tsv:
 
     rows = []
 
-    with gzip.open(options["vcf"], "rt") as vcf:
-        while line := vcf.readline().rstrip():
-            if options["limit"] != 0 and reads_processed > options["limit"]:
-                break
+    vcf = gzip.open(options["vcf"], "rt") if options["vcf"].endswith("gz") else open(options["vcf"], "r")
 
-            if line.startswith("#") == False:
-                reads_processed += 1
-                columns = line.split("\t")
+    while line := vcf.readline().rstrip():
+        if options["limit"] != 0 and reads_processed > options["limit"]:
+            break
 
-                # if not columns[0] in lookup:
-                #     continue
+        if line.startswith("#") == False:
+            reads_processed += 1
+            columns = line.split("\t")
 
-                sequence_id = columns[0]
-                position = int(columns[1])
-                rs = columns[2]
-                if len(rs) > 0 and rs.startswith("rs"):
-                    rs = rs.removeprefix("rs")
-                ref = columns[3]
-                alt = columns[4]
+            # if not columns[0] in lookup:
+            #     continue
 
-                info = columns[7].split(";")
-                infos = {
-                    k: v for k, v in zip([k.split("=")[0] for k in info], [":".join(k.split("=")[1:]) for k in info])
-                }
+            sequence_id = columns[0]
+            position = int(columns[1])
+            rs = columns[2]
+            if len(rs) > 0 and rs.startswith("rs"):
+                rs = rs.removeprefix("rs")
+            ref = columns[3]
+            alt = columns[4]
 
-                common = "1" if "COMMON" in infos else "0"
-                if common == "0":
-                    continue
+            info = columns[7].split(";")
+            infos = {k: v for k, v in zip([k.split("=")[0] for k in info], [":".join(k.split("=")[1:]) for k in info])}
 
-                hgvs = infos["CLNHGVS"] if "CLNHGVS" in infos else None
-                hgvs_root = hgvs[0 : hgvs.find(",") - 1] if hgvs is not None and "," in hgvs else None
+            common = "1" if "COMMON" in infos else "0"
+            if common == "0" and options["rare-variants"] == False:
+                continue
 
-                # yeah, this could be handled better...
-                if hgvs is None:
-                    hgvs = sequence_id + ":g." + str(position)
+            hgvs = infos["CLNHGVS"] if "CLNHGVS" in infos else None
+            hgvs_root = hgvs[0 : hgvs.find(",") - 1] if hgvs is not None and "," in hgvs else None
 
-                if hgvs_root is None:
-                    hgvs_root = sequence_id + ":g." + str(position)
+            # yeah, this could be handled better...
+            if hgvs is None:
+                hgvs = sequence_id + ":g." + str(position)
 
-                variant_type = infos["VC"].lower() if "VC" in infos else None
+            if hgvs_root is None:
+                hgvs_root = sequence_id + ":g." + str(position)
 
-                # TODO - split this
-                gene_info = infos["GENEINFO"] if "GENEINFO" in infos else None
-                if gene_info == None:
-                    gene_info = infos["PSEUDOGENEINFO"] if "PSEUDOGENEINFO" in infos else None
+            variant_type = infos["VC"].lower() if "VC" in infos else None
 
-                if rs == "." or rs is None:
-                    rs = infos["RS"].split("|")[0] if "RS" in infos else None
+            # TODO - split this
+            gene_info = infos["GENEINFO"] if "GENEINFO" in infos else None
+            if gene_info == None:
+                gene_info = infos["PSEUDOGENEINFO"] if "PSEUDOGENEINFO" in infos else None
 
-                rows.append(
-                    [
-                        sequence_id,
-                        position,
-                        ref,
-                        alt,
-                        hgvs_root,
-                        hgvs,
-                        variant_type,
-                        common,
-                        gene_info,
-                        rs,
-                    ]
-                )
+            if rs == "." or rs is None:
+                rs = infos["RS"].split("|")[0] if "RS" in infos else None
 
-                if reads_processed % 10000 == 0:
-                    writer.writerows(rows)
-                    rows = []
-                    stderr.write(".")
-                    stderr.flush()
+            rows.append(
+                [
+                    options["ref"],
+                    sequence_id,
+                    position,
+                    ref,
+                    alt,
+                    hgvs_root,
+                    hgvs,
+                    variant_type,
+                    common,
+                    gene_info,
+                    rs,
+                ]
+            )
 
-        writer.writerows(rows)
-        rows = []
+            if reads_processed % 10000 == 0:
+                writer.writerows(rows)
+                rows = []
+                stderr.write(".")
+                stderr.flush()
+
+    writer.writerows(rows)
+    rows = []
+
+    vcf.close()
 
 stderr.write("\n")
 print("VCF processed " + str(reads_processed) + " reads")

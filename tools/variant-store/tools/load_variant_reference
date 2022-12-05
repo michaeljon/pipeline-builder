@@ -1,0 +1,2 @@
+psql --host=localhost --username=michaeljon --quiet --command="copy variant_reference from '$PWD/GRCh37.p13.variants.tsv' delimiter E'\t' csv header;" compares
+psql --host=localhost --username=michaeljon --quiet --command="copy variant_reference from '$PWD/GRCh38.p14.variants.tsv' delimiter E'\t' csv header;" compares

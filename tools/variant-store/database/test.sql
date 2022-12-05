@@ -547,14 +547,25 @@ $$
 
 
 with genes as (
-     select g.sequence_id, g.gene, g.local_region
+     select g.reference, g.sequence_id, g.gene, g.local_region
      from genome_features g
-     where g.gene in ( 'BRCA1', 'BRCA2' )
+     where g.reference = 'GRCh37.p13'
+       and g.gene in ( 'BRCA1', 'BRCA2' )
        and g.feature_type = 'gene'
  )
  select g.gene, coalesce(count(*), 0)::decimal
- from variant v join genes g on v.sequence_id = g.sequence_id and v.position <@ g.local_region
-                left join variant_reference r on v.sequence_id = r.sequence_id and v.position = r.position and v.ref = any(string_to_array(r.alt, ','))
- where v.sample = 'mj'
+ from sample_variant s join genes g on s.reference = g.reference and s.sequence_id = g.sequence_id and s.position <@ g.local_region
+                       left join variant_reference r on g.reference = r.reference and g.sequence_id = r.sequence_id and s.position = r.position and s.alt = any(string_to_array(r.alt, ','))
+ where s.sample = 'mj'
  group by g.gene
  order by g.gene
+
+
+select g.reference, g.sequence_id, g.gene, s.position, g.local_region, r.ref, s.ref, s.alt
+from sample_variant s join genome_features g on s.reference = g.reference and s.sequence_id = g.sequence_id and s.position <@ g.local_region
+                      left join variant_reference r on g.reference = r.reference and s.rs = r.rs || ''
+where g.reference = 'GRCh37.p13'
+  and g.gene in ( 'BRCA1', 'BRCA2' )
+  and g.feature_type = 'gene'
+  and s.sample = 'mj'
+

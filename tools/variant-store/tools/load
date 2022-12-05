@@ -2,5 +2,5 @@
 
 for v in *.tsv; do
     S=$(realpath $v)
-    psql --host=localhost --username=michaeljon --quiet --command="copy variant from '$S' with delimiter as e'\t';" compares
+    psql --host=localhost --username=michaeljon --quiet --command="copy sample_variant from '$S' with delimiter as e'\t';" compares
 done

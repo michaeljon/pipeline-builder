@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 
+REFERENCE=GRCh38.p14
+
 for v in *.gz; do
     SAMPLE=$(echo $v | cut -d . -f 1)
 
     gunzip -c $v |
-        awk -v SAMPLE=$SAMPLE 'BEGIN {FS="\t"} !/^#/ { printf("%s\t%s\t%d\t%s\t%s\t%s\t%s:%d\n", SAMPLE, $1, $2, $3, $4, $5, $1, $2) }' >$SAMPLE.tsv
+        awk -v REFERENCE=$REFERENCE SAMPLE=$SAMPLE 'BEGIN {FS="\t"} !/^#/ { printf("%s\%s\t%s\t%d\t%s\t%s\t%s\t%s:%d\n", SAMPLE, REFERENCE, $1, $2, $3, $4, $5, $1, $2) }' >$SAMPLE.tsv
 done

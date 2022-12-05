@@ -1,0 +1,2 @@
+psql --host=localhost --username=michaeljon --quiet --command="copy genome_features from '$PWD/GRCh37.p13.features.tsv' delimiter E'\t' csv header;" compares
+psql --host=localhost --username=michaeljon --quiet --command="copy genome_features from '$PWD/GRCh38.p14.features.tsv' delimiter E'\t' csv header;" compares

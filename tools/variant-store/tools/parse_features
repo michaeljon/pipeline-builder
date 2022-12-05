@@ -1,0 +1,7 @@
+#!!/usr/bin/env bash
+
+./feature_reader.py --gff ~/pipeline/reference/GRCh37.p13/GCF_000001405.25_GRCh37.p13_genomic.gff --fasta ~/pipeline/reference/GRCh37.p13/GCF_000001405.25_GRCh37.p13_genomic.fna --output GRCh37.p13.features.tsv --ref GRCh37.p13
+./feature_reader.py --gff ~/pipeline/reference/GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.gff --fasta ~/pipeline/reference/GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.fna --output GRCh38.p14.features.tsv --ref GRCh38.p14
+
+./variant_reader.py --dbsnp ~/pipeline/reference/GRCh37.p13/GCF_000001405.25.gz --ref GRCh37.p13 --output GRCh37.p13.variants.tsv
+./variant_reader.py --dbsnp ~/pipeline/reference/GRCh38.p14/GCF_000001405.39.gz --ref GRCh38.p14 --output GRCh38.p14.variants.tsv
