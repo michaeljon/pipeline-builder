@@ -1,0 +1,87 @@
+@startuml features
+hide circle
+
+skinparam DefaultFontName "Helvetica Neue"
+skinparam classAttributeFontStyle normal
+skinparam noteFontSize 8
+skinparam arrowFontSize 10
+skinparam arrowFontStyle italic
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 50
+
+entity Assembly {
+    AssemblyName
+    AssemblyUrl
+    AssemblyMD5
+    FeatureName
+    FeatureUrl
+    FeatureMD5
+}
+
+entity Sequence {
+    Name
+    Length
+}
+
+entity Feature {
+
+}
+
+Assembly ||..o{ Sequence
+Sequence ||..o{ Feature
+
+@enduml
+
+@startuml variant
+hide circle
+
+skinparam DefaultFontName "Helvetica Neue"
+skinparam classAttributeFontStyle normal
+skinparam noteFontSize 8
+skinparam arrowFontSize 10
+skinparam arrowFontStyle italic
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 50
+
+entity Assembly {
+    AssemblyName
+    AssemblyUrl
+    AssemblyMD5
+    FeatureName
+    FeatureUrl
+    FeatureMD5
+}
+
+entity Sequence {
+    Name
+    Length
+}
+
+entity Position {
+    Locus
+}
+
+entity Transformation {
+    DbSnp
+    From
+    To
+    Type
+}
+
+entity TransformationType {
+}
+
+Assembly ||..o{ Sequence
+Sequence ||..o{ Position
+Position ||..o{ Transformation
+TransformationType ||..o{ Transformation
+
+@enduml
+
+@startuml fonts
+listfonts
+@enduml
