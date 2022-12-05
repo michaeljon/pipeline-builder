@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+export AWS_ACCESS_KEY_ID=""
+export AWS_SECRET_ACCESS_KEY=""
+export AWS_SESSION_TOKEN=""
+
+# aws s3 cp s3://ll-pipeline-results/zr8937/zr8937_1_S73/zr8937_1_S73.unannotated.vcf.gz .
+# aws s3 cp s3://ll-pipeline-results/zr8937/zr8937_2_S74/zr8937_2_S74.unannotated.vcf.gz .
+# aws s3 cp s3://ll-pipeline-results/zr8937/zr8937_3_S75/zr8937_3_S75.unannotated.vcf.gz .
+# aws s3 cp s3://ll-pipeline-results/zr8937/zr8937_4_S76/zr8937_4_S76.unannotated.vcf.gz .
+
+# aws s3 cp s3://ll-pipeline-results/zr8912/zr8912_1_S69/zr8912_1_S69.unannotated.vcf.gz .
+# aws s3 cp s3://ll-pipeline-results/zr8912/zr8912_2_S70/zr8912_2_S70.unannotated.vcf.gz .
+# aws s3 cp s3://ll-pipeline-results/zr8912/zr8912_3_S71/zr8912_3_S71.unannotated.vcf.gz .
+# aws s3 cp s3://ll-pipeline-results/zr8912/zr8912_4_S72/zr8912_4_S72.unannotated.vcf.gz .
+
+aws s3 cp s3://ll-pipeline-results/zr8937/zr8937_1_S73/zr8937_1_S73.annotated.vcf.gz .
+aws s3 cp s3://ll-pipeline-results/zr8937/zr8937_2_S74/zr8937_2_S74.annotated.vcf.gz .
+aws s3 cp s3://ll-pipeline-results/zr8937/zr8937_3_S75/zr8937_3_S75.annotated.vcf.gz .
+aws s3 cp s3://ll-pipeline-results/zr8937/zr8937_4_S76/zr8937_4_S76.annotated.vcf.gz .
+
+aws s3 cp s3://ll-pipeline-results/zr8912/zr8912_1_S69/zr8912_1_S69.annotated.vcf.gz .
+aws s3 cp s3://ll-pipeline-results/zr8912/zr8912_2_S70/zr8912_2_S70.annotated.vcf.gz .
+aws s3 cp s3://ll-pipeline-results/zr8912/zr8912_3_S71/zr8912_3_S71.annotated.vcf.gz .
+aws s3 cp s3://ll-pipeline-results/zr8912/zr8912_4_S72/zr8912_4_S72.annotated.vcf.gz .

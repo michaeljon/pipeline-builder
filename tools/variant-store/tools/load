@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+for v in *.tsv; do
+    S=$(realpath $v)
+    psql --host=localhost --username=michaeljon --quiet --command="copy variant from '$S' with delimiter as e'\t';" compares
+done
