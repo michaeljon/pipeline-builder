@@ -209,4 +209,11 @@ Current cut-points using a 50mbp factor:
 | NC_000018.10 | 50mbp                      | NC_000018.10:1-50000000 |
 | NC_000020.11 | 50mbp                      | NC_000020.11:1-50000000 |
 | NC_000023.11 | 50mbp 100mbp               | NC_000023.11:1-50000000 |
-|              |
+
+For GRCh37.p13 the affected genomic features are: AGBL4 NR5A2 EIF5B LYPD6B RBM6 TBC1D23 LINC01214 ADH5 PARP8 SYNPO CCNC LATS1 ZPBP ZCWPW1 WDFY4 R3HCC1L CNTN5 ANKS1B CAB39L UBAC2 CA10 DCC CCNB3
+
+And the affected genomic feature types are : mRNA D_loop region type lnc_RNA gene match pseudogene transcript
+
+For GRCh38.p14 the affected genomic features are: AGBL4 LOC124904230 SLC35A3 OTUD7B NRXN1 AFF3 LOC124906112 RBM6 CMSS1 FILIP1L H2AZ1-DT TIGD6 MCHR2-AS1 ZPBP LOC105375423 SNTG1 RGS22 ERP44 TIMM23B-AGAP6 AGAP6 DNMBP CNTN5 RACGAP1 DLEU2 TRIM13 LINC01588 ATP8B4 MYO5B CLCN5
+
+And the affected genomic feature types are : mRNA D_loop exon region type lnc_RNA gene centromere match pseudogene transcript

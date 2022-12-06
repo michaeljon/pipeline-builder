@@ -43,6 +43,18 @@
     | bqsr | 1669175857 | 1669176663 | 806 |
     | call | 1669178065 | 1669182661 | 4596 |
 
+- where do those numbers come from
+
+  - GRCh37.p13
+    - 297 contigs / sequences / regions -> interval
+    - 1,074,344,881 documented variants
+  - GRCh38.p14
+    - 705 contigs / sequences / regions -> interval
+    - 1,112,554,591 documented variants
+  - T2T - CHM13v2.0
+    - 24 contigs / sequences / regions -> interval
+    - 0(!) documented variants
+
 - opportunities for making this faster
 
   - let's create more partitions

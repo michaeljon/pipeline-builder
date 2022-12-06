@@ -39,14 +39,14 @@ def get_options() -> OptionsDict:
         help="Location of feature (GFF) file",
     )
 
-    # parser.add_argument(
-    #     "--reference",
-    #     required=True,
-    #     type=str,
-    #     action="store",
-    #     dest="reference",
-    #     help="Location of reference (FNA) file",
-    # )
+    parser.add_argument(
+        "--reference",
+        required=True,
+        type=str,
+        action="store",
+        dest="reference",
+        help="Location of reference (FNA) file",
+    )
 
     parser.add_argument(
         "--output",
@@ -119,9 +119,9 @@ def verifyOptions(options: OptionsDict):
         print("Unable to find your features at {PATH}".format(PATH=options["features"]))
         quit(1)
 
-    # if exists(options["reference"]) == False:
-    #     print("Unable to find your reference at {PATH}".format(PATH=options["reference"]))
-    #     quit(1)
+    if exists(options["reference"]) == False:
+        print("Unable to find your reference at {PATH}".format(PATH=options["reference"]))
+        quit(1)
 
     if exists(options["output"]) == False:
         print("Unable to find your output directory {PATH}".format(PATH=options["output"]))
@@ -391,11 +391,10 @@ def main():
     features = read_features(options)
     print(str(len(features.keys())) + " loaded", flush=True)
 
-    dump_features(features)
-    dump_intervals_3(features)
-    dump_intervals_1(features)
-    dump_intervals_2(features)
-    quit(0)
+    # dump_features(features)
+    # dump_intervals_3(features)
+    # dump_intervals_1(features)
+    # dump_intervals_2(features)
 
     # read the vcf headers from the known sites file
     print("Reading known site VCF headers...", end="", flush=True)
@@ -408,8 +407,8 @@ def main():
     print(str(len(headers)) + " written to " + str(len(features.keys())) + " intervals", flush=True)
 
     # create intervals from known sites vcf
-    print("Processing known sites... ", end="", flush=True)
-    process_known_sites(options, features)
+    # print("Processing known sites... ", end="", flush=True)
+    # process_known_sites(options, features)
 
     # close all the open files
     print("Closing interval files", flush=True)
