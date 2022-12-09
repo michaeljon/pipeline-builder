@@ -607,13 +607,11 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
     script.write(
         """
 # Write intervals file computed from aligned and sorted BAM
-samtools view --header-only {BAM} | \\
-    grep --color=never '^@SQ' | \\
+cat {PIPELINE}/interval_list.tsv | \\
     python {BIN}/interval-builder.py --primaryOnly --segment {SEGMENT} --factor {FACTOR} --process intervalList > {PIPELINE}/{SAMPLE}.intervals.tsv
 
 # Write VCF merge list file computed from aligned and sorted BAM
-samtools view --header-only {BAM} | \\
-    grep --color=never '^@SQ' | \\
+cat {PIPELINE}/interval_list.tsv | \\
     python {BIN}/interval-builder.py --primaryOnly --segment {SEGMENT} --factor {FACTOR} --process mergeList --root {PIPELINE}/{SAMPLE} > {PIPELINE}/{SAMPLE}.merge.list
 """.format(
             BIN=bin, BAM=output, PIPELINE=pipeline, SAMPLE=sample, SEGMENT=segmentSize, FACTOR=factor
@@ -648,14 +646,14 @@ def genBQSRTables(script: TextIOWrapper, options: OptionsDict):
         """
 logthis "${{yellow}}Generating BQSR tables${{reset}}"
 parallel --joblog {PIPELINE}/{SAMPLE}.bqsr.log --header --colsep $'\\t' \\
-    'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}_bqsr.table ]]; then
+    'if [[ ! -f {PIPELINE}/{{root}}_bqsr.table ]]; then
         gatk BaseRecalibrator --java-options -Xmx4g \\
             -R {REFERENCE}/{ASSEMBLY}.fna \\
-            -I {PIPELINE}/{SAMPLE}.{{root}}.bam \\
-            -O {PIPELINE}/{SAMPLE}.{{root}}_bqsr.table \\
+            -I {PIPELINE}/{{root}}.bam \\
+            -O {PIPELINE}/{{root}}_bqsr.table \\
             --verbosity ERROR \\
             --preserve-qscores-less-than 6 \\
-            --known-sites {REFERENCE}/{KNOWN_SITES} \\
+            --known-sites "{REFERENCE}/{KNOWN_SITES}/{{interval}}.vcf.gz" \\
             -L {{interval}}
      fi' :::: {INTERVAL_LIST}
 logthis "${{green}}BQSR table generation complete${{reset}}"
@@ -683,18 +681,18 @@ def applyBQSRTables(script: TextIOWrapper, options: OptionsDict):
         """
 logthis "${{yellow}}Applying BQSR calibration${{reset}}"
 parallel --joblog {PIPELINE}/{SAMPLE}.calibrate.log --header --colsep $'\\t' \\
-    'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}_bqsr.bam ]]; then
+    'if [[ ! -f {PIPELINE}/{{root}}_bqsr.bam ]]; then
         gatk ApplyBQSR --java-options -Xmx4g \\
             -R {REFERENCE}/{ASSEMBLY}.fna \\
-            -I {PIPELINE}/{SAMPLE}.{{root}}.bam \\
-            -O {PIPELINE}/{SAMPLE}.{{root}}_bqsr.bam \\
+            -I {PIPELINE}/{{root}}.bam \\
+            -O {PIPELINE}/{{root}}_bqsr.bam \\
             --verbosity ERROR \\
             --emit-original-quals true \\
             --preserve-qscores-less-than 6 \\
             --static-quantized-quals 10 \\
             --static-quantized-quals 20 \\
             --static-quantized-quals 30 \\
-            --bqsr-recal-file {PIPELINE}/{SAMPLE}.{{root}}_bqsr.table \\
+            --bqsr-recal-file {PIPELINE}/{{root}}_bqsr.table \\
             -L {{interval}}
      fi' :::: {INTERVAL_LIST}
 logthis "${{green}}BQSR calibration completed${{reset}}"
@@ -753,13 +751,13 @@ def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
 logthis "${{yellow}}Calling variants using GATK${{reset}}"
 
 parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.call.log --header --colsep $'\\t' \\
-    'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}.vcf ]]; then
+    'if [[ ! -f {PIPELINE}/{{root}}.vcf ]]; then
         gatk HaplotypeCaller --java-options -Xmx4g \\
             -R {REFERENCE}/{ASSEMBLY}.fna \\
-            -I {PIPELINE}/{SAMPLE}.{{root}}_bqsr.bam \\
-            -O {PIPELINE}/{SAMPLE}.{{root}}.vcf \\
+            -I {PIPELINE}/{{root}}_bqsr.bam \\
+            -O {PIPELINE}/{{root}}.vcf \\
             --verbosity ERROR \\
-            --dbsnp {REFERENCE}/{KNOWN_SITES} \\
+            --dbsnp "{REFERENCE}/{KNOWN_SITES}/{{interval}}.vcf.gz" \\
             --pairHMM FASTEST_AVAILABLE \\
             --native-pair-hmm-threads {THREADS} \\
             -L {{interval}}
@@ -799,7 +797,7 @@ def callVariantsUsingBcftools(script: TextIOWrapper, options: OptionsDict):
 logthis "Calling variants using BCFTOOLS"
 
 parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.call.log --header --colsep $'\\t' \\
-    'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}.vcf ]]; then
+    'if [[ ! -f {PIPELINE}/{{root}}.vcf ]]; then
         bcftools mpileup \\
             --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \\
             --max-depth 500 \\
@@ -808,7 +806,7 @@ parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.call.log --header --colsep $'\\t
             --output-type u \\
             --regions {{interval}} \\
             --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
-            {PIPELINE}/{SAMPLE}.{{root}}_bqsr.bam 2>/dev/null | \\
+            {PIPELINE}/{{root}}_bqsr.bam 2>/dev/null | \\
         bcftools call \\
             --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \\
             --variants-only \\
@@ -816,7 +814,7 @@ parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.call.log --header --colsep $'\\t
             --ploidy GRCh38 \\
             --threads {THREADS} \\
             --output-type v  \\
-            --output {PIPELINE}/{SAMPLE}.{{root}}.vcf 2>/dev/null
+            --output {PIPELINE}/{{root}}.vcf 2>/dev/null
     fi' :::: {INTERVAL_LIST}
 
 logthis "BCFTOOLS variant calling completed"
@@ -904,13 +902,13 @@ def scatter(script: TextIOWrapper, options: OptionsDict, sorted: str):
 logthis "${{yellow}}Waiting for scattering processes to complete${{reset}}"
 
 parallel --joblog {PIPELINE}/{SAMPLE}.scatter.log --header --colsep $'\\t' \\
-    'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}.bam ]]; then
-        samtools view -bh {SORTED} {{interval}} --output {PIPELINE}/{SAMPLE}.{{root}}.bam
+    'if [[ ! -f {PIPELINE}/{{root}}.bam ]]; then
+        samtools view -bh {SORTED} {{interval}} --output {PIPELINE}/{{root}}.bam
      fi' :::: {INTERVAL_LIST}
 
 parallel --joblog {PIPELINE}/{SAMPLE}.scatindex.log --header --colsep $'\\t' \\
-    'if [[ ! -f {PIPELINE}/{SAMPLE}.{{root}}.bam.bai ]]; then
-        samtools index {PIPELINE}/{SAMPLE}.{{root}}.bam
+    'if [[ ! -f {PIPELINE}/{{root}}.bam.bai ]]; then
+        samtools index {PIPELINE}/{{root}}.bam
      fi' :::: {INTERVAL_LIST}
 
 logthis "${{green}}Scattering completed${{reset}}"

@@ -3,36 +3,46 @@
 SAMPLE=$1
 echo ${SAMPLE}
 
+if [[ -z ${PIPELINE_ROOT} ]]; then
+    echo "PIPELINE_ROOT has not been set"
+    exit 1
+fi    
+
 # give us a place to work
-mkdir -p ${HOME}/pipeline/${SAMPLE}
-mkdir -p ${HOME}/stats/${SAMPLE}
+mkdir -p ${PIPELINE_ROOT}/pipeline/${SAMPLE}
+mkdir -p ${PIPELINE_ROOT}/stats/${SAMPLE}
 
 # build the pipeline
-python ${HOME}/pipeline-builder/human/build-hg38-pipeline.py \
+python ${PIPELINE_ROOT}/pipeline-builder/human/build-hg38-pipeline.py \
     --no-color \
     --sample ${SAMPLE} \
-    --work-dir ${HOME} \
-    --reference-dir ${HOME}/reference/GRCh38.p14 \
+    --work-dir ${PIPELINE_ROOT} \
+    --reference-dir ${PIPELINE_ROOT}/reference/GRCh38.p14 \
     --reference-assembly GCF_000001405.40_GRCh38.p14_genomic \
-    --known-sites GCF_000001405.39.gz \
-    --segment 25000000 \
-    --vep-dir ${HOME}/reference/vep_data \
-    --pipeline-dir ${HOME}/pipeline/${SAMPLE} \
-    --stats-dir ${HOME}/stats/${SAMPLE} \
-    --script ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner \
-    --temp-dir ${HOME}/stats/temp \
-    --fastq-dir ${HOME}/fastq \
+    --known-sites known-sites-50mb \
+    --segment 50000000 \
+    --vep-dir ${PIPELINE_ROOT}/reference/vep_data \
+    --pipeline-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE} \
+    --stats-dir ${PIPELINE_ROOT}/stats/${SAMPLE} \
+    --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner \
+    --temp-dir ${PIPELINE_ROOT}/stats/temp \
+    --fastq-dir ${PIPELINE_ROOT}/fastq/zymo/wgs \
     --preprocessor fastp \
     --aligner bwa-mem2 \
     --sorter biobambam \
     --caller gatk \
     --clean
 
-cp ${HOME}/pipeline-builder/assets/software_versions_mqc.html ${HOME}/stats/${SAMPLE}
-cp ${HOME}/pipeline-builder/assets/ovationlogo.png ${HOME}/stats/${SAMPLE}
+# interval list
+cp ${PIPELINE_ROOT}/pipeline-builder/human/interval_list.tsv ${PIPELINE_ROOT}/pipeline/${SAMPLE}
+
+cp ${PIPELINE_ROOT}/pipeline-builder/assets/software_versions_mqc.html ${PIPELINE_ROOT}/stats/${SAMPLE}
+cp ${PIPELINE_ROOT}/pipeline-builder/assets/ovationlogo.png ${PIPELINE_ROOT}/stats/${SAMPLE}
+
+exit
 
 # run the pipeline
-bash ${HOME}/pipeline/${SAMPLE}/${SAMPLE}_runner >${HOME}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
+bash ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner >${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
 
-# rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.aligned.sam.gz
-# rm -f ${HOME}/pipeline/${SAMPLE}/${SAMPLE}.sorted.bam
+# rm -f ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}.aligned.sam.gz
+# rm -f ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}.sorted.bam
