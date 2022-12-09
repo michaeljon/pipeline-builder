@@ -12,9 +12,15 @@ from pprint import pprint
 from sys import stderr
 from typing import Any, Dict, List, Tuple
 
+import bgzip
+
 OptionsDict = Dict[str, Any]
 
 VCF_HEADER = "##fileformat=VCFv4.2"
+
+
+def bytes_from_str(s):
+    return bytes(str(s).encode("ascii"))
 
 
 def get_options() -> OptionsDict:
@@ -153,16 +159,22 @@ def read_vcf_headers(options: OptionsDict):
 def write_vcf_header(options: OptionsDict, interval, headers: List[str]):
     full_path = options["output"] + "/" + interval["filename"] + ".vcf.gz"
 
-    f = gzip.open(full_path, "wt")
+    f = open(full_path, "wb")
+    bg = bgzip.BGZipWriter(f)
+
     for header in headers:
-        f.write(header + "\n")
-    return f
+        bg.write(bytes_from_str(header + "\n"))
+
+    return (f, bg)
 
 
 def write_vcf_headers(options: OptionsDict, features, headers: List[str]):
     for feature, intervals in features.items():
         for interval in intervals:
-            interval["output-file"] = write_vcf_header(options, interval, headers)
+            (f, bg) = write_vcf_header(options, interval, headers)
+
+            interval["output-file"] = f
+            interval["bgzip-file"] = bg
 
 
 def read_features(options: OptionsDict):
@@ -221,6 +233,7 @@ def read_features(options: OptionsDict):
                     "upper": upper,
                     "filename": filename,
                     "interval": filename,
+                    "variants_seen": 0,
                 }
             )
 
@@ -246,6 +259,7 @@ def read_features(options: OptionsDict):
                     "upper": int(length),
                     "filename": filename,
                     "interval": filename,
+                    "variants_seen": 0,
                 }
             )
         else:
@@ -267,6 +281,7 @@ def read_features(options: OptionsDict):
                     "upper": int(length),
                     "filename": filename,
                     "interval": filename,
+                    "variants_seen": 0,
                 }
             )
 
@@ -281,7 +296,10 @@ def get_file_from_locus_in_features(sequence_id: str, position: int, features):
     chromosome = features[sequence_id]
     for interval in chromosome:
         if interval["lower"] <= position and position <= interval["upper"]:
-            return interval["output-file"]
+            # bump the counter so we know how many we've written
+            interval["variants_seen"] += 1
+
+            return interval["bgzip-file"]
 
     print("Unable to locate interval for {CHROM} at {POSITION}".format(CHROM=chromosome, POSITION=position))
     quit(1)
@@ -327,7 +345,7 @@ def process_known_sites(options: OptionsDict, features):
 
             of = get_file_from_locus_in_features(sequence_id, position, features)
             if of != None:
-                of.write(line + "\n")
+                of.write(bytes_from_str(line + "\n"))
 
     ks.close()
     print(" finished with " + str(options["limit"] - reads_remaining) + " processed", flush=True)
@@ -413,6 +431,10 @@ def main():
     # dump_intervals_2(features)
     # dump_intervals_3(features)
 
+    # we can't make the interval list until we've processed all the
+    # variants, because want to merge the empty and smaller files
+    # or remove them as intervals (which drops our ability to call
+    # novel variants, so...)
     make_interval_list(features)
 
     # read the vcf headers from the known sites file
@@ -435,7 +457,12 @@ def main():
     print("Closing interval files", flush=True)
     for feature, intervals in features.items():
         for interval in intervals:
+            interval["bgzip-file"].close()
             interval["output-file"].close()
+
+    # merge the small / empty intervals
+    # remove the merge input files
+    # write the interval list
 
 
 if __name__ == "__main__":
