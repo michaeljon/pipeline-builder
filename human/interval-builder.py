@@ -147,7 +147,7 @@ with open("/dev/stdout", "w") as f:
             f.write("{INTERVAL}\t{ROOT}\n".format(INTERVAL=i[0], ROOT=i[1]))
     elif options["process"] == "mergeList": 
         for i in [interval.replace(":", "_").replace("-", "_") for interval in sorted_intervals]:
-            f.write("{ROOT}.{INTERVAL}.vcf\n".format(ROOT=options["root"], INTERVAL=i))
+            f.write("{ROOT}{INTERVAL}.vcf\n".format(ROOT=options["root"], INTERVAL=i))
     else:
         stderr.write("Invalid --process option??!!")
         exit(99)

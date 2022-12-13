@@ -20,7 +20,7 @@ VCF_HEADER = "##fileformat=VCFv4.2"
 
 
 def bytes_from_str(s):
-    return bytes(str(s).encode("ascii"))
+    return bytes(str(s).encode("utf-8"))
 
 
 def get_options() -> OptionsDict:
@@ -348,7 +348,7 @@ def process_known_sites(options: OptionsDict, features):
                 of.write(bytes_from_str(line + "\n"))
 
     ks.close()
-    print(" finished with " + str(options["limit"] - reads_remaining) + " processed", flush=True)
+    print("\b finished with " + str(options["limit"] - reads_remaining) + " processed", flush=True)
 
 
 def feature_count(features):

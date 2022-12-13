@@ -36,6 +36,7 @@ chmod 755 cpanm
 
 pip install --upgrade pip setuptools
 pip install --user cutadapt
+pip install --user bgzip
 
 # download and unpack
 cd ${ROOT}/components
