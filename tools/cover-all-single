@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 
+if [[ -z ${PIPELINE_ROOT} ]]; then
+    echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
+    exit 1
+fi
+
 mkdir -p ${PIPELINE_ROOT}/tmp/single-call-covers
 rm -rf ${PIPELINE_ROOT}/tmp/single-call-covers/*
 
 for FILENAME in $(find ${PIPELINE_ROOT}/pipeline -name '*.sorted.bam' -print); do
     LOCATION=$(dirname $FILENAME)
-    SAMPLE=$(echo $FILENAME | cut -d/ -f6)
+    SAMPLE=$(echo $FILENAME | cut -d/ -f6 | sed 's/.sorted.bam//')
     ORGANISM=$(echo $FILENAME | cut -d/ -f7)
 
     if [[ ! -f ${LOCATION}/${SAMPLE}.depth.gz ]]; then

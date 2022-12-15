@@ -21,7 +21,7 @@ echo Starting ${SAMPLE} run
 mkdir -p ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}
 
 # build the pipeline
-python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-runner.py \
+python ${PIPELINE_ROOT}/pipeline-builder/hcov-illumina/hcov-runner.py \
     --no-color \
     --cores 72 \
     --sample ${SAMPLE} \

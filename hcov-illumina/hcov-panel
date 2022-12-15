@@ -18,7 +18,7 @@ set -e
 mkdir -p ${PIPELINE_ROOT}/pipeline/${SAMPLE}
 
 # build the pipeline
-python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-runner.py \
+python ${PIPELINE_ROOT}/pipeline-builder/hcov-illumina/hcov-runner.py \
     --no-color \
     --cores 72 \
     --sample ${SAMPLE} \
