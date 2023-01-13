@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
-SAMPLE=$1
-echo ${SAMPLE}
+FASTQ=$1
+SAMPLE=$2
+
+echo ${SAMPLE} from ${FASTQ}
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "PIPELINE_ROOT has not been set"
@@ -13,9 +15,10 @@ mkdir -p ${PIPELINE_ROOT}/pipeline/${SAMPLE}
 mkdir -p ${PIPELINE_ROOT}/stats/${SAMPLE}
 
 # build the pipeline
-python ${PIPELINE_ROOT}/pipeline-builder/human/build-hg38-pipeline.py \
+python ${PIPELINE_ROOT}/pipeline-builder/human-thermo/build-hg38-pipeline.py \
     --no-color \
     --sample ${SAMPLE} \
+    --fastq ${FASTQ} \
     --work-dir ${PIPELINE_ROOT} \
     --reference-dir ${PIPELINE_ROOT}/reference/GRCh38.p14 \
     --reference-assembly GCF_000001405.40_GRCh38.p14_genomic \
@@ -26,19 +29,14 @@ python ${PIPELINE_ROOT}/pipeline-builder/human/build-hg38-pipeline.py \
     --stats-dir ${PIPELINE_ROOT}/stats/${SAMPLE} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner \
     --temp-dir ${PIPELINE_ROOT}/stats/temp \
-    --fastq-dir ${PIPELINE_ROOT}/fastq/zymo/wgs \
-    --preprocessor fastp \
+    --fastq-dir ${PIPELINE_ROOT}/fastq/vikor \
     --aligner bwa-mem2 \
     --sorter biobambam \
     --caller gatk \
-    --clean \
-    --skip-variant-qc \
-    --skip-alignment-qc \
-    --skip-annotation \
-    --skip-fastqc
+    --clean
 
 # interval list
-cp ${PIPELINE_ROOT}/pipeline-builder/human/interval_list.tsv ${PIPELINE_ROOT}/pipeline/${SAMPLE}
+cp ${PIPELINE_ROOT}/pipeline-builder/human-thermo/interval_list.tsv ${PIPELINE_ROOT}/pipeline/${SAMPLE}
 
 cp ${PIPELINE_ROOT}/pipeline-builder/assets/software_versions_mqc.html ${PIPELINE_ROOT}/stats/${SAMPLE}
 cp ${PIPELINE_ROOT}/pipeline-builder/assets/ovationlogo.png ${PIPELINE_ROOT}/stats/${SAMPLE}

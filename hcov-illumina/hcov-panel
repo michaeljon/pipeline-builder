@@ -29,13 +29,13 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov-illumina/hcov-runner.py \
     --pipeline-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE} \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner \
-    --temp-dir ${HOME}/stats/temp \
-    --fastq-dir ${HOME}/fastq \
+    --temp-dir ${PIPELINE_ROOT}/stats/temp \
+    --fastq-dir ${PIPELINE_ROOT}/fastq \
     --skip-variant-qc \
     --skip-annotation \
     --caller bcftools \
     --aligner bwa \
-    --preprocessor trimgalore \
+    --preprocessor none \
     --sorter biobambam
 
 cp ${PIPELINE_ROOT}/pipeline-builder/assets/software_versions_mqc.html ${PIPELINE_ROOT}/pipeline/${SAMPLE}

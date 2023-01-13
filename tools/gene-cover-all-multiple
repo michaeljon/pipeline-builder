@@ -35,8 +35,6 @@ for FILENAME in $(find ${PIPELINE_ROOT}/pipeline -name '*.sorted.bam' -print); d
         FILES+=(${LOCATION}/${SAMPLE}_${ORGANISM_GENE})
     done
 
-    echo ${FILES[@]}
-
     echo -ne "\033[0K${SAMPLE}:*: generating organism plot...\r"
     Rscript organism_coverage.R ${FILES[@]} >/dev/null 2>&1
 
