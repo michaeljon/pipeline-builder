@@ -151,7 +151,7 @@ def read_vcf_headers(options: OptionsDict):
     return headers
 
 
-def write_vcf_header(options: OptionsDict, interval, headers: list[str]):
+def write_vcf_header(options: OptionsDict, interval, headers: List[str]):
     full_path = options["output"] + "/" + interval["filename"] + ".vcf.gz"
 
     f = gzip.open(full_path, "wt")
@@ -160,7 +160,7 @@ def write_vcf_header(options: OptionsDict, interval, headers: list[str]):
     return f
 
 
-def write_vcf_headers(options: OptionsDict, features, headers: list[str]):
+def write_vcf_headers(options: OptionsDict, features, headers: List[str]):
     for feature, intervals in features.items():
         for interval in intervals:
             interval["output-file"] = write_vcf_header(options, interval, headers)
