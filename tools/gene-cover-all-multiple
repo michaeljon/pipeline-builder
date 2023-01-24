@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 
-TARGET=iontorrent
+if [[ -z ${PIPELINE_ROOT} ]]; then
+    echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
+    exit 1
+fi
 
 for FILENAME in $(find ${PIPELINE_ROOT}/pipeline -name '*.sorted.bam' -print); do
     LOCATION=$(dirname $FILENAME)
-    SAMPLE=$(echo $FILENAME | cut -d/ -f6)
+    SAMPLE=$(echo $FILENAME | cut -d/ -f6 | sed 's/.sorted.bam//')
 
     if [[ ! -f ${LOCATION}/${SAMPLE}.depth.gz ]]; then
         echo -ne "\033[0K${SAMPLE}:*: calculating depth...\r"
@@ -31,8 +34,6 @@ for FILENAME in $(find ${PIPELINE_ROOT}/pipeline -name '*.sorted.bam' -print); d
 
         FILES+=(${LOCATION}/${SAMPLE}_${ORGANISM_GENE})
     done
-
-    echo ${FILES[@]}
 
     echo -ne "\033[0K${SAMPLE}:*: generating organism plot...\r"
     Rscript organism_coverage.R ${FILES[@]} >/dev/null 2>&1

@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 
-from io import TextIOWrapper
 import argparse
 import math
-
 from argparse import Namespace
-from typing import Dict, Tuple, List, Any
 from datetime import datetime
-from os.path import exists, expandvars
+from io import TextIOWrapper
 from os import cpu_count, system
+from os.path import exists, expandvars
+from typing import Any, Dict, List, Tuple
 
 OptionsDict = Dict[str, Any]
 FastqSet = Tuple[str, str]
@@ -26,11 +25,11 @@ def writeFragmentList(options: OptionsDict):
     fragmentList = "{PIPELINE}/{SAMPLE}.fragments.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
     with open(fragmentList, "w") as fl:
         fl.truncate()
-        fl.write("fragment\tr1\tr2\taligned\tunmarked\tsorted\n")
+        fl.write("fragment\tfastq\taligned\tunmarked\tsorted\n")
 
         for fragment in range(1, fragmentCount + 1):
             fl.write(
-                "{FRAGMENT:03n}\t{SAMPLE}_R1.trimmed_{FRAGMENT:03n}.fastq.gz\t{SAMPLE}_R2.trimmed_{FRAGMENT:03n}.fastq.gz\t{SAMPLE}_001_{FRAGMENT:03n}.aligned.bam\t{SAMPLE}_001_{FRAGMENT:03n}.unmarked.bam\t{SAMPLE}_001_{FRAGMENT:03n}.sorted.bam\n".format(
+                "{FRAGMENT:03n}\t{SAMPLE}_{FRAGMENT:03n}.fastq.gz\t{SAMPLE}_001_{FRAGMENT:03n}.aligned.bam\t{SAMPLE}_001_{FRAGMENT:03n}.unmarked.bam\t{SAMPLE}_001_{FRAGMENT:03n}.sorted.bam\n".format(
                     FRAGMENT=fragment, SAMPLE=sample
                 )
             )
@@ -39,157 +38,31 @@ def writeFragmentList(options: OptionsDict):
 fallback_warning_shown = False
 
 
-def getFileNames(options: OptionsDict) -> FastqSet:
+def getFileName(options: OptionsDict) -> str:
+    """
+    Returns the input / source filename from the options. First, attempts the --fastq
+    option as a full path. If that doesn't exist, construct a path from --fastq-dir
+    as well and check it. If neither are present, this function exits the process.
+    """
     global fallback_warning_shown
 
-    sample = options["sample"]
+    fastq = options["fastq"]
     fastq_dir = options["fastq_dir"]
 
-    # assume we have the _001 pattern first
-    filenames = (
-        "{FASTQ_DIR}/{SAMPLE}_R1_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
-        "{FASTQ_DIR}/{SAMPLE}_R2_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
-    )
+    if exists(expandvars(fastq)) == True:
+        return fastq
 
-    if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
-        if fallback_warning_shown == False:
-            print("Falling back to shortened fastq file names")
-            fallback_warning_shown = True
+    filename = "{FASTQ_DIR}/{FASTQ}".format(FASTQ_DIR=fastq_dir, FASTQ=fastq)
 
-        # if that didn't work, try for the redacted names
-        filenames = (
-            "{FASTQ_DIR}/{SAMPLE}_R1.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
-            "{FASTQ_DIR}/{SAMPLE}_R2.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
-        )
+    if exists(expandvars(filename)) == True:
+        return filename
 
-        if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
-            print(
-                "Unable to locate the R1 or R2 files at {R1} and {R2}".format(
-                    R1=filenames[0],
-                    R2=filenames[1],
-                )
-            )
-            print("Check your --sample and --fastq-dir parameters")
-            quit(1)
-
-    return filenames
-
-
-def getTrimmedFileNames(options: OptionsDict) -> FastqSet:
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-
-    return (
-        "{PIPELINE}/{SAMPLE}_R1.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
-        "{PIPELINE}/{SAMPLE}_R2.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
-    )
-
-
-def runIdentityPreprocessor(script: TextIOWrapper, r1: str, r2: str, o1: str, o2: str):
-    script.write(
-        """
-#
-# run the identity preprocessor
-#
-if [[ ! -f {O1} || ! -f {O2} ]]; then
-    logthis "${{yellow}}Running identity preprocessor${{reset}}"
-
-    ln -s {R1} {O1}
-    ln -s {R2} {O2}
-
-    logthis "${{yellow}}Identity preprocessor completed${{reset}}"
-else
-    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
-fi
-""".format(
-            R1=r1,
-            R2=r2,
-            O1=o1,
-            O2=o2,
-        )
-    )
-
-
-def runFastpPreprocessor(
-    script: TextIOWrapper,
-    r1: str,
-    r2: str,
-    o1: str,
-    o2: str,
-    options: OptionsDict,
-):
-    reference = options["reference"]
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    threads = options["cores"]
-    stats = options["stats"]
-    bin = options["bin"]
-    readLimit = options["read-limit"]
-
-    script.write(
-        """
-#
-# run the fastp preprocessor
-#
-if [[ ! -f {O1} || ! -f {O2} ]]; then
-    logthis "${{yellow}}Running FASTP preprocessor${{reset}}"
-
-    LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
-    fastp \\
-        --report_title "fastp report for sample {SAMPLE}" \\
-        --in1 {R1} \\
-        --in2 {R2} \\
-        --out1 {O1} \\
-        --out2 {O2} \\
-        --detect_adapter_for_pe \\
-        --verbose {LIMITREADS} \\
-        --thread 16 \\
-        -j {STATS}/{SAMPLE}-fastp.json \\
-        -h {STATS}/{SAMPLE}-fastp.html
-
-    logthis "${{yellow}}FASTP preprocessor completed${{reset}}"
-else
-    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
-fi
-""".format(
-            R1=r1,
-            R2=r2,
-            O1=o1,
-            O2=o2,
-            REFERENCE=reference,
-            SAMPLE=sample,
-            THREADS=threads,
-            PIPELINE=pipeline,
-            STATS=stats,
-            BIN=bin,
-            LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
-        )
-    )
-
-
-def preprocessFASTQ(
-    script: TextIOWrapper,
-    r1: str,
-    r2: str,
-    o1: str,
-    o2: str,
-    options: OptionsDict,
-):
-    preprocessor = options["preprocessor"]
-
-    if preprocessor == "none":
-        runIdentityPreprocessor(script, r1, r2, o1, o2)
-    elif preprocessor == "fastp":
-        runFastpPreprocessor(script, r1, r2, o1, o2, options)
-    else:
-        print("Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(PREPROCESSOR=preprocessor))
-        quit(1)
+    print("Check your --fastq and --fastq-dir parameters")
+    quit(1)
 
 
 def runBwaAligner(
     script: TextIOWrapper,
-    o1: str,
-    o2: str,
     options: OptionsDict,
 ):
     aligner = options["aligner"]
@@ -199,6 +72,8 @@ def runBwaAligner(
     pipeline = options["pipeline"]
     threads = options["cores"]
 
+    filename = getFileName(options)
+
     script.write(
         """
 #
@@ -207,13 +82,16 @@ def runBwaAligner(
 if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
     logthis "${{yellow}}Running aligner${{reset}}"
 
-    {ALIGNER} mem -t {THREADS} \\
-        -Y -M \\
-        -v 1 \\
+    {ALIGNER} mem \\
+        -t {THREADS} \\
         -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+        -Y \\
+        -M \\
+        -v 1 \\
+        -S \\
+        -P \\
         {REFERENCE}/{ASSEMBLY}.fna \\
-        {O1} \\
-        {O2} | 
+        {FILENAME} | 
     samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.aligned.bam
 
     logthis "${{yellow}}Alignment completed${{reset}}"
@@ -223,8 +101,7 @@ fi
 
 """.format(
             ALIGNER=aligner,
-            O1=o1,
-            O2=o2,
+            FILENAME=filename,
             REFERENCE=reference,
             ASSEMBLY=assembly,
             SAMPLE=sample,
@@ -236,14 +113,12 @@ fi
 
 def alignFASTQ(
     script: TextIOWrapper,
-    o1: str,
-    o2: str,
     options: OptionsDict,
 ):
     aligner = options["aligner"]
 
     if aligner == "bwa" or aligner == "bwa-mem2":
-        runBwaAligner(script, o1, o2, options)
+        runBwaAligner(script, options)
     else:
         print("Unexpected value {ALIGNER} given for the --aligner option".format(ALIGNER=aligner))
         quit(1)
@@ -363,25 +238,26 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output
         sortWithSamtools(script, options, output)
 
 
-def fragment(script: TextIOWrapper, r1: str, r2: str, options: OptionsDict):
+def fragment(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
     fragmentCount = options["fragmentCount"]
+    
+    filename = getFileName(options)
 
     script.write(
         """
-logthis "${{yellow}}Fragmenting trimmed FASTQ${{reset}}"
+logthis "${{yellow}}Fragmenting FASTQ${{reset}}"
 
 Ovation.Pipeline.FastqProcessor split \\
     --format FastqGz \\
     --splits {FRAGMENTS} \\
     --output {PIPELINE} \\
-    --in1 {R1} \\
-    --in2 {R2}
+    --in1 {FILENAME}
 
-logthis "${{yellow}}Fragmenting trimmed FASTQ completed${{reset}}"
+logthis "${{yellow}}Fragmenting FASTQ completed${{reset}}"
 """.format(
-            PIPELINE=pipeline, R1=r1, R2=r2, SAMPLE=sample, FRAGMENTS=fragmentCount
+            PIPELINE=pipeline, FILENAME=filename, SAMPLE=sample, FRAGMENTS=fragmentCount
         )
     )
 
@@ -554,14 +430,11 @@ def extractUmappedReads(script: TextIOWrapper, options: OptionsDict):
 #
 # extract unmapped reads
 #
-if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped_R1.fastq || ! -f {PIPELINE}/{SAMPLE}_unmapped_R2.fastq ]]; then
+if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped.fastq ]]; then
     logthis "${{yellow}}Extracting unmapped reads${{reset}}"
 
-    samtools fastq -N -f 4 \\
-        -0 {PIPELINE}/{SAMPLE}_unmapped_other.fastq \\
-        -s {PIPELINE}/{SAMPLE}_unmapped_singleton.fastq \\
-        -1 {PIPELINE}/{SAMPLE}_unmapped_R1.fastq \\
-        -2 {PIPELINE}/{SAMPLE}_unmapped_R2.fastq \\
+    samtools fastq -n -f 4 \\
+        -o {PIPELINE}/{SAMPLE}_unmapped.fastq \\
         {PIPELINE}/{SAMPLE}.aligned.bam
 
     logthis "${{yellow}}Unmapped read extraction completed${{reset}}"
@@ -577,8 +450,6 @@ fi
 
 def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
     processUnmapped = options["processUnmapped"]
-    filenames = getFileNames(options)
-    trimmedFilenames = getTrimmedFileNames(options)
     alignOnly = options["alignOnly"]
     fragmentCount = options["fragmentCount"]
 
@@ -593,13 +464,11 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
     script.write("# Align, sort, and mark duplicates\n")
     script.write("#\n")
 
-    preprocessFASTQ(script, filenames[0], filenames[1], trimmedFilenames[0], trimmedFilenames[1], options)
-
     if fragmentCount == 1:
-        alignFASTQ(script, trimmedFilenames[0], trimmedFilenames[1], options)
+        alignFASTQ(script, options)
         sortAlignedAndMappedData(script, options, output)
     else:
-        fragment(script, trimmedFilenames[0], trimmedFilenames[1], options)
+        fragment(script, options)
         alignFragments(script, options)
         sortFragments(script, options)
         combine(script, options, output)
@@ -1089,7 +958,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
     threads = options["cores"]
     skipFastQc = options["skipFastQc"]
 
-    filenames = getTrimmedFileNames(options)
+    filename = getFileName(options)
 
     checks = []
 
@@ -1167,11 +1036,10 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
 
     if skipFastQc == False:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}.fastqc.zip ]]; then fastqc --threads 2 --outdir {STATS} --noextract {FILENAME}; fi' \\\n""".format(
                 SAMPLE=sample,
                 STATS=stats,
-                R1=filenames[0],
-                R2=filenames[1],
+                FILENAME=filename,
             )
         )
 
@@ -1298,7 +1166,7 @@ done
     script.write("\n")
 
 
-def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastqSet):
+def writeHeader(script: TextIOWrapper, options: OptionsDict, filename: str):
     script.write("#\n")
     script.write("# generated at {TIME}\n".format(TIME=datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     script.write("#\n")
@@ -1309,8 +1177,7 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastqSet
 
     script.write("#\n")
     script.write("# Input files\n")
-    script.write("#   R1 = {F}\n".format(F=filenames[0]))
-    script.write("#   R2 = {F}\n".format(F=filenames[1]))
+    script.write("#   FASTQ = {F}\n".format(F=filename))
     script.write("#\n")
 
     segmentSize = options["segmentSize"]
@@ -1400,6 +1267,15 @@ def defineArguments() -> Namespace:
         help="short name of sample, e.g. DPZw_k file must be in <WORKING>/pipeline/<sample>_R[12].fastq.gz",
     )
     parser.add_argument(
+        "--fastq",
+        required=True,
+        action="store",
+        metavar="FASTQ",
+        dest="fastq",
+        help="Path name of FASTQ relative to --fastq-dir",
+    )
+
+    parser.add_argument(
         "-w",
         "--work-dir",
         required=True,
@@ -1471,16 +1347,6 @@ def defineArguments() -> Namespace:
     )
 
     parser.add_argument(
-        "-P",
-        "--preprocessor",
-        action="store",
-        dest="preprocessor",
-        default="none",
-        choices=["trimmomatic", "fastp", "none"],
-        help="Optionally run a FASTQ preprocessor",
-    )
-
-    parser.add_argument(
         "-A",
         "--aligner",
         action="store",
@@ -1516,7 +1382,7 @@ def defineArguments() -> Namespace:
         action="store",
         metavar="FASTQ_DIR",
         dest="fastq_dir",
-        help="Location of R1 and R2 files",
+        help="Location of FASTQ file",
     )
     parser.add_argument(
         "-c",
@@ -1533,7 +1399,7 @@ def defineArguments() -> Namespace:
         action="store_true",
         dest="processUnmapped",
         default=False,
-        help="Extract unmapped reads into secondary _R1 and _R2 FASTQ files",
+        help="Extract unmapped reads into secondary FASTQ files",
     )
 
     parser.add_argument(
@@ -1579,7 +1445,7 @@ def defineArguments() -> Namespace:
         action="store",
         metavar="PIPELINE_DIR",
         dest="pipeline",
-        help="Location of R1 and R2 files",
+        help="Location of FASTQ file",
     )
     parser.add_argument(
         "-t",
@@ -1722,13 +1588,12 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
 
 
 def verifyOptions(options: OptionsDict):
-    filenames = getFileNames(options)
+    filename = getFileName(options)
 
-    if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
+    if exists(expandvars(filename)) == False:
         print(
-            "Unable to locate the R1 or R2 files at {R1} and {R2}".format(
-                R1=filenames[0],
-                R2=filenames[1],
+            "Unable to locate the FASTQ at {FASTQ}".format(
+                FASTQ=filename,
             )
         )
         print("Check your --sample and --work-dir parameters")
@@ -1765,7 +1630,7 @@ def main():
 
     verifyOptions(options)
 
-    filenames = getFileNames(options)
+    filename = getFileName(options)
     sorted = "{PIPELINE}/{SAMPLE}.sorted.bam".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
     prefix = "{PIPELINE}/{SAMPLE}".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
     cleantarget = options["pipeline"]
@@ -1779,7 +1644,7 @@ def main():
 
         script.write("#!/usr/bin/env bash\n")
         script.write("set -ep\n")
-        writeHeader(script, options, filenames)
+        writeHeader(script, options, filename)
         writeVersions(script)
         writeEnvironment(script, options)
 

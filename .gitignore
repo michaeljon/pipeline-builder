@@ -20,3 +20,7 @@ tools/split/fastqsplit
 tools/fq/bin
 tools/fq/obj
 tools/fq/tmp
+
+hcov-illumina/samples
+hcov-thermo/samples
+human/samples

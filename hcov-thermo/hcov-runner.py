@@ -222,9 +222,9 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         -R {REFERENCE}/{ASSEMBLY}.fna \\
         -I {PIPELINE}/{SAMPLE}.sorted.bam \\
         -O {PIPELINE}/{SAMPLE}.unannotated.vcf \\
-        --standard-min-confidence-threshold-for-calling 20 \\
+        --standard-min-confidence-threshold-for-calling 10 \\
         --dont-use-soft-clipped-bases \\
-        --min-base-quality-score 20 \\
+        --min-base-quality-score 10 \\
         --max-reads-per-alignment-start 0 \\
         --linked-de-bruijn-graph \\
         --recover-all-dangling-branches \\
@@ -735,7 +735,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
     threads = options["cores"]
     skipFastQc = options["skipFastQc"]
 
-    filename = getTrimmedFileName(options)
+    filename = getFileName(options)
 
     sorted = "{PIPELINE}/{SAMPLE}.sorted.bam".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
 
@@ -814,7 +814,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
     )
 
     checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 30 -F 1284 {SORTED} | bedtools genomecov -d -ibam stdin | awk "\\$2 % 100 == 0 {{print \\$1,\\$2,\\$3}}" | sed "s/AF304460.1/hcov_229e/;s/JX869059.2/hcov_emc/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl63/;s/AY585228.1/hcov_oc43/;s/MN908947.3/sars_cov_2/" >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
+        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 15 -F 1284 {SORTED} | bedtools genomecov -d -ibam stdin | awk "\\$2 % 100 == 0 {{print \\$1,\\$2,\\$3}}" | sed "s/AF304460.1/hcov_229e/;s/JX869059.2/hcov_emc/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl63/;s/AY585228.1/hcov_oc43/;s/MN908947.3/sars_cov_2/" >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
             REFERENCE=reference,
             ASSEMBLY=assembly,
             SAMPLE=sample,
@@ -825,10 +825,10 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
 
     if skipFastQc == False:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1}; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}.fastqc.zip ]]; then fastqc --threads 2 --outdir {STATS} --noextract {FILENAME}; fi' \\\n""".format(
                 SAMPLE=sample,
                 STATS=stats,
-                R1=filename,
+                FILENAME=filename,
             )
         )
 
@@ -1090,63 +1090,6 @@ def getFileName(options: OptionsDict) -> str:
     quit(1)
 
 
-def getTrimmedFileName(options: OptionsDict) -> str:
-    """
-    Constructs the synthetic filename that will be used to store any
-    trimmed output. This file is created by the pipeline.
-    """
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-
-    if options["fastq"].endswith(".gz"):
-        return "{PIPELINE}/{SAMPLE}.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample)
-    else:
-        return "{PIPELINE}/{SAMPLE}.trimmed.fastq".format(PIPELINE=pipeline, SAMPLE=sample)
-
-
-def runIdentityPreprocessor(
-    script: TextIOWrapper,
-    r1: str,
-    o1: str,
-):
-    script.write(
-        """
-#
-# run the fastp preprocessor
-#
-if [[ ! -f {O1} ]]; then
-    logthis "${{yellow}}Running identity preprocessor${{reset}}"
-
-    ln -s {R1} {O1}
-
-    logthis "${{yellow}}Identity preprocessor completed${{reset}}"
-else
-    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
-fi
-""".format(
-            R1=r1,
-            O1=o1,
-        )
-    )
-
-
-def preprocessFASTQ(
-    script: TextIOWrapper,
-    r1: str,
-    o1: str,
-    options: OptionsDict,
-):
-    preprocessor = options["preprocessor"]
-
-    if preprocessor == "none":
-        runIdentityPreprocessor(script, r1, o1)
-    else:
-        print("Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(PREPROCESSOR=preprocessor))
-        quit(1)
-
-    pass
-
-
 def runBwaAligner(
     script: TextIOWrapper,
     o1: str,
@@ -1280,7 +1223,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped_R1.fastq ]]; then
     samtools fastq -N -f 4 \\
         -0 {PIPELINE}/{SAMPLE}_unmapped_other.fastq \\
         -s {PIPELINE}/{SAMPLE}_unmapped_singleton.fastq \\
-        -1 {PIPELINE}/{SAMPLE}_unmapped_R1.fastq \\
+        -1 {PIPELINE}/{SAMPLE}_unmapped.fastq \\
         {PIPELINE}/{SAMPLE}.aligned.bam
 
     logthis "${{yellow}}Unmapped read extraction completed${{reset}}"
@@ -1299,14 +1242,12 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict):
     alignOnly = options["alignOnly"]
 
     filename = getFileName(options)
-    trimmedFilename = getTrimmedFileName(options)
 
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
     script.write("#\n")
 
-    preprocessFASTQ(script, filename, trimmedFilename, options)
-    alignFASTQ(script, trimmedFilename, options)
+    alignFASTQ(script, filename, options)
     sortAlignedAndMappedData(script, options)
 
     if processUnmapped == True:
@@ -1394,15 +1335,6 @@ def defineArguments() -> Namespace:
         dest="skipFastQc",
         default=False,
         help="Skip running FASTQC statistics",
-    )
-
-    parser.add_argument(
-        "--preprocessor",
-        action="store",
-        dest="preprocessor",
-        default="none",
-        choices=["none"],
-        help="Optionally run a FASTQ preprocessor",
     )
 
     parser.add_argument(

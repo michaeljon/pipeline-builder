@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+ls -1 /home/ubuntu/fastq/vikor/*fastq | awk 'BEGIN{FS="\t"; printf("file\tsample\n");} /IonX/ { split($1, f, "/"); split(f[6], s, "_"); printf("%s\t%s_%s_%s_%s_%s\n",  $1, s[1], s[4], s[6], s[7], s[8]) }'

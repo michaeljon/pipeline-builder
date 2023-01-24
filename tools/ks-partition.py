@@ -1,21 +1,26 @@
 #!/usr/bin/env python
 
 import argparse
-import math
+import csv
 import gzip
 import json
+import math
 import sys
-import csv
-
 from math import ceil
 from os.path import exists, expandvars
 from pprint import pprint
 from sys import stderr
-from typing import Dict, Tuple, List, Any
+from typing import Any, Dict, List, Tuple
+
+import bgzip
 
 OptionsDict = Dict[str, Any]
 
 VCF_HEADER = "##fileformat=VCFv4.2"
+
+
+def bytes_from_str(s):
+    return bytes(str(s).encode("utf-8"))
 
 
 def get_options() -> OptionsDict:
@@ -141,7 +146,7 @@ def read_vcf_headers(options: OptionsDict):
         )
 
         while line := file.readline().strip():
-            if line.startswith("##") == False:
+            if line.startswith("#") == False:
                 break
             else:
                 headers.append(line)
@@ -154,16 +159,22 @@ def read_vcf_headers(options: OptionsDict):
 def write_vcf_header(options: OptionsDict, interval, headers: List[str]):
     full_path = options["output"] + "/" + interval["filename"] + ".vcf.gz"
 
-    f = gzip.open(full_path, "wt")
+    f = open(full_path, "wb")
+    bg = bgzip.BGZipWriter(f)
+
     for header in headers:
-        f.write(header + "\n")
-    return f
+        bg.write(bytes_from_str(header + "\n"))
+
+    return (f, bg)
 
 
 def write_vcf_headers(options: OptionsDict, features, headers: List[str]):
     for feature, intervals in features.items():
         for interval in intervals:
-            interval["output-file"] = write_vcf_header(options, interval, headers)
+            (f, bg) = write_vcf_header(options, interval, headers)
+
+            interval["output-file"] = f
+            interval["bgzip-file"] = bg
 
 
 def read_features(options: OptionsDict):
@@ -222,6 +233,7 @@ def read_features(options: OptionsDict):
                     "upper": upper,
                     "filename": filename,
                     "interval": filename,
+                    "variants_seen": 0,
                 }
             )
 
@@ -247,6 +259,7 @@ def read_features(options: OptionsDict):
                     "upper": int(length),
                     "filename": filename,
                     "interval": filename,
+                    "variants_seen": 0,
                 }
             )
         else:
@@ -268,6 +281,7 @@ def read_features(options: OptionsDict):
                     "upper": int(length),
                     "filename": filename,
                     "interval": filename,
+                    "variants_seen": 0,
                 }
             )
 
@@ -282,7 +296,10 @@ def get_file_from_locus_in_features(sequence_id: str, position: int, features):
     chromosome = features[sequence_id]
     for interval in chromosome:
         if interval["lower"] <= position and position <= interval["upper"]:
-            return interval["output-file"]
+            # bump the counter so we know how many we've written
+            interval["variants_seen"] += 1
+
+            return interval["bgzip-file"]
 
     print("Unable to locate interval for {CHROM} at {POSITION}".format(CHROM=chromosome, POSITION=position))
     quit(1)
@@ -328,10 +345,19 @@ def process_known_sites(options: OptionsDict, features):
 
             of = get_file_from_locus_in_features(sequence_id, position, features)
             if of != None:
-                of.write(line + "\n")
+                of.write(bytes_from_str(line + "\n"))
 
     ks.close()
-    print(" finished with " + str(options["limit"] - reads_remaining) + " processed", flush=True)
+    print("\b finished with " + str(options["limit"] - reads_remaining) + " processed", flush=True)
+
+
+def feature_count(features):
+    x = 0
+
+    for feature, intervals in features.items():
+        x += len(intervals)
+
+    return x
 
 
 def dump_features(features):
@@ -382,6 +408,15 @@ def dump_intervals_3(features):
                 writer.writerow([interval["sequence_id"], cuts, interval["interval"]])
 
 
+def make_interval_list(features):
+    with open("interval_list.tsv", "w") as f:
+        writer = csv.writer(f, delimiter="\t")
+
+        for feature, intervals in features.items():
+            length = intervals[-1]["upper"]
+            writer.writerow(["@SQ", "SN:" + feature, "LN:" + str(length)])
+
+
 def main():
     options = get_options()
     verifyOptions(options)
@@ -391,10 +426,16 @@ def main():
     features = read_features(options)
     print(str(len(features.keys())) + " loaded", flush=True)
 
-    # dump_features(features)
-    # dump_intervals_3(features)
+    dump_features(features)
     # dump_intervals_1(features)
     # dump_intervals_2(features)
+    # dump_intervals_3(features)
+
+    # we can't make the interval list until we've processed all the
+    # variants, because want to merge the empty and smaller files
+    # or remove them as intervals (which drops our ability to call
+    # novel variants, so...)
+    make_interval_list(features)
 
     # read the vcf headers from the known sites file
     print("Reading known site VCF headers...", end="", flush=True)
@@ -404,17 +445,24 @@ def main():
     # write the headers and collect the output files
     print("Opening intervals and writing headers...", end="", flush=True)
     write_vcf_headers(options, features, headers)
-    print(str(len(headers)) + " written to " + str(len(features.keys())) + " intervals", flush=True)
+    interval_count = feature_count(features)
+
+    print(str(len(headers)) + " written to " + str(interval_count) + " intervals", flush=True)
 
     # create intervals from known sites vcf
-    # print("Processing known sites... ", end="", flush=True)
-    # process_known_sites(options, features)
+    print("Processing known sites... ", end="", flush=True)
+    process_known_sites(options, features)
 
     # close all the open files
     print("Closing interval files", flush=True)
     for feature, intervals in features.items():
         for interval in intervals:
+            interval["bgzip-file"].close()
             interval["output-file"].close()
+
+    # merge the small / empty intervals
+    # remove the merge input files
+    # write the interval list
 
 
 if __name__ == "__main__":
