@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 
-from io import TextIOWrapper
 import argparse
 import math
 
 from argparse import Namespace
-from typing import Dict, Tuple, List, Any
+from typing import Dict, Tuple, List, Any, IO
 from datetime import datetime
 from os.path import exists, expandvars
 from os import cpu_count, system
@@ -85,7 +84,7 @@ def getTrimmedFileNames(options: OptionsDict) -> FastqSet:
     )
 
 
-def runIdentityPreprocessor(script: TextIOWrapper, r1: str, r2: str, o1: str, o2: str):
+def runIdentityPreprocessor(script: IO[Any], r1: str, r2: str, o1: str, o2: str):
     script.write(
         """
 #
@@ -111,7 +110,7 @@ fi
 
 
 def runFastpPreprocessor(
-    script: TextIOWrapper,
+    script: IO[Any],
     r1: str,
     r2: str,
     o1: str,
@@ -168,7 +167,7 @@ fi
 
 
 def preprocessFASTQ(
-    script: TextIOWrapper,
+    script: IO[Any],
     r1: str,
     r2: str,
     o1: str,
@@ -187,7 +186,7 @@ def preprocessFASTQ(
 
 
 def runBwaAligner(
-    script: TextIOWrapper,
+    script: IO[Any],
     o1: str,
     o2: str,
     options: OptionsDict,
@@ -235,7 +234,7 @@ fi
 
 
 def alignFASTQ(
-    script: TextIOWrapper,
+    script: IO[Any],
     o1: str,
     o2: str,
     options: OptionsDict,
@@ -251,7 +250,7 @@ def alignFASTQ(
     pass
 
 
-def sortWithBiobambam(script: TextIOWrapper, options: OptionsDict, output: str):
+def sortWithBiobambam(script: IO[Any], options: OptionsDict, output: str):
     sample = options["sample"]
     pipeline = options["pipeline"]
     threads = options["cores"]
@@ -295,7 +294,7 @@ fi
     )
 
 
-def sortWithSamtools(script: TextIOWrapper, options: OptionsDict, output: str):
+def sortWithSamtools(script: IO[Any], options: OptionsDict, output: str):
     sample = options["sample"]
     pipeline = options["pipeline"]
     reference = options["reference"]
@@ -354,7 +353,7 @@ fi
     )
 
 
-def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output: str):
+def sortAlignedAndMappedData(script: IO[Any], options: OptionsDict, output: str):
     sorter = options["sorter"]
 
     if sorter == "biobambam":
@@ -363,7 +362,7 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output
         sortWithSamtools(script, options, output)
 
 
-def fragment(script: TextIOWrapper, r1: str, r2: str, options: OptionsDict):
+def fragment(script: IO[Any], r1: str, r2: str, options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
     fragmentCount = options["fragmentCount"]
@@ -386,7 +385,7 @@ logthis "${{yellow}}Fragmenting trimmed FASTQ completed${{reset}}"
     )
 
 
-def alignFragments(script: TextIOWrapper, options: OptionsDict):
+def alignFragments(script: IO[Any], options: OptionsDict):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     sample = options["sample"]
@@ -428,7 +427,7 @@ logthis "${{yellow}}Fragment alignment complete${{reset}}"
     )
 
 
-def sortParallelWithBiobambam(script: TextIOWrapper, options: OptionsDict):
+def sortParallelWithBiobambam(script: IO[Any], options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
     threads = options["cores"]
@@ -478,7 +477,7 @@ logthis "${{yellow}}Fragment sorting and marking duplicates completed${{reset}}"
     )
 
 
-def sortParallelWithSamtools(script: TextIOWrapper, options: OptionsDict):
+def sortParallelWithSamtools(script: IO[Any], options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
     reference = options["reference"]
@@ -531,7 +530,7 @@ logthis "${{yellow}}Sorting and marking duplicates compeleted${{reset}}"
     )
 
 
-def sortFragments(script: TextIOWrapper, options: OptionsDict):
+def sortFragments(script: IO[Any], options: OptionsDict):
     sorter = options["sorter"]
 
     if sorter == "biobambam":
@@ -540,12 +539,12 @@ def sortFragments(script: TextIOWrapper, options: OptionsDict):
         sortParallelWithSamtools(script, options)
 
 
-def combine(script: TextIOWrapper, options: OptionsDict, output: str):
+def combine(script: IO[Any], options: OptionsDict, output: str):
     # samtools merge -f -o {OUTPUT} -c -p <*.bam>
     pass
 
 
-def extractUmappedReads(script: TextIOWrapper, options: OptionsDict):
+def extractUmappedReads(script: IO[Any], options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -575,7 +574,7 @@ fi
     )
 
 
-def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
+def alignAndSort(script: IO[Any], options: OptionsDict, output: str):
     processUnmapped = options["processUnmapped"]
     filenames = getFileNames(options)
     trimmedFilenames = getTrimmedFileNames(options)
@@ -632,7 +631,7 @@ exit
         )
 
 
-def genBQSRTables(script: TextIOWrapper, options: OptionsDict):
+def genBQSRTables(script: IO[Any], options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -668,7 +667,7 @@ logthis "${{green}}BQSR table generation complete${{reset}}"
     )
 
 
-def applyBQSRTables(script: TextIOWrapper, options: OptionsDict):
+def applyBQSRTables(script: IO[Any], options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -706,12 +705,12 @@ logthis "${{green}}BQSR calibration completed${{reset}}"
     )
 
 
-def genBQSR(script: TextIOWrapper, options: OptionsDict):
+def genBQSR(script: IO[Any], options: OptionsDict):
     genBQSRTables(script, options)
     applyBQSRTables(script, options)
 
 
-def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
+def callVariantsUsingGatk(script: IO[Any], options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
     intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
@@ -777,7 +776,7 @@ logthis "${{green}}GATK variant calling completed${{reset}}"
     )
 
 
-def callVariantsUsingBcftools(script: TextIOWrapper, options: OptionsDict):
+def callVariantsUsingBcftools(script: IO[Any], options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
     intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
@@ -831,7 +830,7 @@ logthis "BCFTOOLS variant calling completed"
 
 
 def annotate(
-    script: TextIOWrapper,
+    script: IO[Any],
     options: OptionsDict,
     vep: str,
     input: str,
@@ -892,7 +891,7 @@ fi
     )
 
 
-def scatter(script: TextIOWrapper, options: OptionsDict, sorted: str):
+def scatter(script: IO[Any], options: OptionsDict, sorted: str):
     pipeline = options["pipeline"]
     sample = options["sample"]
     intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
@@ -918,7 +917,7 @@ logthis "${{green}}Scattering completed${{reset}}"
     )
 
 
-def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
+def runIntervals(script: IO[Any], options: OptionsDict, prefix: str):
     caller = options["caller"]
 
     script.write('logthis "${yellow}Processing intervals${reset}"\n')
@@ -936,7 +935,7 @@ def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
     script.write('logthis "${green}Intervals processed${reset}"\n')
 
 
-def generateConsensus(script: TextIOWrapper, options: OptionsDict):
+def generateConsensus(script: IO[Any], options: OptionsDict):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     pipeline = options["pipeline"]
@@ -963,7 +962,7 @@ fi
     )
 
 
-def gather(script: TextIOWrapper, options: OptionsDict):
+def gather(script: IO[Any], options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -1000,7 +999,7 @@ fi
     )
 
 
-def doVariantQC(script: TextIOWrapper, options: OptionsDict):
+def doVariantQC(script: IO[Any], options: OptionsDict):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     knownSites = options["knownSites"]
@@ -1080,7 +1079,7 @@ def doVariantQC(script: TextIOWrapper, options: OptionsDict):
     return checks
 
 
-def doAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
+def doAlignmentQC(script: IO[Any], options: OptionsDict, sorted: str):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     pipeline = options["pipeline"]
@@ -1178,7 +1177,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
     return checks
 
 
-def runMultiQC(script: TextIOWrapper, options: OptionsDict):
+def runMultiQC(script: IO[Any], options: OptionsDict):
     stats = options["stats"]
     sample = options["sample"]
 
@@ -1219,7 +1218,7 @@ logthis "MultiQC for {SAMPLE} is complete"
     )
 
 
-def doQualityControl(script: TextIOWrapper, options: OptionsDict, sorted: str):
+def doQualityControl(script: IO[Any], options: OptionsDict, sorted: str):
     pipeline = options["pipeline"]
     sample = options["sample"]
     stats = options["stats"]
@@ -1276,7 +1275,7 @@ logthis "Starting QC processes"
         runMultiQC(script, options)
 
 
-def cleanup(script: TextIOWrapper, options: OptionsDict):
+def cleanup(script: IO[Any], options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -1298,7 +1297,7 @@ done
     script.write("\n")
 
 
-def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastqSet):
+def writeHeader(script: IO[Any], options: OptionsDict, filenames: FastqSet):
     script.write("#\n")
     script.write("# generated at {TIME}\n".format(TIME=datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     script.write("#\n")
@@ -1329,13 +1328,13 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastqSet
     script.write("#   fragmentCount = {P}\n".format(P=fragmentCount))
 
 
-def writeVersions(script: TextIOWrapper):
+def writeVersions(script: IO[Any]):
     script.write("#\n")
     script.write("# This will write version numbers of tools here...\n")
     script.write("#\n")
 
 
-def writeEnvironment(script: TextIOWrapper, options: OptionsDict):
+def writeEnvironment(script: IO[Any], options: OptionsDict):
     noColor = options["noColor"]
 
     script.write("#\n")

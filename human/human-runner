@@ -26,11 +26,12 @@ python ${PIPELINE_ROOT}/pipeline-builder/human/build-hg38-pipeline.py \
     --stats-dir ${PIPELINE_ROOT}/stats/${SAMPLE} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner \
     --temp-dir ${PIPELINE_ROOT}/stats/temp \
-    --fastq-dir ${PIPELINE_ROOT}/fastq/zymo/wgs \
-    --preprocessor fastp \
+    --fastq-dir ${PIPELINE_ROOT}/fastq \
+    --preprocessor none \
     --aligner bwa-mem2 \
     --sorter biobambam \
     --caller gatk \
+    --align-only \
     --clean \
     --skip-variant-qc \
     --skip-alignment-qc \
