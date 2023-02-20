@@ -133,7 +133,7 @@ def runFastpPreprocessor(
 if [[ ! -f {O1} || ! -f {O2} ]]; then
     logthis "${{yellow}}Running FASTP preprocessor${{reset}}"
 
-    LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+    LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2:{WORKING}/bin/libz.so.1.2.11.zlib-ng \\
     fastp \\
         --report_title "fastp report for sample {SAMPLE}" \\
         --in1 {R1} \\
@@ -162,6 +162,7 @@ fi
             STATS=stats,
             BIN=bin,
             LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
+            WORKING=options["working"]
         )
     )
 
@@ -1377,7 +1378,7 @@ export PERL_LOCAL_LIB_ROOT=/home/ubuntu/perl5:$PERL_LOCAL_LIB_ROOT
 
 # shared library stuff
 export LD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib64:/usr/local/lib/:$LB_LIBRARY_PATH
-export LD_PRELOAD={WORKING}/bin/libz.so.1.2.11.zlib-ng
+export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2:{WORKING}/bin/libz.so.1.2.11.zlib-ng
 
 # handy path
 export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.2.6.1:{WORKING}/bin:$PATH\n""".format(

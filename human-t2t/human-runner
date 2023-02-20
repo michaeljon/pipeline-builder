@@ -13,11 +13,11 @@ mkdir -p ${PIPELINE_ROOT}/pipeline/${SAMPLE}
 mkdir -p ${PIPELINE_ROOT}/stats/${SAMPLE}
 
 # build the pipeline
-python ${PIPELINE_ROOT}/pipeline-builder/human/build-t2t-pipeline.py \
+python ${PIPELINE_ROOT}/pipeline-builder/human-t2t/build-t2t-pipeline.py \
     --no-color \
     --sample ${SAMPLE} \
     --work-dir ${PIPELINE_ROOT} \
-    --reference-dir ${PIPELINE_ROOT}/reference/GRCh38.p14 \
+    --reference-dir ${PIPELINE_ROOT}/reference/CHM13v2.0 \
     --reference-assembly GCF_009914755.1_T2T-CHM13v2.0_genomic \
     --known-sites known-sites-50mb \
     --segment 50000000 \
@@ -39,7 +39,7 @@ python ${PIPELINE_ROOT}/pipeline-builder/human/build-t2t-pipeline.py \
     --skip-fastqc
 
 # interval list
-cp ${PIPELINE_ROOT}/pipeline-builder/human/interval_list.tsv ${PIPELINE_ROOT}/pipeline/${SAMPLE}
+cp ${PIPELINE_ROOT}/pipeline-builder/human-t2t/interval_list.tsv ${PIPELINE_ROOT}/pipeline/${SAMPLE}
 
 cp ${PIPELINE_ROOT}/pipeline-builder/assets/software_versions_mqc.html ${PIPELINE_ROOT}/stats/${SAMPLE}
 cp ${PIPELINE_ROOT}/pipeline-builder/assets/ovationlogo.png ${PIPELINE_ROOT}/stats/${SAMPLE}
