@@ -19,7 +19,7 @@ if [[ -z "${AWS_SESSION_TOKEN}" ]]; then
     exit 99
 fi
 
-for BUCKET in s3://ovation-bioinformatics-pipeline-compute-prod-final-artifacts s3://ovation-pipeline-worker-prod-results; do
+for BUCKET in s3://ovation-bioinformatics-pipeline-compute-prod-final-artifacts; do
     echo "Processing VCF file data in ${BUCKET}"
     for KEY in $(aws s3 ls --recursive ${BUCKET} | grep '.unannotated.vcf.gz$' | awk '{print $4}'); do
         FILENAME=$(echo ${KEY} | rev | cut -d/ -f1 | rev)
@@ -120,7 +120,7 @@ echo "Building combined MultiQC report"
 
 # then walk over the buckets, again, and run the mqc extraction
 # this would be a _lot_ faster if we could just pass the directory to node
-for BUCKET in s3://ovation-bioinformatics-pipeline-compute-prod-final-artifacts s3://ovation-pipeline-worker-prod-results; do
+for BUCKET in s3://ovation-bioinformatics-pipeline-compute-prod-final-artifacts; do
     for MQC in mqc/*; do
         node ${RUNSFROM}/run-normals.js ${BUCKET} ${MQC} >>mqc-report.tsv
     done
