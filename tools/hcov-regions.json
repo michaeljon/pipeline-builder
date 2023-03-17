@@ -250,5 +250,47 @@
         "stop": 29674
       }
     }
+  },
+  "hrv-a": {
+    "sequence": "NC_038311.1",
+    "name": "hrv-a",
+    "region": {
+      "start": 1,
+      "stop": 7137
+    },
+    "genes": {
+      "D1P36_gp1": {
+        "start": 627,
+        "stop": 7100
+      }
+    }
+  },
+  "hrv-b": {
+    "sequence": "NC_038312.1",
+    "name": "hrv-b",
+    "region": {
+      "start": 1,
+      "stop": 7208
+    },
+    "genes": {
+      "D1P37_gp1": {
+        "start": 627,
+        "stop": 7163
+      }
+    }
+  },
+  "hrv-c": {
+    "sequence": "NC_038878.1",
+    "name": "hrv-c",
+    "region": {
+      "start": 1,
+      "stop": 6944
+    },
+    "genes": {
+      "D1P38_gp1": {
+        "start": 479,
+        "stop": 6907
+      }
+    }
   }
 }

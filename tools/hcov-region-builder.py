@@ -11,6 +11,9 @@ organisms = {
     "AY567487.2": "hcov-nl63",
     "AY585228.1": "hcov-oc43",
     "MN908947.3": "sars-cov-2",
+    "NC_038311.1": "hrv-a",
+    "NC_038312.1": "hrv-b",
+    "NC_038878.1": "hrv-c",
 }
 
 for i, (k, v) in enumerate(organisms.items()):
