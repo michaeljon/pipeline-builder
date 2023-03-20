@@ -49,7 +49,7 @@ for BUCKET in s3://ovation-bioinformatics-pipeline-compute-prod-final-artifacts;
     done
 
     echo "Processing M/F file data in ${BUCKET}"
-    printf "sequence\tsample\tratio\tsex\n" >sex-report.tsv
+    printf "sequence_run_id\tsample\tratio\tsex\n" >sex-report.tsv
     for KEY in $(aws s3 ls --recursive ${BUCKET} | grep '.idxstats.txt$' | awk '{print $4}'); do
         FILENAME=$(echo ${KEY} | rev | cut -d/ -f1 | rev)
         SEQUENCE=$(echo ${KEY} | cut -d/ -f1)
@@ -70,6 +70,29 @@ for BUCKET in s3://ovation-bioinformatics-pipeline-compute-prod-final-artifacts;
         # rm ${DATAFILE}
     done
 
+    echo "Processing read statistics in ${BUCKET}"
+    printf "sequence_run_id\tsample\tcontig\tsize\treads\tratio\tlw_coverage\n" >read-report.tsv
+    for KEY in $(aws s3 ls --recursive ${BUCKET} | grep '.idxstats.txt$' | awk '{print $4}'); do
+        FILENAME=$(echo ${KEY} | rev | cut -d/ -f1 | rev)
+        SEQUENCE=$(echo ${KEY} | cut -d/ -f1)
+        SAMPLE=$(grep ${SEQUENCE} sequence_map.tsv | cut -d $'\t' -f3)
+        DATAFILE="files/${SEQUENCE}.idxstats.txt"
+
+        if [[ ! -f ${DATAFILE} ]]; then
+            echo "Copying ${KEY} to ${DATAFILE}"
+            aws s3 cp --quiet ${BUCKET}/${KEY} ${DATAFILE}
+        fi
+
+        if [[ -z ${SAMPLE} ]]; then
+            SAMPLE=${SEQUENCE}
+        fi
+
+        awk -vSAMPLE=${SAMPLE} -vSEQUENCE=${SEQUENCE} -vL=151 'BEGIN { OFS = FS = "\t" } /NC_/ { print SEQUENCE, SAMPLE, $1, $2, $3, $3 / $2, L * $3 / $2 }' ${DATAFILE} >>read-report.tsv
+
+        # rm ${DATAFILE}
+    done
+
+exit
     echo "Processing fastp file data in ${BUCKET}"
     for KEY in $(aws s3 ls --recursive ${BUCKET} | grep 'fastp.json$' | awk '{print $4}'); do
         FILENAME=$(echo ${KEY} | rev | cut -d/ -f1 | rev)
@@ -126,7 +149,7 @@ done
 # JSON trimming data
 # write the header into the report and append the data from each trim report
 echo "Building fastp / JSON trimming report"
-printf "sequence\tsample\treads_before\tbases_before\tgc_before\treads_after\tbases_after\tgc_after\n" >trim-report.tsv
+printf "sequence_run_id\tsample\treads_before\tbases_before\tgc_before\treads_after\tbases_after\tgc_after\n" >trim-report.tsv
 cat reads/*.tsv >>trim-report.tsv
 
 # VCF variant data
@@ -139,7 +162,7 @@ grep --no-filename -v '^sequence' vcf/* >>vcf-report.tsv
 # write the header into the report
 echo "Building combined MultiQC report"
 (
-    printf "sequence\tsample\ttimestamp\t"
+    printf "sequence_run_id\tsample\ttimestamp\t"
     printf "location\t"
     printf "biobambam2-PERCENT_DUPLICATION\t"
     printf "samtools-flagstat_total\tsamtools-mapped_passed\t"

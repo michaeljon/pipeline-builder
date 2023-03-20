@@ -28,7 +28,7 @@ BEGIN {
 } 
 
 END { 
-    print "sequence", "sample", "sequence", "seq-size", "variant-count", "rs-assigned", "rs-unassigned", "snv", "mnv", "ins", "del", "unk-snv", "unk-mnv", "unk-ins", "unk-del", "base/var", "var/base", "normal"
+    print "sequence_run_id", "sample", "sequence", "seq-size", "variant-count", "rs-assigned", "rs-unassigned", "snv", "mnv", "ins", "del", "unk-snv", "unk-mnv", "unk-ins", "unk-del", "base/var", "var/base", "normal"
 
     for (a in counts) {
         ns[a] = ss[a]/counts[a]
