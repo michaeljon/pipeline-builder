@@ -11,9 +11,7 @@ var file = process.argv[3];
 var sample = process.argv[4];
 
 var base = path.basename(file);
-var timestamp = base.split('_')[0] + ' ' + base.split('_')[1];
-var location = base.split('_')[2];
-var sequence = location.replace('.json', '');
+var sequence = base.replace('.json', '');
 
 try {
   var row = [];
@@ -24,11 +22,14 @@ try {
   });
 
   const sequence_id = Object.keys(stats.report_data_sources.Samtools.stats)[0];
+  const executed = stats.config_creation_date
+    .replace(',', "")
+    .replace(/ UTC/, ":00Z");
 
   row.push(sequence);
-  row.push(sequence_id);
-  row.push(timestamp);
-  row.push(bucket + '/' + location);
+  row.push(sample);
+  row.push(executed);
+  row.push(bucket + '/' + base.replace('.json', ''));
 
   // parse the json
   row.push((stats.report_saved_raw_data.multiqc_general_stats[sequence_id + '.duplication_metrics']['biobambam2_mqc-generalstats-biobambam2-PERCENT_DUPLICATION'] * 100.0).toFixed(4));

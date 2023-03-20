@@ -65,7 +65,6 @@ for BUCKET in s3://ovation-bioinformatics-pipeline-compute-prod-final-artifacts;
             SAMPLE=${SEQUENCE}
         fi
 
-        echo "Extracting M/F data for ${SAMPLE}"
         awk -vSAMPLE=${SAMPLE} -vSEQUENCE=${SEQUENCE} -f ${RUNSFROM}/det-sex.awk ${DATAFILE} >>sex-report.tsv
 
         # rm ${DATAFILE}
@@ -113,10 +112,10 @@ for BUCKET in s3://ovation-bioinformatics-pipeline-compute-prod-final-artifacts;
     for FILE in $(aws s3 ls --recursive ${BUCKET} | grep 'multiqc_data.json$' | awk '{print $1"/"$2"/"$4}'); do
         DATE=$(echo ${FILE} | cut -d/ -f1)
         TIME=$(echo ${FILE} | cut -d/ -f2)
-        RUNID=$(echo ${FILE} | cut -d/ -f3)
+        SEQUENCE=$(echo ${FILE} | cut -d/ -f3)
         FILE=$(echo ${FILE} | cut -d/ -f3-)
 
-        DATAFILE="mqc/${DATE}_${TIME}_${RUNID}.json"
+        DATAFILE="mqc/${SEQUENCE}.json"
 
         if [[ ! -f "${DATAFILE}" ]]; then
             aws s3 cp ${BUCKET}/${FILE} ${DATAFILE}
@@ -128,7 +127,7 @@ done
 # write the header into the report and append the data from each trim report
 echo "Building fastp / JSON trimming report"
 printf "sequence\tsample\treads_before\tbases_before\tgc_before\treads_after\tbases_after\tgc_after\n" >trim-report.tsv
-cat reads/*-fastp.tsv >>trim-report.tsv
+cat reads/*.tsv >>trim-report.tsv
 
 # VCF variant data
 # write the header into the report and append the data from each vcf report
@@ -153,7 +152,7 @@ echo "Building combined MultiQC report"
 # this would be a _lot_ faster if we could just pass the directory to node
 for BUCKET in s3://ovation-bioinformatics-pipeline-compute-prod-final-artifacts; do
     for MQC in mqc/*; do
-        SEQUENCE=$(base ${MQC} | cut -c 21-56)
+        SEQUENCE=$(basename ${MQC} | sed 's/.json//')
         SAMPLE=$(grep ${SEQUENCE} sequence_map.tsv | cut -d $'\t' -f3)
 
         if [[ -z ${SAMPLE} ]]; then
