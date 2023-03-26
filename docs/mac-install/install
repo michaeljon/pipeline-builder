@@ -144,18 +144,18 @@ if [[ "${system}" == "Darwin" ]]; then
     if [[ "${arch}" == "x86_64" ]]; then
         if [[ ! -f nextclade ]]; then
             echo "Downloading nextclade for Intel MacOS"
-            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.4.0/nextclade-x86_64-apple-darwin --location -o nextclade
+            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.11.0/nextclade-x86_64-apple-darwin --location -o nextclade
         fi
     else
         if [[ ! -f nextclade ]]; then
             echo "Downloading nextclade for ARM MacOS"
-            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.4.0/nextclade-aarch64-apple-darwin --location -o nextclade
+            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.11.0/nextclade-aarch64-apple-darwin --location -o nextclade
         fi
     fi
 elif [[ "${system}" == "Linux" ]]; then
     if [[ ! -f nextclade ]]; then
         echo "Downloading nextclade for Intel Linux"
-        curl --silent https://github.com/nextstrain/nextclade/releases/download/2.4.0/nextclade-x86_64-unknown-linux-gnu --location -o nextclade
+        curl --silent https://github.com/nextstrain/nextclade/releases/download/2.11.0/nextclade-x86_64-unknown-linux-gnu --location -o nextclade
     fi
 else
     echo "Nextclade not supported on your platform, maybe"
@@ -191,6 +191,11 @@ fi
 echo "RNA-seq: Downloading minimap2"
 if [[ ! -d ${ROOT}/src/minimap2 ]]; then
     git clone git@github.com:lh3/minimap2.git ${ROOT}/src/minimap2
+fi
+
+echo "RNA-seq: Downloading salmon"
+if [[ ! -d ${ROOT}/src/salmon ]]; then
+    curl https://github.com/COMBINE-lab/salmon/archive/refs/tags/v1.10.1.tar.gz --location -o salmon-1.10.1.tgz
 fi
 
 echo "RNA-seq: Downloading kallisto"
@@ -261,7 +266,7 @@ make install
 echo "Building BEDTOOLS components"
 cd ${ROOT}/src/bedtools2
 make prefix=${ROOT}
-make install
+make install prefix=${ROOT}
 cp bin/* ${ROOT}/bin
 
 echo "Build BWA components"
@@ -291,7 +296,7 @@ cd ${ROOT}/src/zlib-ng-2.0.6
 make
 make install prefix=${ROOT}
 
-cd ${ROOT}/src/zlib-1.2.12
+cd ${ROOT}/src/zlib-1.2.13
 ./configure --prefix=${ROOT} --eprefix=${ROOT}
 make
 make install prefix=${ROOT}
@@ -308,9 +313,9 @@ make
 make install
 
 echo "Building bedtools"
-cd ${ROOT}/bedtools-v2.30.0
+cd ${ROOT}/src/bedtools2
 make prefix=${ROOT}
-make install
+make install prefix=${ROOT}
 
 echo "Building BIOBAMBAM and components - this'll take a while"
 cd ${ROOT}/src/libmaus2-2.0.810-release-20220216151520
@@ -360,6 +365,13 @@ mv minimap2 ${ROOT}/bin
 echo "Building fastp last, make sure you applied the patch"
 echo "TODO: apply kallisto.patch"
 
+cd ${ROOT}/src/salmon-1.10.1
+rm -rf build && mkdir build
+cd build
+cmake -DFETCH_BOOST=TRUE -DCMAKE_INSTALL_PREFIX:PATH=${ROOT} ..
+make
+make install
+
 cd ${ROOT}/src/kallisto
 rm -rf build && mkdir build
 cd build
@@ -374,7 +386,7 @@ cd ${ROOT}/src/fastp
 git apply --ignore-space-change --ignore-whitespace ~/src/ovation/pipeline-builder/docs/mac-install/fastp.patch
 
 export CXXFLAGS="-I${ROOT}/include -I/usr/local/include"
-export LD_FLAGS="-I${ROOT}/lib -L/usr/local/lib"
+export LD_FLAGS="-L${ROOT}/lib -L/usr/local/lib"
 make PREFIX=${ROOT}
 make install PREFIX=${ROOT}
 
@@ -392,8 +404,17 @@ if [[ ! -d ${ROOT}/src/ensembl-vep ]]; then
 fi
 
 cd ${ROOT}/bin/ensembl-vep
+
+export PERL_MB_OPT='--install_base ${ROOT}/perl5'
+export PERL_MM_OPT='INSTALL_BASE=${ROOT}/perl5'
 export PERL5LIB=$PERL5LIB:${ROOT}/cpanm/lib/perl5
+export PATH="${ROOT}/perl5/bin:$PATH"
+export PERL_LOCAL_LIB_ROOT="/home/usename/perl5:$PERL_LOCAL_LIB_ROOT"
+
 ${ROOT}/bin/cpanm -l ${ROOT}/perl5 --installdeps .
+
+# this might be needed on ubuntu
+# sudo apt install libdbi-perl
 
 ${ROOT}/bin/cpanm DBI
 ${ROOT}/bin/cpanm Archive::Zip
