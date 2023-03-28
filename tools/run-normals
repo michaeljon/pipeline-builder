@@ -87,12 +87,11 @@ for BUCKET in s3://ovation-bioinformatics-pipeline-compute-prod-final-artifacts;
             SAMPLE=${SEQUENCE}
         fi
 
-        awk -vSAMPLE=${SAMPLE} -vSEQUENCE=${SEQUENCE} -vL=151 'BEGIN { OFS = FS = "\t" } /NC_/ { print SEQUENCE, SAMPLE, $1, $2, $3, $3 / $2, L * $3 / $2 }' ${DATAFILE} >>read-report.tsv
+        awk -vSAMPLE=${SAMPLE} -vSEQUENCE=${SEQUENCE} -vL=151 'BEGIN { OFS = FS = "\t" } /NC_00/ { print SEQUENCE, SAMPLE, $1, $2, $3, $3 / $2, L * $3 / $2 }' ${DATAFILE} >>read-report.tsv
 
         # rm ${DATAFILE}
     done
 
-exit
     echo "Processing fastp file data in ${BUCKET}"
     for KEY in $(aws s3 ls --recursive ${BUCKET} | grep 'fastp.json$' | awk '{print $4}'); do
         FILENAME=$(echo ${KEY} | rev | cut -d/ -f1 | rev)
