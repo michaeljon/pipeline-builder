@@ -1,0 +1,51 @@
+# For some R packages
+sudo apt install libssl-dev
+sudo apt install libxml2-dev
+sudo apt install openjdk-11-jdk
+sudo apt install libgsl-dev
+sudo apt install bzip
+sudo apt install libfontconfig1-dev
+sudo apt install libjemalloc-dev
+sudo apt install gawk
+
+# In case you don't have it
+pip3 install --user multiqc
+pip3 install --user cutadapt
+pip3 install --user HTSeq
+
+# Some of the tools, unpack and cp mostly, but sometimes build
+curl https://sourceforge.net/projects/subread/files/subread-2.0.4/subread-2.0.4-source.tar.gz/download -o subread-2.0.4-source.tar.gz
+curl https://github.com/shenwei356/seqkit/releases/download/v2.4.0/seqkit_linux_amd64.tar.gz --location -O
+curl https://github.com/COMBINE-lab/salmon/releases/download/v1.10.0/salmon-1.10.0_linux_x86_64.tar.gz --location -O
+curl https://bitbucket.org/kokonech/qualimap/downloads/qualimap_v2.2.1.zip --location -O
+curl http://smithlabresearch.org/downloads/preseq_linux_v2.0.tar.bz2 -O
+curl https://github.com/alexdobin/STAR/archive/refs/tags/2.7.10b.tar.gz --location -O
+
+# and
+# additional indexing needed (run from inside the GRCh38.p14 directory)
+# salmon index -t GCF_000001405.40_GRCh38.p14_rna.gbff -i GCF_000001405.40_GRCh38.salmon.idx --gencode
+
+STAR \
+    --runThreadN $(nproc) \
+    --runMode genomeGenerate \
+    --genomeDir . \
+    --genomeFastaFiles GCF_000001405.40_GRCh38.p14_genomic.fna \
+    --sjdbGTFfile GCF_000001405.40_GRCh38.p14_genomic.gff \
+    --sjdbGTFtagExonParentTranscript Parent \
+    --sjdbOverhang 150
+
+# you'll also need to "run" the r dependencies script in rna-pipeline
+Rscript <<EOF
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("DESeq2")
+BiocManager::install("rhdf5")
+BiocManager::install("Rsubread")
+
+install.packages("pheatmap")
+install.packages("devtools")
+install.packages("MASS")
+
+devtools::install_github("pachterlab/sleuth")
+EOF
