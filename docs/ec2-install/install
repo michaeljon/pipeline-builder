@@ -16,8 +16,8 @@ mkdir -p /pipeline/working
 mkdir -p /pipeline/reference
 
 # mount the SSDs on our mount points
-sudo mount /dev/nvme1n1 /pipeline/stats
-sudo mount /dev/nvme2n1 /pipeline/working
+sudo mount /dev/nvme1n1 pipeline/stats
+sudo mount /dev/nvme2n1 pipeline/working
 
 mkdir /pipeline/working/input
 mkdir /pipeline/working/output
