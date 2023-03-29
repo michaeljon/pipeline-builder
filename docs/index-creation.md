@@ -33,6 +33,26 @@ hisat2-build -p 16 reference.fasta reference
 minimap2 -d reference.mmi reference.fasta
 ```
 
+### salmon indexes for RNA-seq classification
+
+```bash
+salmon index -t GCF_000001405.40_GRCh38.p14_rna.gbff -i GCF_000001405.40_GRCh38.salmon.idx --gencode
+```
+
+### STAR index for RNA-seq
+
+```bash
+# run from inside the specific reference
+STAR \
+    --runThreadN `nproc` \
+    --runMode genomeGenerate \
+    --genomeDir .
+    --genomeFastaFiles GCF_000001405.40_GRCh38.p14_genomic.fna \
+    --sjdbGTFfile GCF_000001405.40_GRCh38.p14_genomic.gff \
+    --sjdbGTFtagExonParentTranscript Parent \
+    --sjdbOverhang 150
+```
+
 ### samtools indexes
 
 ```bash

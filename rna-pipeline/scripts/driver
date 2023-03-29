@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+export SEQUENCE_S3=s3://ovation-prod-sequence-data/zymo
+export RESULTS_S3=s3://ovation-prod-rna-sequence-results/zymo
+
+export BIN=~/pipeline/bin
+export REFERENCE=~/pipeline/reference/GRCh38.p14
+
+aws s3 ls --recursive ${SEQUENCE_S3} |
+    grep --color=never '/RiboFree/' |
+    grep --color=never '.fastq.gz$' |
+    sort -t ' ' -k 3n,3 |
+    awk -vREMOVE="zymo/" '
+        BEGIN {
+            OFS = "\t"
+            print "sample", "r1", "r2", "s3_path", "size"
+        }
+        /_R1_/ {
+            s3_path = $4;
+            nps = split(s3_path, ps, "/");
+            r1 = r2 = ps[nps];
+
+            sub(/_R1_/, "_R2_", r2);
+            sub(r1, "", s3_path);
+            sub(REMOVE, "", s3_path)
+
+            nsc = split(r1, sc, "_");
+            sample = sc[1];
+            for (n = 2; n <= nsc; n++) {
+                if (sc[n] == "R1") {
+                    break;
+                }
+                sample = sample "_" sc[n]
+            }
+            print sample, r1, r2, s3_path, $3
+    }' | head -n2 >jobs.tsv
+
+# --bar --progress \
+
+parallel \
+    --joblog rna-sequence.log \
+    --jobs 1 \
+    --header \
+    --colsep $'\t' \
+    scripts/run-alignment :::: jobs.tsv

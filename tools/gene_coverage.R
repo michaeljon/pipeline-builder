@@ -18,7 +18,7 @@ for (arg in args) {
     sort() %>%
     median(na.rm = FALSE)
 
-  if (median_depth >= 25) {
+  if (median_depth >= 10) {
     png(output)
 
     plt <- ggplot(data = df, mapping = aes(x = pos_in_gene, y = depth)) +
@@ -29,11 +29,11 @@ for (arg in args) {
         yintercept = median_depth,
         color = "purple",
         linetype = "dotted",
-        size = 1.5
+        linewidth = 1.5
       ) +
       geom_line(color = "darkgray") +
       geom_smooth() +
-      theme_hc() +
+      theme_hc(base_size = 16) +
       labs(
         title = sprintf("Depth by position in gene %s for %s", gene, sample),
         subtitle = sprintf("Organism: %s", organism)
