@@ -124,21 +124,21 @@ qualimap --java-mem-size=32G rnaseq \
     -gtf ${REFERENCE}/GCF_000001405.40_GRCh38.p14_genomic.gtf \
     -outdir ${WORKING}/stats
 
-# dup radar (going to write some files, get them into the right place)
-Rscript --vanilla scripts/dup-radar.R \
-    ${WORKING}/data/${SEQUENCERUNID}.markDups.bam \
-    ${REFERENCE}/GCF_000001405.40_GRCh38.p14_genomic.gtf \
-    2 \
-    paired \
-    $(nproc)
+# # dup radar (going to write some files, get them into the right place)
+# Rscript --vanilla scripts/dup-radar.R \
+#     ${WORKING}/data/${SEQUENCERUNID}.markDups.bam \
+#     ${REFERENCE}/GCF_000001405.40_GRCh38.p14_genomic.gtf \
+#     2 \
+#     paired \
+#     $(nproc)
 
-mv ${WORKING}/data/${SEQUENCERUNID}.markDups_dup_intercept_mqc.txt ${WORKING}/stats
-mv ${WORKING}/data/${SEQUENCERUNID}.markDups_dupMatrix.txt ${WORKING}/stats
-mv ${WORKING}/data/${SEQUENCERUNID}.markDups_duprateExpBoxplot.pdf ${WORKING}/stats
-mv ${WORKING}/data/${SEQUENCERUNID}.markDups_duprateExpDensCurve_mqc.txt ${WORKING}/stats
-mv ${WORKING}/data/${SEQUENCERUNID}.markDups_duprateExpDens.pdf ${WORKING}/stats
-mv ${WORKING}/data/${SEQUENCERUNID}.markDups_expressionHist.pdf ${WORKING}/stats
-mv ${WORKING}/data/${SEQUENCERUNID}.markDups_intercept_slope.txt ${WORKING}/stats
+# mv ${WORKING}/data/${SEQUENCERUNID}.markDups_dup_intercept_mqc.txt ${WORKING}/stats
+# mv ${WORKING}/data/${SEQUENCERUNID}.markDups_dupMatrix.txt ${WORKING}/stats
+# mv ${WORKING}/data/${SEQUENCERUNID}.markDups_duprateExpBoxplot.pdf ${WORKING}/stats
+# mv ${WORKING}/data/${SEQUENCERUNID}.markDups_duprateExpDensCurve_mqc.txt ${WORKING}/stats
+# mv ${WORKING}/data/${SEQUENCERUNID}.markDups_duprateExpDens.pdf ${WORKING}/stats
+# mv ${WORKING}/data/${SEQUENCERUNID}.markDups_expressionHist.pdf ${WORKING}/stats
+# mv ${WORKING}/data/${SEQUENCERUNID}.markDups_intercept_slope.txt ${WORKING}/stats
 
 # run final QC
 (

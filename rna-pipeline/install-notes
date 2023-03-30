@@ -1,12 +1,16 @@
 # For some R packages
-sudo apt install libssl-dev
-sudo apt install libxml2-dev
-sudo apt install openjdk-11-jdk
-sudo apt install libgsl-dev
-sudo apt install bzip
-sudo apt install libfontconfig1-dev
-sudo apt install libjemalloc-dev
-sudo apt install gawk
+sudo apt install -y \
+    libssl-dev \
+    libxml2-dev \
+    openjdk-11-jdk \
+    libgsl-dev \
+    libfontconfig1-dev \
+    libjemalloc-dev \
+    gawk \
+    libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev
+
+# don't ask...
+sudo ln -s libgsl.so.23 libgsl.so.0
 
 # In case you don't have it
 pip3 install --user multiqc
@@ -14,12 +18,12 @@ pip3 install --user cutadapt
 pip3 install --user HTSeq
 
 # Some of the tools, unpack and cp mostly, but sometimes build
-curl https://sourceforge.net/projects/subread/files/subread-2.0.4/subread-2.0.4-source.tar.gz/download -o subread-2.0.4-source.tar.gz
+curl https://sourceforge.net/projects/subread/files/subread-2.0.4/subread-2.0.4-source.tar.gz/download --location -o subread-2.0.4-source.tar.gz
 curl https://github.com/shenwei356/seqkit/releases/download/v2.4.0/seqkit_linux_amd64.tar.gz --location -O
 curl https://github.com/COMBINE-lab/salmon/releases/download/v1.10.0/salmon-1.10.0_linux_x86_64.tar.gz --location -O
 curl https://bitbucket.org/kokonech/qualimap/downloads/qualimap_v2.2.1.zip --location -O
 curl http://smithlabresearch.org/downloads/preseq_linux_v2.0.tar.bz2 -O
-curl https://github.com/alexdobin/STAR/archive/refs/tags/2.7.10b.tar.gz --location -O
+curl https://github.com/alexdobin/STAR/archive/refs/tags/2.7.10b.tar.gz --location -o STAR-2.7.10b.tar.gz
 
 # and
 # additional indexing needed (run from inside the GRCh38.p14 directory)

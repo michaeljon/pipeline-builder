@@ -3,14 +3,14 @@
 export SEQUENCE_S3=s3://ovation-prod-sequence-data/zymo
 export RESULTS_S3=s3://ovation-prod-rna-sequence-results/zymo
 
-export BIN=~/pipeline/bin
-export REFERENCE=~/pipeline/reference/GRCh38.p14
+export BIN=~/bin
+export REFERENCE=~/reference/GRCh38.p14
 
 aws s3 ls --recursive ${SEQUENCE_S3} |
     grep --color=never '/RiboFree/' |
     grep --color=never '.fastq.gz$' |
     sort -t ' ' -k 3n,3 |
-    awk -vREMOVE="zymo/" '
+    gawk -vREMOVE="zymo/" '
         BEGIN {
             OFS = "\t"
             print "sample", "r1", "r2", "s3_path", "size"
