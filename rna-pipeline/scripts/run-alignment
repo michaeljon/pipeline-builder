@@ -9,8 +9,8 @@ export S3_PATH=$4
 export FILESIZE=$5
 
 # assign some identity to the files
-export SEQUENCEID=$(uuidgen)
-export SEQUENCERUNID=$(uuidgen)
+export SEQUENCEID=$6
+export SEQUENCERUNID=$7
 
 # make a place to work
 export WORKING=working-${SEQUENCERUNID}
@@ -43,7 +43,7 @@ export R1_TRIMMED=${WORKING}/data/${SEQUENCEID}_trimmed_R1.fastq.gz
 export R2_TRIMMED=${WORKING}/data/${SEQUENCEID}_trimmed_R2.fastq.gz
 
 # run initial QC
-fastqc --threads 2 ${R1} ${R2} -o ${WORKING}/stats
+fastqc --threads 2 ${R1} ${R2} -o ${WORKING}/stats >/dev/null 2>&1
 
 # run adapter trimming and hard clipping
 # https://github.com/Zymo-Research/pipeline-resources/blob/main/protocols/rnaseq.json
@@ -60,7 +60,7 @@ cutadapt \
     ${R2} >${WORKING}/stats/${SEQUENCERUNID}.cutadapt.txt
 
 # run post-trimming QC
-fastqc --threads 2 ${R1_TRIMMED} ${R2_TRIMMED} -o ${WORKING}/stats
+fastqc --threads 2 ${R1_TRIMMED} ${R2_TRIMMED} -o ${WORKING}/stats >/dev/null 2>&1
 
 # run alignment
 STAR \
@@ -78,9 +78,12 @@ STAR \
 mv ${WORKING}/stats/${SEQUENCERUNID}Aligned.sortedByCoord.out.bam ${WORKING}/data/${SEQUENCERUNID}.bam
 samtools index ${WORKING}/data/${SEQUENCERUNID}.bam
 
+pcnt=$(nproc)
+if [[ $pcnt -gt 64 ]]; then pcnt=64; fi
+
 # count features
 featureCounts \
-    -T 24 \
+    -T $pcnt \
     -F GTF \
     -a ${REFERENCE}/GCF_000001405.40_GRCh38.p14_genomic.gtf \
     -p \
@@ -90,7 +93,7 @@ featureCounts \
     -s 2 \
     -t exon \
     -g gene_id \
-    ${WORKING}/data/${SEQUENCERUNID}.bam
+    ${WORKING}/data/${SEQUENCERUNID}.bam >/dev/null 2>&1
 
 mv ${SEQUENCERUNID} ${WORKING}/counts/${SEQUENCERUNID}.tsv
 mv ${SEQUENCERUNID}.summary ${WORKING}/stats/${SEQUENCERUNID}.summary
@@ -101,44 +104,44 @@ bam_size=$(samtools idxstats ${WORKING}/data/${SEQUENCERUNID}.bam | awk -F $'\t'
 
 # mark duplicates, used for QC later
 java -jar ${BIN}/picard.jar MarkDuplicates \
-    INPUT=${WORKING}/data/${SEQUENCERUNID}.bam \
-    OUTPUT=${WORKING}/data/${SEQUENCERUNID}.markDups.bam \
-    METRICS_FILE=${WORKING}/stats/${SEQUENCERUNID}.markDups_metrics.txt \
-    REMOVE_DUPLICATES=false \
-    ASSUME_SORTED=true \
-    PROGRAM_RECORD_ID='null' \
-    VALIDATION_STRINGENCY=LENIENT
+    -INPUT ${WORKING}/data/${SEQUENCERUNID}.bam \
+    -OUTPUT ${WORKING}/data/${SEQUENCERUNID}.markDups.bam \
+    -METRICS_FILE ${WORKING}/stats/${SEQUENCERUNID}.markDups_metrics.txt \
+    -REMOVE_DUPLICATES false \
+    -ASSUME_SORTED true \
+    -PROGRAM_RECORD_ID null \
+    -VALIDATION_STRINGENCY LENIENT >/dev/null 2>&1
 samtools index ${WORKING}/data/${SEQUENCERUNID}.markDups.bam
 
 if [[ $bam_size -ge 1000000000 ]]; then
-    preseq lc_extrap -v -B ${WORKING}/data/${SEQUENCERUNID}.bam -o ${WORKING}/stats/${SEQUENCERUNID}.ccurve.txt
+    preseq lc_extrap -v -B ${WORKING}/data/${SEQUENCERUNID}.bam -o ${WORKING}/stats/${SEQUENCERUNID}.ccurve.txt >/dev/null 2>&1
 else
-    preseq lc_extrap -v -D -B ${WORKING}/data/${SEQUENCERUNID}.bam -o ${WORKING}/stats/${SEQUENCERUNID}.ccurve.txt
+    preseq lc_extrap -v -D -B ${WORKING}/data/${SEQUENCERUNID}.bam -o ${WORKING}/stats/${SEQUENCERUNID}.ccurve.txt >/dev/null 2>&1
 fi
 
 samtools view -bs $sample_frac ${WORKING}/data/${SEQUENCERUNID}.bam >${WORKING}/data/sampled.bam
-qualimap --java-mem-size=32G rnaseq \
+${BIN}/qualimap_v2.2.1/qualimap --java-mem-size=32G rnaseq \
     -p strand-specific-reverse \
     -pe \
     -bam ${WORKING}/data/sampled.bam \
     -gtf ${REFERENCE}/GCF_000001405.40_GRCh38.p14_genomic.gtf \
-    -outdir ${WORKING}/stats
+    -outdir ${WORKING}/stats >/dev/null 2>&1
 
 # # dup radar (going to write some files, get them into the right place)
-# Rscript --vanilla scripts/dup-radar.R \
-#     ${WORKING}/data/${SEQUENCERUNID}.markDups.bam \
-#     ${REFERENCE}/GCF_000001405.40_GRCh38.p14_genomic.gtf \
-#     2 \
-#     paired \
-#     $(nproc)
+Rscript --vanilla scripts/dup-radar.R \
+    ${WORKING}/data/${SEQUENCERUNID}.markDups.bam \
+    ${REFERENCE}/GCF_000001405.40_GRCh38.p14_genomic.gtf \
+    2 \
+    paired \
+    $(nproc) >/dev/null 2>&1
 
-# mv ${WORKING}/data/${SEQUENCERUNID}.markDups_dup_intercept_mqc.txt ${WORKING}/stats
-# mv ${WORKING}/data/${SEQUENCERUNID}.markDups_dupMatrix.txt ${WORKING}/stats
-# mv ${WORKING}/data/${SEQUENCERUNID}.markDups_duprateExpBoxplot.pdf ${WORKING}/stats
-# mv ${WORKING}/data/${SEQUENCERUNID}.markDups_duprateExpDensCurve_mqc.txt ${WORKING}/stats
-# mv ${WORKING}/data/${SEQUENCERUNID}.markDups_duprateExpDens.pdf ${WORKING}/stats
-# mv ${WORKING}/data/${SEQUENCERUNID}.markDups_expressionHist.pdf ${WORKING}/stats
-# mv ${WORKING}/data/${SEQUENCERUNID}.markDups_intercept_slope.txt ${WORKING}/stats
+mv ${WORKING}/data/${SEQUENCERUNID}.markDups_dup_intercept_mqc.txt ${WORKING}/stats
+mv ${WORKING}/data/${SEQUENCERUNID}.markDups_dupMatrix.txt ${WORKING}/stats
+mv ${WORKING}/data/${SEQUENCERUNID}.markDups_duprateExpBoxplot.pdf ${WORKING}/stats
+mv ${WORKING}/data/${SEQUENCERUNID}.markDups_duprateExpDensCurve_mqc.txt ${WORKING}/stats
+mv ${WORKING}/data/${SEQUENCERUNID}.markDups_duprateExpDens.pdf ${WORKING}/stats
+mv ${WORKING}/data/${SEQUENCERUNID}.markDups_expressionHist.pdf ${WORKING}/stats
+mv ${WORKING}/data/${SEQUENCERUNID}.markDups_intercept_slope.txt ${WORKING}/stats
 
 # run final QC
 (
@@ -148,10 +151,8 @@ qualimap --java-mem-size=32G rnaseq \
         --force \
         --cl-config "use_filename_as_sample_name: true" \
         --cl-config "fn_clean_sample_names: false" \
-        ../stats
+        ../stats >/dev/null 2>&1
 )
-
-exit
 
 # clean up intermediate files
 rm -f ${R1}
@@ -159,12 +160,28 @@ rm -f ${R2}
 
 rm -f ${WORKING}/data/sampled.bam
 
+printf "Tool\tVersion\n" >${WORKING}/stats/versions_mqc.txt
+
+(printf "fastqc:\t" && fastqc --version) >>${WORKING}/stats/versions_mqc.txt
+(printf "cutadapt:\t" && cutadapt --version) >>${WORKING}/stats/versions_mqc.txt
+(printf "salmon:\t" && salmon --version) >>${WORKING}/stats/versions_mqc.txt
+(printf "samtools:\t" && samtools --version | head -n 1) >>${WORKING}/stats/versions_mqc.txt
+(printf "picard:\t" && java -jar ${BIN}/picard.jar MarkDuplicates --version) >>${WORKING}/stats/versions_mqc.txt
+(printf "STAR:\t" && STAR --version) >>${WORKING}/stats/versions_mqc.txt
+(printf "featureCounts:\t" && featureCounts -v 2>&1) >>${WORKING}/stats/versions_mqc.txt
+(printf "R:\t" && R --version | head -n 1) >>${WORKING}/stats/versions_mqc.txt
+(printf "preseq:\t" && preseq --version 2>&1 | grep '^Version' | cut -d ' ' -f 2) >>${WORKING}/stats/versions_mqc.txt
+(printf "qualimap:\t" && ${BIN}/qualimap_v2.2.1/qualimap --version 2>&1 | grep '^QualiMap' | cut -d ' ' -f 2) >>${WORKING}/stats/versions_mqc.txt
+(printf "MultiQC:\t" && multiqc --version 2>&1 | grep '^multiqc' | cut -d ' ' -f 3) >>${WORKING}/stats/versions_mqc.txt
+
 # push results to S3
+printf "sample\tsequenceid\trundate\n" >${WORKING}/manifest.txt
+printf "%s\t%s\t%s\n" ${SAMPLE} ${SEQUENCEID} $(date --utc --iso-8601=seconds) >>${WORKING}/manifest.txt
+
 (
     cd ${WORKING}
     aws s3 sync . ${RESULTS_S3}/${SEQUENCEID}/${SEQUENCERUNID}/
 )
 
-# push job manifest to S3
-print "%s\t%s\t%s\n" ${SAMPLE} ${SEQUENCEID} $(date --utc --iso-8601=seconds) >manifest.txt
-aws s3 cp manifest.txt ${RESULTS_S3}/${SEQUENCEID}/${SEQUENCERUNID}/
+# and clean up the intermediate files
+rm -f ${WORKING}

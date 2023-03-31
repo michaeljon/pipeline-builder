@@ -1,43 +1,52 @@
 #!/usr/bin/env bash
 
+set eux -o pipefail
+
 export SEQUENCE_S3=s3://ovation-prod-sequence-data/zymo
 export RESULTS_S3=s3://ovation-prod-rna-sequence-results/zymo
 
 export BIN=~/bin
 export REFERENCE=~/reference/GRCh38.p14
 
-aws s3 ls --recursive ${SEQUENCE_S3} |
-    grep --color=never '/RiboFree/' |
-    grep --color=never '.fastq.gz$' |
-    sort -t ' ' -k 3n,3 |
-    gawk -vREMOVE="zymo/" '
-        BEGIN {
-            OFS = "\t"
-            print "sample", "r1", "r2", "s3_path", "size"
-        }
-        /_R1_/ {
-            s3_path = $4;
-            nps = split(s3_path, ps, "/");
-            r1 = r2 = ps[nps];
+trap "" PIPE
 
-            sub(/_R1_/, "_R2_", r2);
-            sub(r1, "", s3_path);
-            sub(REMOVE, "", s3_path)
+# aws s3 ls --recursive ${SEQUENCE_S3} |
+#     grep --color=never '/RiboFree/' |
+#     grep --color=never '.fastq.gz$' |
+#     sort -t ' ' -k 3n,3 |
+#     gawk -vREMOVE="zymo/" '
+#         BEGIN {
+#             OFS = "\t"
+#             print "sample", "r1", "r2", "s3_path", "size", "sequenceid", "sequencerunid"
+#         }
+#         /_R1_/ {
+#             s3_path = $4;
+#             nps = split(s3_path, ps, "/");
+#             r1 = r2 = ps[nps];
 
-            nsc = split(r1, sc, "_");
-            sample = sc[1];
-            for (n = 2; n <= nsc; n++) {
-                if (sc[n] == "R1") {
-                    break;
-                }
-                sample = sample "_" sc[n]
-            }
-            print sample, r1, r2, s3_path, $3
-    }' | head -n2 >jobs.tsv
+#             sub(/_R1_/, "_R2_", r2);
+#             sub(r1, "", s3_path);
+#             sub(REMOVE, "", s3_path)
+
+#             nsc = split(r1, sc, "_");
+#             sample = sc[1];
+#             for (n = 2; n <= nsc; n++) {
+#                 if (sc[n] == "R1") {
+#                     break;
+#                 }
+#                 sample = sample "_" sc[n]
+#             }
+
+#             "uuidgen" | getline sequenceid; close("uuidgen")
+#             "uuidgen" | getline sequencerunid; close("uuidgen")
+
+#             print sample, r1, r2, s3_path, $3, sequenceid, sequencerunid
+#     }' >tmp.tsv
 
 # --bar --progress \
 
 parallel \
+    --bar --progress \
     --joblog rna-sequence.log \
     --jobs 1 \
     --header \
