@@ -161,14 +161,14 @@ rm -f ${R2}
 rm -f ${WORKING}/data/sampled.bam
 
 printf "Tool\tVersion\n" >${WORKING}/stats/versions_mqc.txt
-(printf "fastqc:\t" && fastqc --version) >>${WORKING}/stats/versions_mqc.txt
+(printf "fastqc:\t" && fastqc --version | cut -d ' ' -f 2) >>${WORKING}/stats/versions_mqc.txt
 (printf "cutadapt:\t" && cutadapt --version) >>${WORKING}/stats/versions_mqc.txt
-(printf "salmon:\t" && salmon --version) >>${WORKING}/stats/versions_mqc.txt
-(printf "samtools:\t" && samtools --version | head -n 1) >>${WORKING}/stats/versions_mqc.txt
+(printf "salmon:\t" && salmon --version | cut -d ' ' -f 2) >>${WORKING}/stats/versions_mqc.txt
+(printf "samtools:\t" && samtools --version | head -n 1 | cut -d ' ' -f 2) >>${WORKING}/stats/versions_mqc.txt
 (printf "picard:\t" && java -jar {$BIN}/picard.jar MarkDuplicates --version 2>&1 | cut -d ':' -f 2) >>${WORKING}/stats/versions_mqc.txt
 (printf "STAR:\t" && STAR --version) >>${WORKING}/stats/versions_mqc.txt
 (printf "featureCounts:\t" && featureCounts -v 2>&1 | grep '^featureCounts' | cut -d ' ' -f 2) >>${WORKING}/stats/versions_mqc.txt
-(printf "R:\t" && R --version | head -n 1) >>${WORKING}/stats/versions_mqc.txt
+(printf "R:\t" && R --version | head -n 1 | cut -d ' ' -f 3) >>${WORKING}/stats/versions_mqc.txt
 (printf "preseq:\t" && preseq --version 2>&1 | grep '^Version' | cut -d ' ' -f 2) >>${WORKING}/stats/versions_mqc.txt
 (printf "qualimap:\t" && ${BIN}/qualimap_v2.2.1/qualimap --version 2>&1 | grep '^QualiMap' | cut -d ' ' -f 2) >>${WORKING}/stats/versions_mqc.txt
 (printf "MultiQC:\t" && multiqc --version 2>&1 | grep '^multiqc' | cut -d ' ' -f 3) >>${WORKING}/stats/versions_mqc.txt
