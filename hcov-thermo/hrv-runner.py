@@ -1234,6 +1234,31 @@ fi
     )
 
 
+def generateDepth(script: TextIOWrapper, options: OptionsDict):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
+    script.write(
+        """
+#
+# calculate depth by position
+#
+if [[ ! -f {PIPELINE}/{SAMPLE}.depth.gz ]]; then
+    logthis "${{yellow}}Calculating depth by position${{reset}}"
+
+    samtools depth {PIPELINE}/{SAMPLE}.sorted.bam | gzip >{PIPELINE}/{SAMPLE}.depth.gz
+
+    logthis "${{yellow}}Depth calculation complete${{reset}}"
+else
+    logthis "Depth calculation already complete, ${{green}}skipping${{reset}}"
+fi
+    """.format(
+            SAMPLE=sample,
+            PIPELINE=pipeline,
+        )
+    )
+
+
 def alignAndSort(script: TextIOWrapper, options: OptionsDict):
     processUnmapped = options["processUnmapped"]
     alignOnly = options["alignOnly"]
@@ -1246,6 +1271,7 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict):
 
     alignFASTQ(script, filename, options)
     sortAlignedAndMappedData(script, options)
+    generateDepth(script, options)
 
     if processUnmapped == True:
         extractUmappedReads(script, options)

@@ -11,7 +11,7 @@ from sys import platform
 
 OptionsDict = Dict[str, Any]
 
-panel_choices = ["MN908947.3", "AF304460.1", "AY597011.2", "AY567487.2", "AY585228.1", "JX869059.2", "panel"]
+panel_choices = ["MN908947.3", "AF304460.1", "AY597011.2", "AY567487.2", "AY585228.1", "JX869059.2", "NC_038311.1", "NC_038312.1", "NC_038878.1", "panel"]
 panel_choice_help = (
     "'Chromosome' name from reference assembly "
     + "(MN908947.3, sars-cov-2), "
@@ -20,6 +20,9 @@ panel_choice_help = (
     + "(AY567487.2, hcov-nl63), "
     + "(AY585228.1, hcov-oc43), "
     + "(JX869059.2, hcov-emc), "
+    + "(NC_038311.1, hrv-a), "
+    + "(NC_038312.1, hrv-b), "
+    + "(NC_038878.1, hrv-c), "
     + "(panel, combined panel of all organisms)"
 )
 
@@ -814,7 +817,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
     )
 
     checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 15 -F 1284 {SORTED} | bedtools genomecov -d -ibam stdin | awk "\\$2 % 100 == 0 {{print \\$1,\\$2,\\$3}}" | sed "s/AF304460.1/hcov_229e/;s/JX869059.2/hcov_emc/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl63/;s/AY585228.1/hcov_oc43/;s/MN908947.3/sars_cov_2/" >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
+        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 30 -F 1284 {SORTED} | bedtools genomecov -d -ibam stdin | awk "\\$2 % 100 == 0 {{print \\$1,\\$2,\\$3}}" | sed "s/AF304460.1/hcov_229e/;s/JX869059.2/hcov_emc/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl63/;s/AY585228.1/hcov_oc43/;s/MN908947.3/sars_cov_2/;s/NC_038311.1/hrv_a/;s/NC_038312.1/hrv_b/;s/NC_038878.1/hrv_c/" >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
             REFERENCE=reference,
             ASSEMBLY=assembly,
             SAMPLE=sample,
@@ -1274,6 +1277,7 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict):
 
     alignFASTQ(script, filename, options)
     sortAlignedAndMappedData(script, options)
+    generateDepth(script, options)
 
     if processUnmapped == True:
         extractUmappedReads(script, options)
