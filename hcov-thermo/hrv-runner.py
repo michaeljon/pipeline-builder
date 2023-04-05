@@ -241,50 +241,6 @@ fi
     )
 
 
-def callVariantsUsingLofreq(
-    script: TextIOWrapper,
-    options: OptionsDict,
-):
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
-
-    script.write(
-        """
-# call variants
-if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
-    logthis "${{yellow}}Calling variants using lofreq${{reset}}"
-
-    lofreq indelqual \\
-        --dindel \\
-        --ref {REFERENCE}/{ASSEMBLY}.fna \\
-        --verbose \\
-        --out - \\
-        {PIPELINE}/{SAMPLE}.sorted.bam |
-    lofreq call \\
-        --ref {REFERENCE}/{ASSEMBLY}.fna \\
-        --call-indels \\
-        --no-default-filter \\
-        --max-depth 1000000 \\
-        --force-overwrite \\
-        --verbose \\
-        --out {PIPELINE}/{SAMPLE}.unannotated.vcf \\
-        -
-
-    bgzip {PIPELINE}/{SAMPLE}.unannotated.vcf
-    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
-
-    logthis "${{green}}lofreq variant calling completed${{reset}}"
-else
-    logthis "Variants already called for {PIPELINE}/{SAMPLE}.sorted.bam, ${{green}}skipping${{reset}}"
-fi
-""".format(
-            REFERENCE=reference, ASSEMBLY=assembly, SAMPLE=sample, PIPELINE=pipeline
-        )
-    )
-
-
 def callVariantsUsingBcftools(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
@@ -348,8 +304,6 @@ def callVariants(script: TextIOWrapper, options: OptionsDict):
         callVariantsUsingGatk(script, options)
     elif caller == "bcftools":
         callVariantsUsingBcftools(script, options)
-    elif caller == "lofreq":
-        callVariantsUsingLofreq(script, options)
     else:
         print("Unexpected value {CALLER} given for the --caller option".format(CALLER=caller))
         quit(1)
@@ -1373,8 +1327,8 @@ def defineArguments() -> Namespace:
         action="store",
         dest="caller",
         default="bcftools",
-        choices=["bcftools", "gatk", "lofreq"],
-        help="Use `bcftools`, `gatk`, or `lofreq` as the variant caller",
+        choices=["bcftools", "gatk"],
+        help="Use `bcftools` or `gatk` as the variant caller",
     )
 
     parser.add_argument(
