@@ -710,7 +710,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
     )
 
     checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then gatk CollectWgsMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.wgs_metrics.txt --MINIMUM_BASE_QUALITY 20 --MINIMUM_MAPPING_QUALITY 20 --COVERAGE_CAP 250 --READ_LENGTH 151 --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list --USE_FAST_ALGORITHM --INCLUDE_BQ_HISTOGRAM; fi' \\\n""".format(
+        """'if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then gatk CollectWgsMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.wgs_metrics.txt --MINIMUM_BASE_QUALITY 20 --MINIMUM_MAPPING_QUALITY 20 --COVERAGE_CAP 10000 --READ_LENGTH 151 --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list --USE_FAST_ALGORITHM --INCLUDE_BQ_HISTOGRAM; fi' \\\n""".format(
             REFERENCE=reference,
             ASSEMBLY=assembly,
             PIPELINE=pipeline,
@@ -1413,6 +1413,31 @@ fi
     )
 
 
+def generateDepth(script: TextIOWrapper, options: OptionsDict):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
+    script.write(
+        """
+#
+# calculate depth by position
+#
+if [[ ! -f {PIPELINE}/{SAMPLE}.depth.gz ]]; then
+    logthis "${{yellow}}Calculating depth by position${{reset}}"
+
+    samtools depth {PIPELINE}/{SAMPLE}.sorted.bam | gzip >{PIPELINE}/{SAMPLE}.depth.gz
+
+    logthis "${{yellow}}Depth calculation complete${{reset}}"
+else
+    logthis "Depth calculation already complete, ${{green}}skipping${{reset}}"
+fi
+    """.format(
+            SAMPLE=sample,
+            PIPELINE=pipeline,
+        )
+    )
+
+
 def alignAndSort(script: TextIOWrapper, options: OptionsDict):
     processUnmapped = options["processUnmapped"]
     alignOnly = options["alignOnly"]
@@ -1427,6 +1452,7 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict):
     preprocessFASTQ(script, filenames[0], filenames[1], trimmedFilenames[0], trimmedFilenames[1], options)
     alignFASTQ(script, trimmedFilenames[0], trimmedFilenames[1], options)
     sortAlignedAndMappedData(script, options)
+    generateDepth(script, options)
 
     if processUnmapped == True:
         extractUmappedReads(script, options)

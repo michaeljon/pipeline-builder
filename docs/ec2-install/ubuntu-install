@@ -19,6 +19,10 @@ sudo apt install -y nasm
 sudo apt install -y jq
 sudo apt install -y r-base
 
+# for r packages
+# libssl-dev
+# libxml2-dev
+
 # runtime monitoring
 sudo apt install -y sysstat
 sudo apt install -y iotop
@@ -34,8 +38,8 @@ sudo apt install -y libboost-dev
 sudo apt install -y libgsl-dev
 sudo apt install -y libperl-dev
 
-sudo pip3 install multiqc
-sudo pip3 install cutadapt
+pip3 install --user multiqc
+pip3 install --user cutadapt
 
 # pipeline tool setup and path
 mkdir ${WORKING}/bin
@@ -68,7 +72,7 @@ cd ${WORKING}/src
 
 curl https://www.zlib.net/pigz/pigz.tar.gz -O
 tar xvzf pigz.tar.gz && rm pigz.tar.gz
-cd pigz-2.6 && make && mv pigz unpigz ${WORKING}/bin
+cd pigz && make && mv pigz unpigz ${WORKING}/bin
 
 curl https://github.com/samtools/samtools/releases/download/1.14/samtools-1.14.tar.bz2 --location -O
 curl https://github.com/samtools/bcftools/releases/download/1.14/bcftools-1.14.tar.bz2 --location -O
@@ -91,7 +95,6 @@ curl https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.0.6.tar.gz --locatio
 bzip2 -d samtools-1.14.tar.bz2 && tar xvf samtools-1.14.tar && rm samtools-1.14.tar
 bzip2 -d bcftools-1.14.tar.bz2 && tar xvf bcftools-1.14.tar && rm bcftools-1.14.tar
 bzip2 -d htslib-1.14.tar.bz2 && tar xvf htslib-1.14.tar && rm htslib-1.14.tar
-
 
 bzip2 -d bwa-0.7.17.tar.bz2 && tar xvf bwa-0.7.17.tar && rm bwa-0.7.17.tar
 unzip gatk-4.2.3.0.zip && rm gatk-4.2.3.0.zip

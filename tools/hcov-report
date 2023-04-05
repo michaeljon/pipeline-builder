@@ -10,8 +10,8 @@ if [[ -z ${DESTINATION_FOLDER} ]]; then
     exit 1
 fi
 
-mkdir -p ${PIPELINE_ROOT}/tmp/${DESTINATION_FOLDER}
-rm -rf ${PIPELINE_ROOT}/tmp/${DESTINATION_FOLDER}/*
+rm -rf ${PIPELINE_ROOT}/${DESTINATION_FOLDER}
+mkdir -p ${PIPELINE_ROOT}/${DESTINATION_FOLDER}
 
 for FILENAME in $(find ${PIPELINE_ROOT}/pipeline -name '*.sorted.bam' -print); do
     LOCATION=$(dirname $FILENAME)
@@ -23,7 +23,7 @@ for FILENAME in $(find ${PIPELINE_ROOT}/pipeline -name '*.sorted.bam' -print); d
     fi
 
     echo -ne "\033[0K${SAMPLE}:*: building region report...\r"
-    ./hcov-region-coverage.py ${SAMPLE} '*' ${LOCATION}/${SAMPLE}.depth.gz >${PIPELINE_ROOT}/tmp/${DESTINATION_FOLDER}/${SAMPLE}_star.tsv
+    ./hcov-region-coverage.py ${SAMPLE} '*' ${LOCATION}/${SAMPLE}.depth.gz >${PIPELINE_ROOT}/${DESTINATION_FOLDER}/${SAMPLE}_star.tsv
 
     echo -ne "\033[0K${SAMPLE}:*: building gene report...\r"
     ./hcov-gene-depth.py ${SAMPLE} '*' ${LOCATION}/${SAMPLE}.depth.gz ${LOCATION}
@@ -51,5 +51,5 @@ for FILENAME in $(find ${PIPELINE_ROOT}/pipeline -name '*.sorted.bam' -print); d
     echo -ne "\033[0K${SAMPLE}:*: finished.\n"
 done
 
-echo -e "sample	organism	gene	mean	median	min	max	stdev	bases	seen	coverage" >${PIPELINE_ROOT}/tmp/${DESTINATION_FOLDER}-multiple-call-coverage.tsv
-cat ${PIPELINE_ROOT}/tmp/${DESTINATION_FOLDER}/* | grep -v '^sample' >>${PIPELINE_ROOT}/tmp/${DESTINATION_FOLDER}-multiple-call-coverage.tsv
+echo -e "sample	organism	gene	mean	median	min	max	stdev	bases	seen	coverage" >${PIPELINE_ROOT}/${DESTINATION_FOLDER}-multiple-call-coverage.tsv
+cat ${PIPELINE_ROOT}/${DESTINATION_FOLDER}/* | grep -v '^sample' >>${PIPELINE_ROOT}/${DESTINATION_FOLDER}-multiple-call-coverage.tsv

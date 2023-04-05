@@ -11,7 +11,7 @@ from sys import platform
 
 OptionsDict = Dict[str, Any]
 
-panel_choices = ["MN908947.3", "AF304460.1", "AY597011.2", "AY567487.2", "AY585228.1", "JX869059.2", "panel"]
+panel_choices = ["MN908947.3", "AF304460.1", "AY597011.2", "AY567487.2", "AY585228.1", "JX869059.2", "NC_038311.1", "NC_038312.1", "NC_038878.1", "panel"]
 panel_choice_help = (
     "'Chromosome' name from reference assembly "
     + "(MN908947.3, sars-cov-2), "
@@ -20,6 +20,9 @@ panel_choice_help = (
     + "(AY567487.2, hcov-nl63), "
     + "(AY585228.1, hcov-oc43), "
     + "(JX869059.2, hcov-emc), "
+    + "(NC_038311.1, hrv-a), "
+    + "(NC_038312.1, hrv-b), "
+    + "(NC_038878.1, hrv-c), "
     + "(panel, combined panel of all organisms)"
 )
 
@@ -244,6 +247,50 @@ fi
     )
 
 
+def callVariantsUsingLofreq(
+    script: TextIOWrapper,
+    options: OptionsDict,
+):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    reference = options["reference"]
+    assembly = options["referenceAssembly"]
+
+    script.write(
+        """
+# call variants
+if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
+    logthis "${{yellow}}Calling variants using lofreq${{reset}}"
+
+    lofreq indelqual \\
+        --dindel \\
+        --ref {REFERENCE}/{ASSEMBLY}.fna \\
+        --verbose \\
+        --out - \\
+        {PIPELINE}/{SAMPLE}.sorted.bam |
+    lofreq call \\
+        --ref {REFERENCE}/{ASSEMBLY}.fna \\
+        --call-indels \\
+        --no-default-filter \\
+        --max-depth 1000000 \\
+        --force-overwrite \\
+        --verbose \\
+        --out {PIPELINE}/{SAMPLE}.unannotated.vcf \\
+        -
+
+    bgzip {PIPELINE}/{SAMPLE}.unannotated.vcf
+    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+
+    logthis "${{green}}lofreq variant calling completed${{reset}}"
+else
+    logthis "Variants already called for {PIPELINE}/{SAMPLE}.sorted.bam, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            REFERENCE=reference, ASSEMBLY=assembly, SAMPLE=sample, PIPELINE=pipeline
+        )
+    )
+
+
 def callVariantsUsingBcftools(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
@@ -307,6 +354,8 @@ def callVariants(script: TextIOWrapper, options: OptionsDict):
         callVariantsUsingGatk(script, options)
     elif caller == "bcftools":
         callVariantsUsingBcftools(script, options)
+    elif caller == "lofreq":
+        callVariantsUsingLofreq(script, options)
     else:
         print("Unexpected value {CALLER} given for the --caller option".format(CALLER=caller))
         quit(1)
@@ -768,7 +817,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
     )
 
     checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 15 -F 1284 {SORTED} | bedtools genomecov -d -ibam stdin | awk "\\$2 % 100 == 0 {{print \\$1,\\$2,\\$3}}" | sed "s/AF304460.1/hcov_229e/;s/JX869059.2/hcov_emc/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl63/;s/AY585228.1/hcov_oc43/;s/MN908947.3/sars_cov_2/" >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
+        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 30 -F 1284 {SORTED} | bedtools genomecov -d -ibam stdin | awk "\\$2 % 100 == 0 {{print \\$1,\\$2,\\$3}}" | sed "s/AF304460.1/hcov_229e/;s/JX869059.2/hcov_emc/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl63/;s/AY585228.1/hcov_oc43/;s/MN908947.3/sars_cov_2/;s/NC_038311.1/hrv_a/;s/NC_038312.1/hrv_b/;s/NC_038878.1/hrv_c/" >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
             REFERENCE=reference,
             ASSEMBLY=assembly,
             SAMPLE=sample,
@@ -1228,6 +1277,7 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict):
 
     alignFASTQ(script, filename, options)
     sortAlignedAndMappedData(script, options)
+    generateDepth(script, options)
 
     if processUnmapped == True:
         extractUmappedReads(script, options)
@@ -1355,8 +1405,8 @@ def defineArguments() -> Namespace:
         action="store",
         dest="caller",
         default="bcftools",
-        choices=["bcftools", "gatk"],
-        help="Use `bcftools` or `gatk` as the variant caller",
+        choices=["bcftools", "gatk", "lofreq"],
+        help="Use `bcftools`, `gatk`, or `lofreq` as the variant caller",
     )
 
     parser.add_argument(

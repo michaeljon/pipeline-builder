@@ -24,3 +24,7 @@ tools/fq/tmp
 hcov-illumina/samples
 hcov-thermo/samples
 human/samples
+
+rna-pipeline/working*
+rna-pipeline/jobs.tsv
+rna-pipeline/rna-sequence.log

@@ -7,11 +7,11 @@ from typing import Tuple, Dict, Any
 from datetime import datetime
 from os.path import exists, expandvars
 from os import cpu_count, system
-from sys import platform
 
+FastqSet = Tuple[str, str]
 OptionsDict = Dict[str, Any]
 
-panel_choices = ["MN908947.3", "AF304460.1", "AY597011.2", "AY567487.2", "AY585228.1", "JX869059.2", "panel"]
+panel_choices = ["MN908947.3", "AF304460.1", "AY597011.2", "AY567487.2", "AY585228.1", "JX869059.2", "NC_038311.1", "NC_038312.1", "NC_038878.1", "panel"]
 panel_choice_help = (
     "'Chromosome' name from reference assembly "
     + "(MN908947.3, sars-cov-2), "
@@ -20,25 +20,11 @@ panel_choice_help = (
     + "(AY567487.2, hcov-nl63), "
     + "(AY585228.1, hcov-oc43), "
     + "(JX869059.2, hcov-emc), "
+    + "(NC_038311.1, hrv-a), "
+    + "(NC_038312.1, hrv-b), "
+    + "(NC_038878.1, hrv-c), "
     + "(panel, combined panel of all organisms)"
 )
-
-
-def getLibraryPath(options: OptionsDict) -> str:
-    working = options["working"]
-
-    if platform == "linux" or platform == "linux2":
-        return "LD_LIBRARY_PATH={WORKING}/lib".format(WORKING=working)
-
-    elif platform == "darwin":
-        return "DYLD_LIBRARY_PATH={WORKING}/lib".format(WORKING=working)
-
-    elif platform == "win32":
-        print("What are you doing trying to run this on a Windows device? Only MacOS and Linux right now.")
-        quit(1)
-
-    # not reached
-    return ""
 
 
 def updateDictionary(script: TextIOWrapper, options: OptionsDict):
@@ -108,7 +94,7 @@ def sortWithBiobambam(script: TextIOWrapper, options: OptionsDict):
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
     logthis "${{yellow}}Sorting and marking duplicates${{reset}}"
 
-    {LIBRARY} {BIN}/bamsormadup \\
+    bamsormadup \\
         SO=coordinate \\
         threads={THREADS} \\
         level=6 \\
@@ -129,7 +115,6 @@ fi
             THREADS=threads,
             PIPELINE=pipeline,
             STATS=stats,
-            LIBRARY=getLibraryPath(options),
             BIN=bin,
             TEMP=temp,
             SORTED=sorted,
@@ -222,9 +207,9 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         -R {REFERENCE}/{ASSEMBLY}.fna \\
         -I {PIPELINE}/{SAMPLE}.sorted.bam \\
         -O {PIPELINE}/{SAMPLE}.unannotated.vcf \\
-        --standard-min-confidence-threshold-for-calling 10 \\
+        --standard-min-confidence-threshold-for-calling 20 \\
         --dont-use-soft-clipped-bases \\
-        --min-base-quality-score 10 \\
+        --min-base-quality-score 20 \\
         --max-reads-per-alignment-start 0 \\
         --linked-de-bruijn-graph \\
         --recover-all-dangling-branches \\
@@ -240,6 +225,50 @@ else
 fi
 """.format(
             REFERENCE=reference, ASSEMBLY=assembly, SAMPLE=sample
+        )
+    )
+
+
+def callVariantsUsingLofreq(
+    script: TextIOWrapper,
+    options: OptionsDict,
+):
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    reference = options["reference"]
+    assembly = options["referenceAssembly"]
+
+    script.write(
+        """
+# call variants
+if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
+    logthis "${{yellow}}Calling variants using lofreq${{reset}}"
+
+    lofreq indelqual \\
+        --dindel \\
+        --ref {REFERENCE}/{ASSEMBLY}.fna \\
+        --verbose \\
+        --out - \\
+        {PIPELINE}/{SAMPLE}.sorted.bam |
+    lofreq call \\
+        --ref {REFERENCE}/{ASSEMBLY}.fna \\
+        --call-indels \\
+        --no-default-filter \\
+        --max-depth 1000000 \\
+        --force-overwrite \\
+        --verbose \\
+        --out {PIPELINE}/{SAMPLE}.unannotated.vcf \\
+        -
+
+    bgzip {PIPELINE}/{SAMPLE}.unannotated.vcf
+    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+
+    logthis "${{green}}lofreq variant calling completed${{reset}}"
+else
+    logthis "Variants already called for {PIPELINE}/{SAMPLE}.sorted.bam, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            REFERENCE=reference, ASSEMBLY=assembly, SAMPLE=sample, PIPELINE=pipeline
         )
     )
 
@@ -267,7 +296,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         --threads 4 \\
         --output-type u \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
-        {PIPELINE}/{SAMPLE}.sorted.bam  | \\
+        {PIPELINE}/{SAMPLE}.sorted.bam 2>/dev/null | \\
     bcftools call \\
         --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \\
         --variants-only \\
@@ -277,13 +306,13 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         --prior 0.05 \\
         --threads 4 \\
         --output-type v  \\
-        --output {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp 
+        --output {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp 2>/dev/null
 
     bcftools +fill-tags \\
         {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp \\
         --output-type v  \\
         --output {PIPELINE}/{SAMPLE}.unannotated.vcf \\
-        -- --tags AC,AN,AF,VAF,MAF,FORMAT/VAF 
+        -- --tags AC,AN,AF,VAF,MAF,FORMAT/VAF 2>/dev/null
 
     rm -f {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp
 
@@ -307,6 +336,8 @@ def callVariants(script: TextIOWrapper, options: OptionsDict):
         callVariantsUsingGatk(script, options)
     elif caller == "bcftools":
         callVariantsUsingBcftools(script, options)
+    elif caller == "lofreq":
+        callVariantsUsingLofreq(script, options)
     else:
         print("Unexpected value {CALLER} given for the --caller option".format(CALLER=caller))
         quit(1)
@@ -445,7 +476,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.pileup.gz ]]; then
         --count-orphans \\
         --min-BQ 0 \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
-        {PIPELINE}/{SAMPLE}.sorted.bam | gzip >{PIPELINE}/{SAMPLE}.pileup.gz 
+        {PIPELINE}/{SAMPLE}.sorted.bam | gzip >{PIPELINE}/{SAMPLE}.pileup.gz 2>/dev/null
 
     logthis "Pileup completed for {PIPELINE}/{SAMPLE}.sorted.bam"
 else
@@ -689,7 +720,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
     threads = options["cores"]
     skipFastQc = options["skipFastQc"]
 
-    filename = getFileName(options)
+    filenames = getTrimmedFileNames(options)
 
     sorted = "{PIPELINE}/{SAMPLE}.sorted.bam".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
 
@@ -728,7 +759,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
     )
 
     checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then gatk CollectWgsMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.wgs_metrics.txt --MINIMUM_BASE_QUALITY 20 --MINIMUM_MAPPING_QUALITY 20 --COVERAGE_CAP 250 --READ_LENGTH 151 --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list --USE_FAST_ALGORITHM --INCLUDE_BQ_HISTOGRAM; fi' \\\n""".format(
+        """'if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then gatk CollectWgsMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.wgs_metrics.txt --MINIMUM_BASE_QUALITY 20 --MINIMUM_MAPPING_QUALITY 20 --COVERAGE_CAP 10000 --READ_LENGTH 151 --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list --USE_FAST_ALGORITHM --INCLUDE_BQ_HISTOGRAM; fi' \\\n""".format(
             REFERENCE=reference,
             ASSEMBLY=assembly,
             PIPELINE=pipeline,
@@ -768,7 +799,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
     )
 
     checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 15 -F 1284 {SORTED} | bedtools genomecov -d -ibam stdin | awk "\\$2 % 100 == 0 {{print \\$1,\\$2,\\$3}}" | sed "s/AF304460.1/hcov_229e/;s/JX869059.2/hcov_emc/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl63/;s/AY585228.1/hcov_oc43/;s/MN908947.3/sars_cov_2/" >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
+        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 30 -F 1284 {SORTED} | bedtools genomecov -d -ibam stdin | awk "\\$2 % 100 == 0 {{print \\$1,\\$2,\\$3}}" | sed "s/AF304460.1/hcov_229e/;s/JX869059.2/hcov_emc/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl63/;s/AY585228.1/hcov_oc43/;s/MN908947.3/sars_cov_2/;s/NC_038311.1/hrv_a/;s/NC_038312.1/hrv_b/;s/NC_038878.1/hrv_c/" >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
             REFERENCE=reference,
             ASSEMBLY=assembly,
             SAMPLE=sample,
@@ -779,10 +810,11 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
 
     if skipFastQc == False:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}.fastqc.zip ]]; then fastqc --threads 2 --outdir {STATS} --noextract {FILENAME}; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
                 SAMPLE=sample,
                 STATS=stats,
-                FILENAME=filename,
+                R1=filenames[0],
+                R2=filenames[1],
             )
         )
 
@@ -939,10 +971,10 @@ export PERL_LOCAL_LIB_ROOT={WORKING}/perl5:$PERL_LOCAL_LIB_ROOT
 export LD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib64:/usr/local/lib/:$LD_LIBRARY_PATH
 
 # shared library stuff (darwin)
-export DYLD_FALLBACK_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin
+export DYLD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib:/usr/local/lib/:$DYLD_LIBRARY_PATH
 
 # bcftools
-export BCFTOOLS_PLUGINS={WORKING}/libexec/bcftools
+export BCFTOOLS_PLUGINS={WORKING}/bin/plugins
 
 # handy path
 export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.2.6.1:{WORKING}/bin:$PATH\n""".format(
@@ -1021,32 +1053,268 @@ def verifyOptions(options: OptionsDict):
 fallback_warning_shown = False
 
 
-def getFileName(options: OptionsDict) -> str:
-    """
-    Returns the input / source filename from the options. First, attempts the --fastq
-    option as a full path. If that doesn't exist, construct a path from --fastq-dir
-    as well and check it. If neither are present, this function exits the process.
-    """
+def getFileNames(options: OptionsDict) -> FastqSet:
     global fallback_warning_shown
 
-    fastq = options["fastq"]
+    sample = options["sample"]
     fastq_dir = options["fastq_dir"]
 
-    if exists(expandvars(fastq)) == True:
-        return fastq
+    # assume we have the _001 pattern first
+    filenames = (
+        "{FASTQ_DIR}/{SAMPLE}_R1_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        "{FASTQ_DIR}/{SAMPLE}_R2_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+    )
 
-    filename = "{FASTQ_DIR}/{FASTQ}".format(FASTQ_DIR=fastq_dir, FASTQ=fastq)
+    if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
+        if fallback_warning_shown == False:
+            print("Falling back to shortened fastq file names")
+            fallback_warning_shown = True
 
-    if exists(expandvars(filename)) == True:
-        return filename
+        # if that didn't work, try for the redacted names
+        filenames = (
+            "{FASTQ_DIR}/{SAMPLE}_R1.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+            "{FASTQ_DIR}/{SAMPLE}_R2.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        )
 
-    print("Check your --fastq and --fastq-dir parameters")
-    quit(1)
+        if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
+            print(
+                "Unable to locate the R1 or R2 files at {R1} and {R2}".format(
+                    R1=filenames[0],
+                    R2=filenames[1],
+                )
+            )
+            print("Check your --sample and --fastq-dir parameters")
+            quit(1)
+
+    return filenames
+
+
+def getTrimmedFileNames(options: OptionsDict) -> FastqSet:
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+
+    return (
+        "{PIPELINE}/{SAMPLE}_R1.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
+        "{PIPELINE}/{SAMPLE}_R2.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
+    )
+
+
+def runIdentityPreprocessor(
+    script: TextIOWrapper,
+    r1: str,
+    r2: str,
+    o1: str,
+    o2: str,
+):
+    script.write(
+        """
+#
+# run the fastp preprocessor
+#
+if [[ ! -f {O1} || ! -f {O2} ]]; then
+    logthis "${{yellow}}Running identity preprocessor${{reset}}"
+
+    ln -s {R1} {O1}
+    ln -s {R2} {O2}
+
+    logthis "${{yellow}}Identity preprocessor completed${{reset}}"
+else
+    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            R1=r1,
+            R2=r2,
+            O1=o1,
+            O2=o2,
+        )
+    )
+
+
+def runFastpPreprocessor(
+    script: TextIOWrapper,
+    r1: str,
+    r2: str,
+    o1: str,
+    o2: str,
+    options: OptionsDict,
+):
+    reference = options["reference"]
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+    adapters = options["adapters"]
+    threads = options["cores"]
+    stats = options["stats"]
+    bin = options["bin"]
+    readLimit = int(options["read-limit"])
+
+    #
+    # fastp is limited to 8 threads, so we use them
+    #
+
+    script.write(
+        """
+#
+# run the fastp preprocessor
+#
+if [[ ! -f {O1} || ! -f {O2} ]]; then
+    logthis "${{yellow}}Running FASTP preprocessor${{reset}}"
+
+    fastp \\
+        --report_title "fastp report for sample {SAMPLE}" \\
+        --in1 {R1} \\
+        --in2 {R2} \\
+        --out1 {O1} \\
+        --out2 {O2} \\
+        {ADAPTERS} \\
+        --verbose {LIMITREADS} \\
+        --thread 8 \\
+        -j {STATS}/{SAMPLE}-fastp.json \\
+        -h {STATS}/{SAMPLE}-fastp.html
+
+    logthis "${{yellow}}FASTP preprocessor completed${{reset}}"
+else
+    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            R1=r1,
+            R2=r2,
+            O1=o1,
+            O2=o2,
+            REFERENCE=reference,
+            ADAPTERS="--adapter_fasta " + adapters if adapters != "" else "--detect_adapter_for_pe",
+            SAMPLE=sample,
+            THREADS=threads,
+            PIPELINE=pipeline,
+            STATS=stats,
+            BIN=bin,
+            LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
+        )
+    )
+
+
+def runTrimmomaticPreprocessor(
+    script: TextIOWrapper,
+    r1: str,
+    r2: str,
+    o1: str,
+    o2: str,
+    options: OptionsDict,
+):
+    bin = options["bin"]
+    sample = options["sample"]
+    stats = options["stats"]
+
+    u1 = o1.replace(".trimmed", ".unpaired")
+    u2 = o2.replace(".trimmed", ".unpaired")
+
+    script.write(
+        """
+#
+# run the trimmomatic preprocessor
+#
+if [[ ! -f {O1} || ! -f {O2} ]]; then
+    logthis "${{yellow}}Running trimmomatic preprocessor${{reset}}"
+
+    java -jar {BIN}/trimmomatic-0.39.jar PE \\
+        {R1} \\
+        {R2} \\
+        {O1} {U1} \\
+        {O2} {U2} \\
+        ILLUMINACLIP:{BIN}/adapters/TruSeq3-PE-2.fa:2:30:10 \\
+        LEADING:5 \\
+        TRAILING:5 \\
+        SLIDINGWINDOW:4:20 \\
+        MINLEN:30 2> {STATS}/{SAMPLE}_trim_out.log
+
+    logthis "${{yellow}}trimmomatic preprocessor completed${{reset}}"
+else
+    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            R1=r1, R2=r2, O1=o1, O2=o2, U1=u1, U2=u2, STATS=stats, SAMPLE=sample, BIN=bin
+        )
+    )
+
+
+def runTrimGalore(
+    script: TextIOWrapper,
+    r1: str,
+    r2: str,
+    o1: str,
+    o2: str,
+    options: OptionsDict,
+):
+    bin = options["bin"]
+    sample = options["sample"]
+    threads = options["cores"]
+    pipeline = options["pipeline"]
+    stats = options["stats"]
+
+    #
+    # trim_galore is limited to 8 threads, so we use them
+    #
+
+    script.write(
+        """
+#
+# run the trim galore preprocessor
+#
+if [[ ! -f {O1} || ! -f {O2} ]]; then
+    logthis "${{yellow}}Running trim galore preprocessor${{reset}}"
+
+    trim_galore \\
+        --cores 8 \\
+        --paired \\
+        --clip_R2 10 \\
+        --basename {SAMPLE} \\
+        --output_dir {PIPELINE} \\
+        -a NNNNNNNNNNAGATCGGAAGAGCACACGTCTGAACTCCAGTCAC \\
+        -a2 AGATCGGAAGAGCGTCGTGTAGGGAAAGA \\
+        {R1} \\
+        {R2} 2> {STATS}/{SAMPLE}_trim_out.log
+
+    mv {PIPELINE}/{SAMPLE}_val_1.fq.gz {O1}
+    mv {PIPELINE}/{SAMPLE}_val_2.fq.gz {O2}
+
+    logthis "${{yellow}}trim galore preprocessor completed${{reset}}"
+else
+    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            R1=r1, R2=r2, O1=o1, O2=o2, BIN=bin, THREADS=threads, STATS=stats, SAMPLE=sample, PIPELINE=pipeline
+        )
+    )
+
+
+def preprocessFASTQ(
+    script: TextIOWrapper,
+    r1: str,
+    r2: str,
+    o1: str,
+    o2: str,
+    options: OptionsDict,
+):
+    preprocessor = options["preprocessor"]
+
+    if preprocessor == "none":
+        runIdentityPreprocessor(script, r1, r2, o1, o2)
+    elif preprocessor == "fastp":
+        runFastpPreprocessor(script, r1, r2, o1, o2, options)
+    elif preprocessor == "trimmomatic":
+        runTrimmomaticPreprocessor(script, r1, r2, o1, o2, options)
+    elif preprocessor == "trimgalore":
+        runTrimGalore(script, r1, r2, o1, o2, options)
+    else:
+        print("Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(PREPROCESSOR=preprocessor))
+        quit(1)
+
+    pass
 
 
 def runBwaAligner(
     script: TextIOWrapper,
     o1: str,
+    o2: str,
     options: OptionsDict,
 ):
     aligner = options["aligner"]
@@ -1066,15 +1334,14 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
     logthis "${{yellow}}Running aligner${{reset}}"
 
     {ALIGNER} mem \\
-        -R "@RG\\tID:{SAMPLE}\\tPL:IONTORRENT\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+        -R "@RG\\tID:{SAMPLE}\\tPL:ILLUMINA\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
         -t {THREADS} \\
         -Y \\
         -M \\
         -v 1 \\
-        -S \\
-        -P \\
         {REFERENCE}/{ASSEMBLY}.fna \\
-        {O1} | 
+        {O1} \\
+        {O2} | 
     samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.aligned.bam
 
     logthis "${{yellow}}Alignment completed${{reset}}"
@@ -1085,6 +1352,7 @@ fi
 """.format(
             ALIGNER=aligner,
             O1=o1,
+            O2=o2,
             ASSEMBLY=assembly,
             REFERENCE=reference,
             SAMPLE=sample,
@@ -1098,6 +1366,7 @@ fi
 def runHisatAligner(
     script: TextIOWrapper,
     o1: str,
+    o2: str,
     options: OptionsDict,
 ):
     reference = options["reference"]
@@ -1118,8 +1387,9 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
     hisat2 \\
             -x {REFERENCE}/{ASSEMBLY} \\
             -1 {O1} \\
+            -2 {O2} \\
             --rg-id "ID:{SAMPLE}" \\
-            --rg "PL:IONTORRENT" \\
+            --rg "PL:ILLUMINA" \\
             --rg "PU:unspecified" \\
             --rg "LB:{SAMPLE}" \\
             --rg "SM:{SAMPLE}" \\
@@ -1134,6 +1404,7 @@ else
 fi
 """.format(
             O1=o1,
+            O2=o2,
             REFERENCE=reference,
             ASSEMBLY=assembly,
             SAMPLE=sample,
@@ -1147,14 +1418,15 @@ fi
 def alignFASTQ(
     script: TextIOWrapper,
     o1: str,
+    o2: str,
     options: OptionsDict,
 ):
     aligner = options["aligner"]
 
     if aligner == "bwa" or aligner == "bwa-mem2":
-        runBwaAligner(script, o1, options)
+        runBwaAligner(script, o1, o2, options)
     elif aligner == "hisat2":
-        runHisatAligner(script, o1, options)
+        runHisatAligner(script, o1, o2, options)
     else:
         print("Unexpected value {ALIGNER} given for the --aligner option".format(ALIGNER=aligner))
         quit(1)
@@ -1171,13 +1443,14 @@ def extractUmappedReads(script: TextIOWrapper, options: OptionsDict):
 #
 # extract unmapped reads
 #
-if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped_R1.fastq ]]; then
+if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped_R1.fastq || ! -f {PIPELINE}/{SAMPLE}_unmapped_R2.fastq ]]; then
     logthis "${{yellow}}Extracting unmapped reads${{reset}}"
 
     samtools fastq -N -f 4 \\
         -0 {PIPELINE}/{SAMPLE}_unmapped_other.fastq \\
         -s {PIPELINE}/{SAMPLE}_unmapped_singleton.fastq \\
-        -1 {PIPELINE}/{SAMPLE}_unmapped.fastq \\
+        -1 {PIPELINE}/{SAMPLE}_unmapped_R1.fastq \\
+        -2 {PIPELINE}/{SAMPLE}_unmapped_R2.fastq \\
         {PIPELINE}/{SAMPLE}.aligned.bam
 
     logthis "${{yellow}}Unmapped read extraction completed${{reset}}"
@@ -1220,14 +1493,17 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict):
     processUnmapped = options["processUnmapped"]
     alignOnly = options["alignOnly"]
 
-    filename = getFileName(options)
+    filenames = getFileNames(options)
+    trimmedFilenames = getTrimmedFileNames(options)
 
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
     script.write("#\n")
 
-    alignFASTQ(script, filename, options)
+    preprocessFASTQ(script, filenames[0], filenames[1], trimmedFilenames[0], trimmedFilenames[1], options)
+    alignFASTQ(script, trimmedFilenames[0], trimmedFilenames[1], options)
     sortAlignedAndMappedData(script, options)
+    generateDepth(script, options)
 
     if processUnmapped == True:
         extractUmappedReads(script, options)
@@ -1243,7 +1519,7 @@ exit
         )
 
 
-def writeHeader(script: TextIOWrapper, options: OptionsDict, filename: str):
+def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastqSet):
     script.write("#\n")
     script.write("# generated at {TIME}\n".format(TIME=datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     script.write("#\n")
@@ -1253,31 +1529,23 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filename: str):
     script.write("#\n")
 
     script.write("#\n")
-    script.write("# FASTQ = {F}\n".format(F=filename))
+    script.write("# Input files\n")
+    script.write("#   R1 = {F}\n".format(F=filenames[0]))
+    script.write("#   R2 = {F}\n".format(F=filenames[1]))
     script.write("#\n")
 
 
 def defineArguments() -> Namespace:
     parser = argparse.ArgumentParser()
     parser.set_defaults(doQC=False, cleanIntermediateFiles=True)
-
     parser.add_argument(
         "--sample",
         required=True,
         action="store",
         metavar="SAMPLE",
         dest="sample",
-        help="Short name of sample, all files will use this as an alias",
+        help="short name of sample, e.g. DPZw_k file must be in <WORKING>/pipeline/<sample>_R[12].fastq.gz",
     )
-    parser.add_argument(
-        "--fastq",
-        required=True,
-        action="store",
-        metavar="FASTQ",
-        dest="fastq",
-        help="Path name of FASTQ relative to --fastq-dir",
-    )
-
     parser.add_argument(
         "--work-dir",
         required=True,
@@ -1314,6 +1582,15 @@ def defineArguments() -> Namespace:
         dest="skipFastQc",
         default=False,
         help="Skip running FASTQC statistics",
+    )
+
+    parser.add_argument(
+        "--preprocessor",
+        action="store",
+        dest="preprocessor",
+        default="none",
+        choices=["trimmomatic", "fastp", "trimgalore", "none"],
+        help="Optionally run a FASTQ preprocessor",
     )
 
     parser.add_argument(
@@ -1355,8 +1632,8 @@ def defineArguments() -> Namespace:
         action="store",
         dest="caller",
         default="bcftools",
-        choices=["bcftools", "gatk"],
-        help="Use `bcftools` or `gatk` as the variant caller",
+        choices=["bcftools", "gatk", "lofreq"],
+        help="Use `bcftools`, `gatk`, or `lofreq` as the variant caller",
     )
 
     parser.add_argument(
@@ -1493,19 +1770,17 @@ def defineArguments() -> Namespace:
 
 
 def verifyFileNames(options: OptionsDict):
-    fastq = options["fastq"]
-    fastq_dir = options["fastq_dir"]
+    filenames = getFileNames(options)
 
-    if exists(expandvars(fastq)) == True:
-        return fastq
-
-    filename = "{FASTQ_DIR}/{FASTQ}".format(FASTQ_DIR=fastq_dir, FASTQ=fastq)
-
-    if exists(expandvars(filename)) == True:
-        return filename
-
-    print("Check your --fastq and --fastq-dir parameters")
-    quit(1)
+    if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
+        print(
+            "Unable to locate the R1 or R2 files at {R1} and {R2}".format(
+                R1=filenames[0],
+                R2=filenames[1],
+            )
+        )
+        print("Check your --sample and --work-dir parameters")
+        quit(1)
 
 
 def main():
@@ -1514,13 +1789,13 @@ def main():
     verifyFileNames(options)
     verifyOptions(options)
 
-    filename = getFileName(options)
+    filenames = getFileNames(options)
 
     with open(options["script"], "w+") as script:
         script.truncate(0)
 
         script.write("#!/usr/bin/env bash\n")
-        writeHeader(script, options, filename)
+        writeHeader(script, options, filenames)
         writeVersions(script)
         writeEnvironment(script, options)
 

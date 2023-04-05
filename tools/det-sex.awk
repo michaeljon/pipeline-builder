@@ -15,7 +15,7 @@ $1 ~ /^NC_000024.10/ {
 END {
     if (ycov > 0) {
         ratio = xcov / ycov
-        sex = ratio < 2.0 ? "F" : "M"
+        sex = ratio < 2.0 ? "M" : "F"
 
         printf "%s\t%s\t%.4f\t%s\n", SEQUENCE, SAMPLE, ratio, sex
     } else {
