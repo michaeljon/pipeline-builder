@@ -3,7 +3,7 @@
 echo "This script uses a handful of, well, interesting build components that "
 echo "do not come standard on MacOS. So, before you get started you'll want to"
 echo ""
-echo "brew install cmake jsoncpp gcc-11 boost nasm libgit2"
+echo "brew install cmake jsoncpp gcc boost nasm libgit2 llvm autoconf gsl pkg-config libomp"
 echo ""
 
 ROOT=$(pwd)
@@ -15,7 +15,8 @@ mkdir -p \
     stats \
     components \
     tmp \
-    perl5
+    perl5 \
+    reference
 
 mkdir -p \
     reference/GRCh38.p14 \
@@ -25,8 +26,35 @@ mkdir -p \
     reference/hcov-nl63 \
     reference/hcov-oc43 \
     reference/hcov-panel \
+    reference/hrv-a \
+    reference/hrv-b \
+    reference/hrv-c \
+    reference/hrv-panel \
+    reference/blast-panel \
     reference/sars-cov-2 \
     reference/vep-data
+
+echo "Setting environment variables for build (gcc and friends)"
+export CCVERSION=12
+export CCVERSION=12
+
+if [[ "$(uname -m)" == "arm64" ]]; then
+    export CCPATH=/opt/homebrew/bin
+    export CC=/opt/homebrew/bin/gcc-${CCVERSION}
+    export CXX=/opt/homebrew/bin/g++-${CCVERSION}
+    export CXXCPP=/opt/homebrew/bin/cpp-${CCVERSION}
+    export CFLAGS="-I/Users/michaeljon/pipeline/include -I/opt/homebrew/include -Wno-deprecated-declarations  -Wno-unused-result"
+    export CXXFLAGS=${CFLAGS}
+    export LDFLAGS="-L/Users/michaeljon/pipeline/lib -L/opt/homebrew/lib"
+else
+    export CCPATH=/usr/local/bin
+    export CC=/usr/local/bin/gcc-${CCVERSION}
+    export CXX=/usr/local/bin/g++-${CCVERSION}
+    export CXXCPP=/usr/local/bin/cpp-${CCVERSION}
+    export CFLAGS="-I/usr/local/include -Wno-deprecated-declarations  -Wno-unused-result"
+    export CXXFLAGS=${CFLAGS}
+    export LDFLAGS="-L/usr/local/lib"
+fi
 
 # get a couple of tools for later
 cd ${ROOT}/bin
@@ -34,14 +62,18 @@ cd ${ROOT}/bin
 curl -L -O http://xrl.us/cpanm >cpanm
 chmod 755 cpanm
 
-pip install --upgrade pip setuptools
-pip install --user cutadapt
-pip install --user bgzip
+pip3 install --upgrade pip setuptools
+pip3 install --user cutadapt
+pip3 install --user bgzip
 
 # download and unpack
 cd ${ROOT}/components
 
 echo "Downloading SAMTOOLS components"
+if [[ ! -f htslib-1.16.tar.bz2 ]]; then
+    curl --silent https://github.com/samtools/htslib/releases/download/1.16/htslib-1.16.tar.bz2 --location -O
+fi
+
 if [[ ! -f samtools-1.16.tar.bz2 ]]; then
     curl --silent https://github.com/samtools/samtools/releases/download/1.16/samtools-1.16.tar.bz2 --location -O
 fi
@@ -50,8 +82,8 @@ if [[ ! -f bcftools-1.16.tar.bz2 ]]; then
     curl --silent https://github.com/samtools/bcftools/releases/download/1.16/bcftools-1.16.tar.bz2 --location -O
 fi
 
-if [[ ! -f htslib-1.16.tar.bz2 ]]; then
-    curl --silent https://github.com/samtools/htslib/releases/download/1.16/htslib-1.16.tar.bz2 --location -O
+if [[ ! -f gsl-latest.tar.gz ]]; then
+    curl --silent https://mirror.ibcp.fr/pub/gnu/gsl/gsl-latest.tar.gz --location -O
 fi
 
 echo "Downloading BAMTOOLS components"
@@ -88,12 +120,12 @@ if [[ ! -f fastqc_v0.11.9.zip ]]; then
 fi
 
 echo "Downloading BIOBAMBAM components"
-if [[ ! -f libmaus2-2.0.810-release-20220216151520.tar.gz ]]; then
-    curl --silent https://gitlab.com/german.tischler/libmaus2/-/archive/2.0.810-release-20220216151520/libmaus2-2.0.810-release-20220216151520.tar.gz --location -O
+if [[ ! -f libmaus2-2.0.813-release-20221210220409.tar.gz ]]; then
+    curl --silent https://gitlab.com/german.tischler/libmaus2/-/archive/2.0.813-release-20221210220409/libmaus2-2.0.813-release-20221210220409.tar.gz --location -O
 fi
 
-if [[ ! -f biobambam2-2.0.183-release-20210802180148.tar.gz ]]; then
-    curl --silent https://gitlab.com/german.tischler/biobambam2/-/archive/2.0.183-release-20210802180148/biobambam2-2.0.183-release-20210802180148.tar.gz --location -O
+if [[ ! -f biobambam2-2.0.185-release-20221211202123.tar.gz ]]; then
+    curl --silent https://gitlab.com/german.tischler/biobambam2/-/archive/2.0.185-release-20221211202123/biobambam2-2.0.185-release-20221211202123.tar.gz --location -O
 fi
 
 echo "Downloading trimgalore"
@@ -111,7 +143,7 @@ if [[ ! -f pigz.tgz ]]; then
 fi
 
 if [[ ! -f zlib-1.2.12.tar.gz ]]; then
-    curl --silent https://zlib.net/zlib-1.2.12.tar.gz --location -O
+    curl --silent https://zlib.net/zlib-1.2.13.tar.gz --location -O
 fi
 
 echo "Downloading vcftools"
@@ -144,18 +176,18 @@ if [[ "${system}" == "Darwin" ]]; then
     if [[ "${arch}" == "x86_64" ]]; then
         if [[ ! -f nextclade ]]; then
             echo "Downloading nextclade for Intel MacOS"
-            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.11.0/nextclade-x86_64-apple-darwin --location -o nextclade
+            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.13.1/nextclade-x86_64-apple-darwin --location -o nextclade
         fi
     else
         if [[ ! -f nextclade ]]; then
             echo "Downloading nextclade for ARM MacOS"
-            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.11.0/nextclade-aarch64-apple-darwin --location -o nextclade
+            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.13.1/nextclade-aarch64-apple-darwin --location -o nextclade
         fi
     fi
 elif [[ "${system}" == "Linux" ]]; then
     if [[ ! -f nextclade ]]; then
         echo "Downloading nextclade for Intel Linux"
-        curl --silent https://github.com/nextstrain/nextclade/releases/download/2.11.0/nextclade-x86_64-unknown-linux-gnu --location -o nextclade
+        curl --silent https://github.com/nextstrain/nextclade/releases/download/2.13.1/nextclade-x86_64-unknown-linux-gnu --location -o nextclade
     fi
 else
     echo "Nextclade not supported on your platform, maybe"
@@ -213,7 +245,8 @@ curl --silent https://bitbucket.org/kokonech/qualimap/downloads/qualimap_v2.2.1.
 echo "Unpacking source code"
 cd ${ROOT}/src
 for t in ${ROOT}/components/*.tgz ${ROOT}/components/*.tar.gz ${ROOT}/components/*.tar.bz2; do
-    tar xzf $t
+    echo $t
+    tar xf $t
 done
 
 for z in ${ROOT}/components/*.zip; do
@@ -224,33 +257,18 @@ echo "Installing a few standalone / non-build tools"
 cp ${ROOT}/components/nextclade ${ROOT}/bin/nextclade && chmod +x ${ROOT}/bin/nextclade
 mv ${ROOT}/src/snpEff ${ROOT}/bin/snpEff
 
-echo "Setting environment variables for build (gcc and friends)"
-export CCPATH=/usr/local/bin
-export CCVERSION=12
-export CC=/usr/local/bin/gcc-12
-export CXX=/usr/local/bin/g++-12
-export CXXCPP=/usr/local/bin/cpp-12
-export CFLAGS="-I/usr/local/include -Wno-deprecated-declarations  -Wno-unused-result"
-export CXXFLAGS=${CFLAGS}
-export LDFLAGS="-L/usr/local/lib"
-
 echo "Building SAMTOOLS components"
 cd ${ROOT}/src/htslib-1.16
-autoreconf -i
 ./configure --prefix=${ROOT} --exec-prefix=${ROOT}
 make
 make install
 
 cd ${ROOT}/src/samtools-1.16
-autoheader
-autoreconf -Wno-syntax
 ./configure --prefix=${ROOT} --exec-prefix=${ROOT} --with-htslib=${ROOT}
 make
 make install
 
 cd ${ROOT}/src/bcftools-1.16
-autoheader
-autoconf
 ./configure --enable-libgsl --enable-perl-filters --prefix=${ROOT} --exec-prefix=${ROOT} --with-htslib=${ROOT}
 make
 make install
@@ -318,12 +336,23 @@ make prefix=${ROOT}
 make install prefix=${ROOT}
 
 echo "Building BIOBAMBAM and components - this'll take a while"
-cd ${ROOT}/src/libmaus2-2.0.810-release-20220216151520
+cd ${ROOT}/src/libmaus2-2.0.813-release-20221210220409
 ./configure --enable-compile-testprograms=no --prefix=${ROOT}
+
+# there's another patch required here, in src/libmaus2/types/types.h there's missing
+# include for sys/sysctl.h inside the #if defined(__APPLE__) block. this is near
+# line 56 for now
+#
+#     #if defined(__APPLE__)
+#     #include <stdint.h>
+#     #include <sys/sysctl.h>
+#     #endif
+#
+
 make
 make install prefix=${ROOT}
 
-cd ${ROOT}/src/biobambam2-2.0.183-release-20210802180148
+cd ${ROOT}/src/biobambam2-2.0.185-release-20221211202123
 ./configure --prefix=${ROOT} --with-libmaus2=${ROOT}
 make
 make install prefix=${ROOT}
@@ -353,14 +382,25 @@ make install PREFIX=${ROOT}
 # cp tophat ${ROOT}/bin
 
 cd ${ROOT}/src/hisat2
-make GCC_PREFIX=${CCPATH} GCC_SUFFIX=-${CCVERSION}
+
+# used for pulling an arm-friendly branch that's approved but not merged
+gh pr checkout 251
+git submodule update --init --recursive
+make GCC_PREFIX=${CCPATH} GCC_SUFFIX=-${CCVERSION} all
+
 HISAT2_BIN_LIST=(hisat2 hisat2-build hisat2-build-s hisat2-build-l hisat2-align-s hisat2-align-l hisat2-inspect hisat2-inspect-s hisat2-inspect-l hisat2-repeat)
 for f in ${HISAT2_BIN_LIST}; do cp $f ${ROOT}/bin; done
 cp *.py ${ROOT}/bin
 
 cd ${ROOT}/src/minimap2
-make
+if [[ "$(uname -m)" == "arm64" ]]; then
+    make arm_neon=1 aarch64=1
+else
+    make
+fi
+
 mv minimap2 ${ROOT}/bin
+mv minimap2.1 ${ROOT}/share/man/man1
 
 echo "Building fastp last, make sure you applied the patch"
 echo "TODO: apply kallisto.patch"
