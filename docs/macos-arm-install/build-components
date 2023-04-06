@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+
+ROOT_DIR=${HOME}/pipeline
+
+# setting up compilation flags, most stuff only builds with "real" GCC
+export CCVERSION=12
+export CCPATH=/opt/homebrew/bin
+export CC=/opt/homebrew/bin/gcc-${CCVERSION}
+export CXX=/opt/homebrew/bin/g++-${CCVERSION}
+export CXXCPP=/opt/homebrew/bin/cpp-${CCVERSION}
+export CFLAGS="-I${HOME}/pipeline/include -I/opt/homebrew/include -Wno-deprecated-declarations  -Wno-unused-result"
+export CXXFLAGS=${CFLAGS}
+export LDFLAGS="-L${HOME}/pipeline/lib -L/opt/homebrew/lib"
+export PKG_CONFIG_PATH=${ROOT_DIR}/lib/pkgconfig:$PKG_CONFIG_PATH
+
+echo "Build zlib, zlib-ng, and pigz components"
+cd ${ROOT_DIR}/src/zlib-ng-2.0.7
+./configure --zlib-compat
+make
+make install prefix=${ROOT_DIR}
+
+cd ${ROOT_DIR}/src/zlib-1.2.13
+./configure --prefix=${ROOT_DIR} --eprefix=${ROOT_DIR}
+make
+make install prefix=${ROOT_DIR}
+
+cd ${ROOT_DIR}/src/pigz-2.7
+make
+cp pigz ${ROOT_DIR}/bin
+cp unpigz ${ROOT_DIR}/bin
+
+echo "Building SAMTOOLS components"
+cd ${ROOT_DIR}/src/htslib-1.17
+./configure --prefix=${ROOT_DIR} --exec-prefix=${ROOT_DIR}
+make
+make install prefix=${ROOT_DIR}
+
+cd ${ROOT_DIR}/src/samtools-1.17
+./configure --prefix=${ROOT_DIR} --exec-prefix=${ROOT_DIR} \
+    --with-htslib=${ROOT_DIR} --without-curses
+make
+make install prefix=${ROOT_DIR}
+
+cd ${ROOT_DIR}/src/bcftools-1.17
+./configure --prefix=${ROOT_DIR} --exec-prefix=${ROOT_DIR} \
+    --enable-libgsl --enable-perl-filters --with-htslib=${ROOT_DIR} \
+    --with-bcf-plugin-path=${ROOT_DIR}/libexec
+make
+make install prefix=${ROOT_DIR}
+
+echo "Building BAMTOOLS components"
+cd ${ROOT_DIR}/src/bamtools-2.5.2
+rm -rf build && mkdir -p build && cd build
+cmake -DCMAKE_INSTALL_PREFIX=${ROOT_DIR} ..
+make
+make install
+
+echo "Building BEDTOOLS components"
+# bedtools has its own htslib and samtools and bamtools...
+cd ${ROOT_DIR}/src/bedtools2
+SAVE_CXXFLAGS=${CXXFLAGS}
+SAVE_LDFLAGS=${LDFLAGS}
+export CXXFLAGS="-I/opt/homebrew/include -Wno-deprecated-declarations  -Wno-unused-result"
+export LDFLAGS="-L/opt/homebrew/lib"
+make prefix=${ROOT_DIR} CXX=${CXX} CC=${CC}
+make install prefix=${ROOT_DIR} CXX=${CXX} CC=${CC}
+export CXXFLAGS=${SAVE_CXXFLAGS}
+export LDFLAGS=${SAVE_LDFLAGS}
+
+echo "Building vcftools"
+cd ${ROOT_DIR}/src/vcftools-0.1.16
+ZLIB_LIBS="-L${ROOT_DIR}/lib"
+ZLIB_CFLAGS="-I${ROOT_DIR}/include"
+./configure --prefix=${ROOT_DIR} --exec-prefix=${ROOT_DIR} --enable-pca
+make
+make install
+
+echo "Build BWA components"
+cd ${ROOT_DIR}/src/bwa
+make
+cp bwa ${ROOT_DIR}/bin
+
+cd ${ROOT_DIR}/src/hisat2
+gh pr checkout 251
+git submodule update --init --recursive
+make GCC_PREFIX=${CCPATH} GCC_SUFFIX=-${CCVERSION} all
+HISAT2_BIN_LIST="hisat2 hisat2-build hisat2-build-s hisat2-build-l hisat2-align-s hisat2-align-l hisat2-inspect hisat2-inspect-s hisat2-inspect-l hisat2-repeat"
+for f in ${HISAT2_BIN_LIST}; do
+    echo $f
+    cp $f ${ROOT_DIR}/bin
+done
+cp *.py ${ROOT_DIR}/bin
+
+cd ${ROOT_DIR}/src/star/source
+make CXXFLAGSextra="-I${ROOT_DIR}/include" LDFLAGSextra="-L${ROOT_DIR}/lib" CXXFLAGS_SIMD="" STARforMacStatic
+cp STAR ${ROOT_DIR}/bin
+
+cd ${ROOT_DIR}/src/minimap2-2.24
+make arm_neon=1 aarch64=1
+cp minimap2 ${ROOT_DIR}/bin
+cp minimap2.1 ${ROOT_DIR}/share/man/man1
+
+echo "Building BIOBAMBAM and components - this'll take a while"
+cd ${ROOT_DIR}/src/libmaus2-2.0.813-release-20221210220409
+./configure --enable-compile-testprograms=no --prefix=${ROOT_DIR}
+gsed -i '/#if defined(__APPLE__)/a#include <sys/sysctl.h>' src/libmaus2/types/types.hpp
+make
+make install prefix=${ROOT_DIR}
+
+cd ${ROOT_DIR}/src/biobambam2-2.0.185-release-20221211202123
+./configure --prefix=${ROOT_DIR} --with-libmaus2=${ROOT_DIR}
+make
+make install prefix=${ROOT_DIR}
+
+cd ${ROOT_DIR}/src/Nirvana-3.18.1
+dotnet publish --use-current-runtime --no-self-contained --configuration Release --nologo
+mv bin/Release/net6.0/linux-x64/publish ${ROOT_DIR}/bin/nirvana
