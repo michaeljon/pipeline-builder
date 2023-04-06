@@ -62,6 +62,9 @@ curl --silent https://bitbucket.org/kokonech/qualimap/downloads/qualimap_v2.2.1.
 curl --silent https://github.com/vcftools/vcftools/releases/download/v0.1.16/vcftools-0.1.16.tar.gz --location -o ${ROOT_DIR}/components/vcftools.tgz &&
     tar xf ${ROOT_DIR}/components/vcftools.tgz -C ${ROOT_DIR}/src
 
+curl --silent https://github.com/shenwei356/seqkit/releases/download/v2.4.0/seqkit_darwin_arm64.tar.gz --location -o ${ROOT_DIR}/components/seqkit.tgz &&
+    tar xf ${ROOT_DIR}/components/seqkit.tgz -C ${ROOT_DIR}/bin
+
 # gatk and picard
 curl --silent https://github.com/broadinstitute/gatk/releases/download/4.4.0.0/gatk-4.4.0.0.zip --location -o ${ROOT_DIR}/components/gatk.zip &&
     unzip ${ROOT_DIR}/components/gatk.zip -d ${ROOT_DIR}/bin

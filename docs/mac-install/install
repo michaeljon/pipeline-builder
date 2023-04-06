@@ -36,7 +36,6 @@ mkdir -p \
 
 echo "Setting environment variables for build (gcc and friends)"
 export CCVERSION=12
-export CCVERSION=12
 
 if [[ "$(uname -m)" == "arm64" ]]; then
     export CCPATH=/opt/homebrew/bin
