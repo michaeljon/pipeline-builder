@@ -172,25 +172,26 @@ echo "Downloading nextclade"
 system=$(uname -s)
 arch=$(uname -m)
 
-if [[ "${system}" == "Darwin" ]]; then
-    if [[ "${arch}" == "x86_64" ]]; then
-        if [[ ! -f nextclade ]]; then
+if [[ ! -f nextclade ]]; then
+    if [[ "${system}" == "Darwin" ]]; then
+        if [[ "${arch}" == "x86_64" ]]; then
             echo "Downloading nextclade for Intel MacOS"
             curl --silent https://github.com/nextstrain/nextclade/releases/download/2.13.1/nextclade-x86_64-apple-darwin --location -o nextclade
-        fi
-    else
-        if [[ ! -f nextclade ]]; then
+        else
             echo "Downloading nextclade for ARM MacOS"
             curl --silent https://github.com/nextstrain/nextclade/releases/download/2.13.1/nextclade-aarch64-apple-darwin --location -o nextclade
         fi
+    elif [[ "${system}" == "Linux" ]]; then
+        if [[ "${arch}" == "x86_64" ]]; then
+            echo "Downloading nextclade for Intel Linux"
+            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.13.1/nextclade-x86_64-unknown-linux-gnu --location -o nextclade
+        else
+            echo "Downloading nextclade for ARM Linux"
+            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.13.1/nextclade-aarch64-unknown-linux-gnu --location -o nextclade
+        fi
+    else
+        echo "Nextclade not supported on your platform, maybe"
     fi
-elif [[ "${system}" == "Linux" ]]; then
-    if [[ ! -f nextclade ]]; then
-        echo "Downloading nextclade for Intel Linux"
-        curl --silent https://github.com/nextstrain/nextclade/releases/download/2.13.1/nextclade-x86_64-unknown-linux-gnu --location -o nextclade
-    fi
-else
-    echo "Nextclade not supported on your platform, maybe"
 fi
 
 #
@@ -258,17 +259,17 @@ cp ${ROOT}/components/nextclade ${ROOT}/bin/nextclade && chmod +x ${ROOT}/bin/ne
 mv ${ROOT}/src/snpEff ${ROOT}/bin/snpEff
 
 echo "Building SAMTOOLS components"
-cd ${ROOT}/src/htslib-1.16
+cd ${ROOT}/src/htslib-1.17
 ./configure --prefix=${ROOT} --exec-prefix=${ROOT}
 make
 make install
 
-cd ${ROOT}/src/samtools-1.16
+cd ${ROOT}/src/samtools-1.17
 ./configure --prefix=${ROOT} --exec-prefix=${ROOT} --with-htslib=${ROOT}
 make
 make install
 
-cd ${ROOT}/src/bcftools-1.16
+cd ${ROOT}/src/bcftools-1.17
 ./configure --enable-libgsl --enable-perl-filters --prefix=${ROOT} --exec-prefix=${ROOT} --with-htslib=${ROOT}
 make
 make install
@@ -309,7 +310,7 @@ echo "TODO: make"
 echo "TODO: cp bwa-* ${ROOT}/bin"
 
 echo "Build zlib, zlib-ng, and pigz components"
-cd ${ROOT}/src/zlib-ng-2.0.6
+cd ${ROOT}/src/zlib-ng-2.0.7
 ./configure --zlib-compat --native
 make
 make install prefix=${ROOT}
