@@ -103,5 +103,5 @@ make
 make install prefix=${ROOT_DIR}
 
 cd ${ROOT_DIR}/src/Nirvana-3.18.1
-dotnet publish --use-current-runtime --no-self-contained --configuration Release --nologo
-mv bin/Release/net6.0/linux-x64/publish ${ROOT_DIR}/bin/nirvana
+dotnet publish --use-current-runtime --self-contained --configuration Release --nologo
+mv bin/Release/net6.0/osx-x64/publish ${ROOT_DIR}/bin/nirvana
