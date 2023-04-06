@@ -75,6 +75,9 @@ curl --silent https://gitlab.com/german.tischler/biobambam2/-/archive/2.0.185-re
 curl --silent https://github.com/FelixKrueger/TrimGalore/archive/refs/tags/0.6.10.tar.gz --location -o ${ROOT_DIR}/components/TrimGalore.tgz &&
     tar xf ${ROOT_DIR}/components/TrimGalore.tgz -C ${ROOT_DIR}/bin
 
+curl --silent https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.12.1.zip --location -o ${ROOT_DIR}/components/fastqc.zip &&
+    unzip ${ROOT_DIR}/components/fastqc.zip -d ${ROOT_DIR}/bin
+
 # linux utilities
 curl --silent https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.0.7.tar.gz --location -o ${ROOT_DIR}/components/zlib-ng.tgz &&
     tar xf ${ROOT_DIR}/components/zlib-ng.tgz -C ${ROOT_DIR}/src
