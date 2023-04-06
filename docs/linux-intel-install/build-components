@@ -35,8 +35,9 @@ make install prefix=${ROOT_DIR}
 
 echo "Building vcftools"
 cd ${ROOT_DIR}/src/vcftools-0.1.16
-ZLIB_LIBS="-L${ROOT_DIR}/lib" ./configure --prefix=${ROOT_DIR} --exec-prefix=${ROOT_DIR} \
-    --enable-pca
+ZLIB_LIBS="-L${ROOT_DIR}/lib" 
+ZLIB_CFLAGS="-I${ROOT_DIR}/include"
+./configure --prefix=${ROOT_DIR} --exec-prefix=${ROOT_DIR} --enable-pca
 make
 make install
 
