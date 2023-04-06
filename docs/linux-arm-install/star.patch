@@ -1,5 +1,5 @@
 diff --git a/source/BAMfunctions.cpp b/source/BAMfunctions.cpp
-index af6ce23..632deca 100644
+index af6ce237..632deca5 100644
 --- a/source/BAMfunctions.cpp
 +++ b/source/BAMfunctions.cpp
 @@ -1,5 +1,5 @@
@@ -10,7 +10,7 @@ index af6ce23..632deca 100644
  
  string bam_cigarString (bam1_t *b) {//output CIGAR string
 diff --git a/source/IncludeDefine.h b/source/IncludeDefine.h
-index f954448..efc896e 100755
+index f9544484..efc896e2 100755
 --- a/source/IncludeDefine.h
 +++ b/source/IncludeDefine.h
 @@ -1,7 +1,7 @@
@@ -188,7 +188,7 @@ index f954448..efc896e 100755
  
  // #define DEBUG_NreadStart 500000
 diff --git a/source/Makefile b/source/Makefile
-index 1150df7..b0d3888 100644
+index 1150df78..83884318 100644
 --- a/source/Makefile
 +++ b/source/Makefile
 @@ -12,10 +12,10 @@ CXXFLAGSextra ?=
@@ -202,7 +202,7 @@ index 1150df7..b0d3888 100644
 +LDFLAGS_shared := -pthread -Bstatic -lhts -Bdynamic -lz
 +LDFLAGS_static := -static -static-libgcc -pthread -lhts -lz -ldeflate -llzma
 +LDFLAGS_Mac :=-pthread -lz 
-+LDFLAGS_Mac_static :=-pthread -lz -static-libgcc 
++LDFLAGS_Mac_static :=-pthread -lz -lhts -static-libgcc 
  LDFLAGS_gdb := $(LDFLAGS_shared)
  
  DATE_FMT = --iso-8601=seconds
@@ -285,7 +285,7 @@ index 1150df7..b0d3888 100644
  	xxd -i parametersDefault > parametersDefault.xxd
  
 diff --git a/source/STAR.cpp b/source/STAR.cpp
-index ea1a64a..c943782 100755
+index ea1a64af..c943782e 100755
 --- a/source/STAR.cpp
 +++ b/source/STAR.cpp
 @@ -30,7 +30,7 @@
@@ -298,7 +298,7 @@ index ea1a64a..c943782 100755
  
  void usage(int usageType) {
 diff --git a/source/bamRemoveDuplicates.cpp b/source/bamRemoveDuplicates.cpp
-index 13958d0..d7cc7ee 100644
+index 13958d02..d7cc7ee3 100644
 --- a/source/bamRemoveDuplicates.cpp
 +++ b/source/bamRemoveDuplicates.cpp
 @@ -1,7 +1,7 @@
@@ -311,7 +311,7 @@ index 13958d0..d7cc7ee 100644
  #include SAMTOOLS_BGZF_H
  #include "ErrorWarning.h"
 diff --git a/source/bam_cat.c b/source/bam_cat.c
-index 944cafb..c105373 100644
+index 944cafbb..c1053737 100644
 --- a/source/bam_cat.c
 +++ b/source/bam_cat.c
 @@ -52,8 +52,8 @@ THE SOFTWARE.
@@ -447,7 +447,7 @@ index 944cafb..c105373 100644
 -
 -
 diff --git a/source/bam_cat.h b/source/bam_cat.h
-index 337d150..026ced4 100644
+index 337d150c..026ced4b 100644
 --- a/source/bam_cat.h
 +++ b/source/bam_cat.h
 @@ -1,8 +1,8 @@
@@ -462,10 +462,9 @@ index 337d150..026ced4 100644
  
  #endif
 diff --git a/source/htslib/.gitignore b/source/htslib/.gitignore
-deleted file mode 100644
-index 41b2e25..0000000
+index 41b2e257..e69de29b 100644
 --- a/source/htslib/.gitignore
-+++ /dev/null
++++ b/source/htslib/.gitignore
 @@ -1,21 +0,0 @@
 -*.o
 -*.pico
@@ -489,10 +488,9 @@ index 41b2e25..0000000
 -
 -/TAGS
 diff --git a/source/htslib/.travis.yml b/source/htslib/.travis.yml
-deleted file mode 100644
-index 3e1c43a..0000000
+index 3e1c43ad..e69de29b 100644
 --- a/source/htslib/.travis.yml
-+++ /dev/null
++++ b/source/htslib/.travis.yml
 @@ -1,8 +0,0 @@
 -# Control file for continuous integration testing at http://travis-ci.org/
 -
@@ -503,10 +501,9 @@ index 3e1c43a..0000000
 -
 -script: make -e && make test
 diff --git a/source/htslib/Makefile b/source/htslib/Makefile
-deleted file mode 100644
-index 17212d4..0000000
+index 17212d43..e69de29b 100644
 --- a/source/htslib/Makefile
-+++ /dev/null
++++ b/source/htslib/Makefile
 @@ -1,303 +0,0 @@
 -# Makefile for htslib, a C library for high-throughput sequencing data formats.
 -#
@@ -812,10 +809,9 @@ index 17212d4..0000000
 -.PHONY: clean-so install-so
 -.PHONY: clean-dylib install-dylib
 diff --git a/source/htslib/README.md b/source/htslib/README.md
-deleted file mode 100644
-index 4afb112..0000000
+index 4afb1123..e69de29b 100644
 --- a/source/htslib/README.md
-+++ /dev/null
++++ b/source/htslib/README.md
 @@ -1,17 +0,0 @@
 -HTSlib is an implementation of a unified C library for accessing common file
 -formats, such as [SAM, CRAM and VCF][1], used for high-throughput sequencing
@@ -835,10 +831,9 @@ index 4afb112..0000000
 -[3]: http://github.com/samtools/samtools
 -[4]: http://zlib.net/
 diff --git a/source/htslib/bgzf.c b/source/htslib/bgzf.c
-deleted file mode 100644
-index 1bf799b..0000000
+index 1bf799bb..e69de29b 100644
 --- a/source/htslib/bgzf.c
-+++ /dev/null
++++ b/source/htslib/bgzf.c
 @@ -1,1085 +0,0 @@
 -/* The MIT License
 -
@@ -1926,10 +1921,9 @@ index 1bf799b..0000000
 -}
 -
 diff --git a/source/htslib/bgzip.c b/source/htslib/bgzip.c
-deleted file mode 100644
-index bcd81f8..0000000
+index bcd81f8c..e69de29b 100644
 --- a/source/htslib/bgzip.c
-+++ /dev/null
++++ b/source/htslib/bgzip.c
 @@ -1,283 +0,0 @@
 -/* The MIT License
 -
@@ -2215,19 +2209,17 @@ index bcd81f8..0000000
 -    return 0;
 -}
 diff --git a/source/htslib/config.h b/source/htslib/config.h
-deleted file mode 100644
-index 6d32bf5..0000000
+index 6d32bf5f..e69de29b 100644
 --- a/source/htslib/config.h
-+++ /dev/null
++++ b/source/htslib/config.h
 @@ -1,3 +0,0 @@
 -#define _USE_KNETFILE
 -#define BGZF_CACHE
 -#define BGZF_MT
 diff --git a/source/htslib/cram/cram.h b/source/htslib/cram/cram.h
-deleted file mode 100644
-index 0b8b291..0000000
+index 0b8b2916..e69de29b 100644
 --- a/source/htslib/cram/cram.h
-+++ /dev/null
++++ b/source/htslib/cram/cram.h
 @@ -1,66 +0,0 @@
 -/*
 -Copyright (c) 2012-2013 Genome Research Ltd.
@@ -2296,10 +2288,9 @@ index 0b8b291..0000000
 -}
 -#endif
 diff --git a/source/htslib/cram/cram_codecs.c b/source/htslib/cram/cram_codecs.c
-deleted file mode 100644
-index 3c3d13f..0000000
+index 3c3d13f9..e69de29b 100644
 --- a/source/htslib/cram/cram_codecs.c
-+++ /dev/null
++++ b/source/htslib/cram/cram_codecs.c
 @@ -1,1764 +0,0 @@
 -/*
 -Copyright (c) 2012-2013 Genome Research Ltd.
@@ -4066,10 +4057,9 @@ index 3c3d13f..0000000
 -    }
 -}
 diff --git a/source/htslib/cram/cram_codecs.h b/source/htslib/cram/cram_codecs.h
-deleted file mode 100644
-index 7037814..0000000
+index 7037814c..e69de29b 100644
 --- a/source/htslib/cram/cram_codecs.h
-+++ /dev/null
++++ b/source/htslib/cram/cram_codecs.h
 @@ -1,155 +0,0 @@
 -/*
 -Copyright (c) 2012-2013 Genome Research Ltd.
@@ -4227,10 +4217,9 @@ index 7037814..0000000
 -
 -#endif /* _CRAM_ENCODINGS_H_ */
 diff --git a/source/htslib/cram/cram_decode.c b/source/htslib/cram/cram_decode.c
-deleted file mode 100644
-index 83fdaee..0000000
+index 83fdaeea..e69de29b 100644
 --- a/source/htslib/cram/cram_decode.c
-+++ /dev/null
++++ b/source/htslib/cram/cram_decode.c
 @@ -1,2138 +0,0 @@
 -/*
 -Copyright (c) 2012-2013 Genome Research Ltd.
@@ -6371,10 +6360,9 @@ index 83fdaee..0000000
 -    return cram_to_bam(fd->header, fd, s, cr, c->curr_rec-1, bam);
 -}
 diff --git a/source/htslib/cram/cram_decode.h b/source/htslib/cram/cram_decode.h
-deleted file mode 100644
-index 64b188e..0000000
+index 64b188e2..e69de29b 100644
 --- a/source/htslib/cram/cram_decode.h
-+++ /dev/null
++++ b/source/htslib/cram/cram_decode.h
 @@ -1,112 +0,0 @@
 -/*
 -Copyright (c) 2012-2013 Genome Research Ltd.
@@ -6489,10 +6477,9 @@ index 64b188e..0000000
 -
 -#endif
 diff --git a/source/htslib/cram/cram_encode.c b/source/htslib/cram/cram_encode.c
-deleted file mode 100644
-index 94c2ceb..0000000
+index 94c2cebe..e69de29b 100644
 --- a/source/htslib/cram/cram_encode.c
-+++ /dev/null
++++ b/source/htslib/cram/cram_encode.c
 @@ -1,2630 +0,0 @@
 -/*
 -Copyright (c) 2012-2013 Genome Research Ltd.
@@ -9125,10 +9112,9 @@ index 94c2ceb..0000000
 -    return 0;
 -}
 diff --git a/source/htslib/cram/cram_encode.h b/source/htslib/cram/cram_encode.h
-deleted file mode 100644
-index 9131d6e..0000000
+index 9131d6ea..e69de29b 100644
 --- a/source/htslib/cram/cram_encode.h
-+++ /dev/null
++++ b/source/htslib/cram/cram_encode.h
 @@ -1,105 +0,0 @@
 -/*
 -Copyright (c) 2012-2013 Genome Research Ltd.
@@ -9236,10 +9222,9 @@ index 9131d6e..0000000
 -
 -#endif
 diff --git a/source/htslib/cram/cram_index.c b/source/htslib/cram/cram_index.c
-deleted file mode 100644
-index d78b3e0..0000000
+index d78b3e07..e69de29b 100644
 --- a/source/htslib/cram/cram_index.c
-+++ /dev/null
++++ b/source/htslib/cram/cram_index.c
 @@ -1,503 +0,0 @@
 -/*
 -Copyright (c) 2013-2014 Genome Research Ltd.
@@ -9745,10 +9730,9 @@ index d78b3e0..0000000
 -    return zfclose(fp);
 -}
 diff --git a/source/htslib/cram/cram_index.h b/source/htslib/cram/cram_index.h
-deleted file mode 100644
-index 5e3b8f5..0000000
+index 5e3b8f5a..e69de29b 100644
 --- a/source/htslib/cram/cram_index.h
-+++ /dev/null
++++ b/source/htslib/cram/cram_index.h
 @@ -1,98 +0,0 @@
 -/*
 -Copyright (c) 2013 Genome Research Ltd.
@@ -9849,10 +9833,9 @@ index 5e3b8f5..0000000
 -
 -#endif
 diff --git a/source/htslib/cram/cram_io.c b/source/htslib/cram/cram_io.c
-deleted file mode 100644
-index 8abc59d..0000000
+index 8abc59d1..e69de29b 100644
 --- a/source/htslib/cram/cram_io.c
-+++ /dev/null
++++ b/source/htslib/cram/cram_io.c
 @@ -1,3652 +0,0 @@
 -/*
 -Copyright (c) 2012-2014 Genome Research Ltd.
@@ -13507,10 +13490,9 @@ index 8abc59d..0000000
 -    return 0;
 -}
 diff --git a/source/htslib/cram/cram_io.h b/source/htslib/cram/cram_io.h
-deleted file mode 100644
-index 165dc5e..0000000
+index 165dc5e1..e69de29b 100644
 --- a/source/htslib/cram/cram_io.h
-+++ /dev/null
++++ b/source/htslib/cram/cram_io.h
 @@ -1,532 +0,0 @@
 -/*
 -Copyright (c) 2012-2013 Genome Research Ltd.
@@ -14045,10 +14027,9 @@ index 165dc5e..0000000
 -
 -#endif /* _CRAM_IO_H_ */
 diff --git a/source/htslib/cram/cram_samtools.c b/source/htslib/cram/cram_samtools.c
-deleted file mode 100644
-index 66f2efa..0000000
+index 66f2efa4..e69de29b 100644
 --- a/source/htslib/cram/cram_samtools.c
-+++ /dev/null
++++ b/source/htslib/cram/cram_samtools.c
 @@ -1,144 +0,0 @@
 -/*
 -Copyright (c) 2010-2013 Genome Research Ltd.
@@ -14195,10 +14176,9 @@ index 66f2efa..0000000
 -    return sam_hdr_parse_(h->text, h->l_text);
 -}
 diff --git a/source/htslib/cram/cram_samtools.h b/source/htslib/cram/cram_samtools.h
-deleted file mode 100644
-index f7949d0..0000000
+index f7949d0d..e69de29b 100644
 --- a/source/htslib/cram/cram_samtools.h
-+++ /dev/null
++++ b/source/htslib/cram/cram_samtools.h
 @@ -1,97 +0,0 @@
 -/*
 -Copyright (c) 2010-2013 Genome Research Ltd.
@@ -14298,10 +14278,9 @@ index f7949d0..0000000
 -
 -#endif /* _CRAM_SAMTOOLS_H_ */
 diff --git a/source/htslib/cram/cram_stats.c b/source/htslib/cram/cram_stats.c
-deleted file mode 100644
-index 18d0605..0000000
+index 18d06056..e69de29b 100644
 --- a/source/htslib/cram/cram_stats.c
-+++ /dev/null
++++ b/source/htslib/cram/cram_stats.c
 @@ -1,357 +0,0 @@
 -/*
 -Copyright (c) 2012-2013 Genome Research Ltd.
@@ -14661,10 +14640,9 @@ index 18d0605..0000000
 -    free(st);
 -}
 diff --git a/source/htslib/cram/cram_stats.h b/source/htslib/cram/cram_stats.h
-deleted file mode 100644
-index b471e68..0000000
+index b471e68a..e69de29b 100644
 --- a/source/htslib/cram/cram_stats.h
-+++ /dev/null
++++ b/source/htslib/cram/cram_stats.h
 @@ -1,59 +0,0 @@
 -/*
 -Copyright (c) 2012-2013 Genome Research Ltd.
@@ -14726,10 +14704,9 @@ index b471e68..0000000
 -
 -#endif
 diff --git a/source/htslib/cram/cram_structs.h b/source/htslib/cram/cram_structs.h
-deleted file mode 100644
-index 6d3f1a1..0000000
+index 6d3f1a13..e69de29b 100644
 --- a/source/htslib/cram/cram_structs.h
-+++ /dev/null
++++ b/source/htslib/cram/cram_structs.h
 @@ -1,752 +0,0 @@
 -/*
 -Copyright (c) 2012-2013 Genome Research Ltd.
@@ -15484,10 +15461,9 @@ index 6d3f1a1..0000000
 -
 -#endif /* _CRAM_STRUCTS_H_ */
 diff --git a/source/htslib/cram/files.c b/source/htslib/cram/files.c
-deleted file mode 100644
-index 48f5c32..0000000
+index 48f5c32d..e69de29b 100644
 --- a/source/htslib/cram/files.c
-+++ /dev/null
++++ b/source/htslib/cram/files.c
 @@ -1,76 +0,0 @@
 -/*
 -Copyright (c) 1994, 1996-1997, 2000, 2003 MEDICAL RESEARCH COUNCIL
@@ -15566,10 +15542,9 @@ index 48f5c32..0000000
 -}
 -
 diff --git a/source/htslib/cram/mFILE.c b/source/htslib/cram/mFILE.c
-deleted file mode 100644
-index 6407b76..0000000
+index 6407b769..e69de29b 100644
 --- a/source/htslib/cram/mFILE.c
-+++ /dev/null
++++ b/source/htslib/cram/mFILE.c
 @@ -1,634 +0,0 @@
 -/*
 -Copyright (c) 2005-2006, 2008-2009, 2013 Genome Research Ltd.
@@ -16206,10 +16181,9 @@ index 6407b76..0000000
 -    mf->offset = mf->flush_pos = 0;
 -}
 diff --git a/source/htslib/cram/mFILE.h b/source/htslib/cram/mFILE.h
-deleted file mode 100644
-index 5ded9a5..0000000
+index 5ded9a54..e69de29b 100644
 --- a/source/htslib/cram/mFILE.h
-+++ /dev/null
++++ b/source/htslib/cram/mFILE.h
 @@ -1,88 +0,0 @@
 -/*
 -Copyright (c) 2005-2006, 2008-2009 Genome Research Ltd.
@@ -16300,10 +16274,9 @@ index 5ded9a5..0000000
 -
 -#endif /* _MFILE_H_ */
 diff --git a/source/htslib/cram/md5.c b/source/htslib/cram/md5.c
-deleted file mode 100644
-index 68123c0..0000000
+index 68123c0f..e69de29b 100644
 --- a/source/htslib/cram/md5.c
-+++ /dev/null
++++ b/source/htslib/cram/md5.c
 @@ -1,295 +0,0 @@
 -/*
 - * This is an OpenSSL-compatible implementation of the RSA Data Security, Inc.
@@ -16601,10 +16574,9 @@ index 68123c0..0000000
 - 
 -#endif
 diff --git a/source/htslib/cram/md5.h b/source/htslib/cram/md5.h
-deleted file mode 100644
-index 6b065a1..0000000
+index 6b065a10..e69de29b 100644
 --- a/source/htslib/cram/md5.h
-+++ /dev/null
++++ b/source/htslib/cram/md5.h
 @@ -1,54 +0,0 @@
 -#ifdef __cplusplus
 -extern "C" {
@@ -16661,10 +16633,9 @@ index 6b065a1..0000000
 -#endif
 -
 diff --git a/source/htslib/cram/misc.h b/source/htslib/cram/misc.h
-deleted file mode 100644
-index 681b28c..0000000
+index 681b28cf..e69de29b 100644
 --- a/source/htslib/cram/misc.h
-+++ /dev/null
++++ b/source/htslib/cram/misc.h
 @@ -1,110 +0,0 @@
 -/*
 -Copyright (c) 1994-1997, 2001-2002 MEDICAL RESEARCH COUNCIL
@@ -16777,10 +16748,9 @@ index 681b28c..0000000
 -
 -#endif /*_misc_h*/
 diff --git a/source/htslib/cram/open_trace_file.c b/source/htslib/cram/open_trace_file.c
-deleted file mode 100644
-index d89815d..0000000
+index d89815d5..e69de29b 100644
 --- a/source/htslib/cram/open_trace_file.c
-+++ /dev/null
++++ b/source/htslib/cram/open_trace_file.c
 @@ -1,386 +0,0 @@
 -/*
 -Author: James Bonfield
@@ -17169,10 +17139,9 @@ index d89815d..0000000
 -    return NULL;
 -}
 diff --git a/source/htslib/cram/open_trace_file.h b/source/htslib/cram/open_trace_file.h
-deleted file mode 100644
-index ee52cb0..0000000
+index ee52cb05..e69de29b 100644
 --- a/source/htslib/cram/open_trace_file.h
-+++ /dev/null
++++ b/source/htslib/cram/open_trace_file.h
 @@ -1,115 +0,0 @@
 -/*
 -Author: James Bonfield
@@ -17290,10 +17259,9 @@ index ee52cb0..0000000
 -
 -#endif /* _OPEN_TRACE_FILE_H_ */
 diff --git a/source/htslib/cram/os.h b/source/htslib/cram/os.h
-deleted file mode 100644
-index b2affe0..0000000
+index b2affe0b..e69de29b 100644
 --- a/source/htslib/cram/os.h
-+++ /dev/null
++++ b/source/htslib/cram/os.h
 @@ -1,306 +0,0 @@
 -/*
 -Copyright (c) 1993, 1995-2002 MEDICAL RESEARCH COUNCIL
@@ -17602,10 +17570,9 @@ index b2affe0..0000000
 -
 -#endif /*_OS_H_*/
 diff --git a/source/htslib/cram/pooled_alloc.c b/source/htslib/cram/pooled_alloc.c
-deleted file mode 100644
-index 0d061e7..0000000
+index 0d061e75..e69de29b 100644
 --- a/source/htslib/cram/pooled_alloc.c
-+++ /dev/null
++++ b/source/htslib/cram/pooled_alloc.c
 @@ -1,170 +0,0 @@
 -/*
 -Copyright (c) 2009 Genome Research Ltd.
@@ -17778,10 +17745,9 @@ index 0d061e7..0000000
 -}
 -#endif
 diff --git a/source/htslib/cram/pooled_alloc.h b/source/htslib/cram/pooled_alloc.h
-deleted file mode 100644
-index fa3c81f..0000000
+index fa3c81fe..e69de29b 100644
 --- a/source/htslib/cram/pooled_alloc.h
-+++ /dev/null
++++ b/source/htslib/cram/pooled_alloc.h
 @@ -1,56 +0,0 @@
 -/*
 -Copyright (c) 2009 Genome Research Ltd.
@@ -17840,10 +17806,9 @@ index fa3c81f..0000000
 -
 -#endif /*_POOLED_ALLOC_H_*/
 diff --git a/source/htslib/cram/sam_header.c b/source/htslib/cram/sam_header.c
-deleted file mode 100644
-index 2a8110c..0000000
+index 2a8110cb..e69de29b 100644
 --- a/source/htslib/cram/sam_header.c
-+++ /dev/null
++++ b/source/htslib/cram/sam_header.c
 @@ -1,1222 +0,0 @@
 -/*
 -Copyright (c) 2013 Genome Research Ltd.
@@ -19068,10 +19033,9 @@ index 2a8110c..0000000
 -    return str;
 -}
 diff --git a/source/htslib/cram/sam_header.h b/source/htslib/cram/sam_header.h
-deleted file mode 100644
-index b9ea298..0000000
+index b9ea2983..e69de29b 100644
 --- a/source/htslib/cram/sam_header.h
-+++ /dev/null
++++ b/source/htslib/cram/sam_header.h
 @@ -1,452 +0,0 @@
 -/*
 -Copyright (c) 2013-2014 Genome Research Ltd.
@@ -19526,10 +19490,9 @@ index b9ea298..0000000
 -
 -#endif /* _SAM_HDR_H_ */
 diff --git a/source/htslib/cram/string_alloc.c b/source/htslib/cram/string_alloc.c
-deleted file mode 100644
-index d543e14..0000000
+index d543e146..e69de29b 100644
 --- a/source/htslib/cram/string_alloc.c
-+++ /dev/null
++++ b/source/htslib/cram/string_alloc.c
 @@ -1,153 +0,0 @@
 -/*
 -Copyright (c) 2010 Genome Research Ltd.
@@ -19685,10 +19648,9 @@ index d543e14..0000000
 -    return str;
 -}
 diff --git a/source/htslib/cram/string_alloc.h b/source/htslib/cram/string_alloc.h
-deleted file mode 100644
-index 71ae26d..0000000
+index 71ae26d3..e69de29b 100644
 --- a/source/htslib/cram/string_alloc.h
-+++ /dev/null
++++ b/source/htslib/cram/string_alloc.h
 @@ -1,69 +0,0 @@
 -/*
 -Copyright (c) 2010 Genome Research Ltd.
@@ -19760,10 +19722,9 @@ index 71ae26d..0000000
 -#endif
 -
 diff --git a/source/htslib/cram/thread_pool.c b/source/htslib/cram/thread_pool.c
-deleted file mode 100644
-index 90652a7..0000000
+index 90652a76..e69de29b 100644
 --- a/source/htslib/cram/thread_pool.c
-+++ /dev/null
++++ b/source/htslib/cram/thread_pool.c
 @@ -1,713 +0,0 @@
 -/*
 -Copyright (c) 2013 Genome Research Ltd.
@@ -20479,10 +20440,9 @@ index 90652a7..0000000
 -}
 -#endif
 diff --git a/source/htslib/cram/thread_pool.h b/source/htslib/cram/thread_pool.h
-deleted file mode 100644
-index 18e8b42..0000000
+index 18e8b427..e69de29b 100644
 --- a/source/htslib/cram/thread_pool.h
-+++ /dev/null
++++ b/source/htslib/cram/thread_pool.h
 @@ -1,197 +0,0 @@
 -/*
 -Copyright (c) 2013 Genome Research Ltd.
@@ -20682,10 +20642,9 @@ index 18e8b42..0000000
 -
 -#endif /* _THREAD_POOL_H_ */
 diff --git a/source/htslib/cram/vlen.c b/source/htslib/cram/vlen.c
-deleted file mode 100644
-index bc7e7d4..0000000
+index bc7e7d4b..e69de29b 100644
 --- a/source/htslib/cram/vlen.c
-+++ /dev/null
++++ b/source/htslib/cram/vlen.c
 @@ -1,432 +0,0 @@
 -/*
 -Author: James Bonfield (jkb@sanger.ac.uk)
@@ -21120,10 +21079,9 @@ index bc7e7d4..0000000
 -}
 -#endif
 diff --git a/source/htslib/cram/vlen.h b/source/htslib/cram/vlen.h
-deleted file mode 100644
-index 6b9b07c..0000000
+index 6b9b07c5..e69de29b 100644
 --- a/source/htslib/cram/vlen.h
-+++ /dev/null
++++ b/source/htslib/cram/vlen.h
 @@ -1,48 +0,0 @@
 -/*
 -Author: James Bonfield (jkb@sanger.ac.uk)
@@ -21174,10 +21132,9 @@ index 6b9b07c..0000000
 -
 -#endif /* _VLEN_H_ */
 diff --git a/source/htslib/cram/zfio.c b/source/htslib/cram/zfio.c
-deleted file mode 100644
-index 0a0ae0c..0000000
+index 0a0ae0c9..e69de29b 100644
 --- a/source/htslib/cram/zfio.c
-+++ /dev/null
++++ b/source/htslib/cram/zfio.c
 @@ -1,185 +0,0 @@
 -/*
 -Copyright (c) 2009-2013 Genome Research Ltd.
@@ -21365,10 +21322,9 @@ index 0a0ae0c..0000000
 -    return r;
 -}
 diff --git a/source/htslib/cram/zfio.h b/source/htslib/cram/zfio.h
-deleted file mode 100644
-index 2d0580f..0000000
+index 2d0580f4..e69de29b 100644
 --- a/source/htslib/cram/zfio.h
-+++ /dev/null
++++ b/source/htslib/cram/zfio.h
 @@ -1,54 +0,0 @@
 -/*
 -Copyright (c) 2009-2013 Genome Research Ltd.
@@ -21425,10 +21381,9 @@ index 2d0580f..0000000
 -
 -#endif /* _ZFIO_H_ */
 diff --git a/source/htslib/faidx.5 b/source/htslib/faidx.5
-deleted file mode 100644
-index 9058e51..0000000
+index 9058e516..e69de29b 100644
 --- a/source/htslib/faidx.5
-+++ /dev/null
++++ b/source/htslib/faidx.5
 @@ -1,124 +0,0 @@
 -'\" t
 -.TH faidx 5 "August 2013" "htslib" "Bioinformatics formats"
@@ -21555,10 +21510,9 @@ index 9058e51..0000000
 -http://en.wikipedia.org/wiki/FASTA_format
 -Further description of the FASTA format
 diff --git a/source/htslib/faidx.c b/source/htslib/faidx.c
-deleted file mode 100644
-index 05dff83..0000000
+index 05dff831..e69de29b 100644
 --- a/source/htslib/faidx.c
-+++ /dev/null
++++ b/source/htslib/faidx.c
 @@ -1,421 +0,0 @@
 -#include "config.h"
 -
@@ -21982,10 +21936,9 @@ index 05dff83..0000000
 -
 -
 diff --git a/source/htslib/hfile.c b/source/htslib/hfile.c
-deleted file mode 100644
-index 0188410..0000000
+index 0188410d..e69de29b 100644
 --- a/source/htslib/hfile.c
-+++ /dev/null
++++ b/source/htslib/hfile.c
 @@ -1,526 +0,0 @@
 -/*  hfile.c -- buffered low-level input/output streams.
 -
@@ -22514,10 +22467,9 @@ index 0188410..0000000
 -    else return hopen_fd(fname, mode);
 -}
 diff --git a/source/htslib/hfile_internal.h b/source/htslib/hfile_internal.h
-deleted file mode 100644
-index 88b0c8e..0000000
+index 88b0c8ea..e69de29b 100644
 --- a/source/htslib/hfile_internal.h
-+++ /dev/null
++++ b/source/htslib/hfile_internal.h
 @@ -1,75 +0,0 @@
 -/*  hfile_internal.h -- internal parts of low-level input/output streams.
 -
@@ -22595,10 +22547,9 @@ index 88b0c8e..0000000
 -
 -#endif
 diff --git a/source/htslib/hfile_net.c b/source/htslib/hfile_net.c
-deleted file mode 100644
-index 53eda94..0000000
+index 53eda944..e69de29b 100644
 --- a/source/htslib/hfile_net.c
-+++ /dev/null
++++ b/source/htslib/hfile_net.c
 @@ -1,99 +0,0 @@
 -/*  hfile_net.c -- network backend for low-level input/output streams.
 -
@@ -22700,10 +22651,9 @@ index 53eda94..0000000
 -    return &fp->base;
 -}
 diff --git a/source/htslib/hts.c b/source/htslib/hts.c
-deleted file mode 100644
-index 87f88a9..0000000
+index 87f88a9a..e69de29b 100644
 --- a/source/htslib/hts.c
-+++ /dev/null
++++ b/source/htslib/hts.c
 @@ -1,1326 +0,0 @@
 -#include <zlib.h>
 -#include <ctype.h>
@@ -24032,10 +23982,9 @@ index 87f88a9..0000000
 -	return idx;
 -}
 diff --git a/source/htslib/htslib.mk b/source/htslib/htslib.mk
-deleted file mode 100644
-index 28d0a8f..0000000
+index 28d0a8f7..e69de29b 100644
 --- a/source/htslib/htslib.mk
-+++ /dev/null
++++ b/source/htslib/htslib.mk
 @@ -1,127 +0,0 @@
 -# Makefile rules useful for third-party code using htslib's public API.
 -#
@@ -24165,10 +24114,9 @@ index 28d0a8f..0000000
 -
 -.PHONY: clean-htslib install-htslib
 diff --git a/source/htslib/htslib/bgzf.h b/source/htslib/htslib/bgzf.h
-deleted file mode 100644
-index 1edce41..0000000
+index 1edce419..e69de29b 100644
 --- a/source/htslib/htslib/bgzf.h
-+++ /dev/null
++++ b/source/htslib/htslib/bgzf.h
 @@ -1,313 +0,0 @@
 -/* The MIT License
 -
@@ -24484,10 +24432,9 @@ index 1edce41..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/faidx.h b/source/htslib/htslib/faidx.h
-deleted file mode 100644
-index 3153b98..0000000
+index 3153b985..e69de29b 100644
 --- a/source/htslib/htslib/faidx.h
-+++ /dev/null
++++ b/source/htslib/htslib/faidx.h
 @@ -1,112 +0,0 @@
 -/* The MIT License
 -
@@ -24602,10 +24549,9 @@ index 3153b98..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/hfile.h b/source/htslib/htslib/hfile.h
-deleted file mode 100644
-index 68175e7..0000000
+index 68175e7f..e69de29b 100644
 --- a/source/htslib/htslib/hfile.h
-+++ /dev/null
++++ b/source/htslib/htslib/hfile.h
 @@ -1,204 +0,0 @@
 -/*  hfile.h -- buffered low-level input/output streams.
 -
@@ -24812,10 +24758,9 @@ index 68175e7..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/hts.h b/source/htslib/htslib/hts.h
-deleted file mode 100644
-index 8c9fcd8..0000000
+index 8c9fcd8a..e69de29b 100644
 --- a/source/htslib/htslib/hts.h
-+++ /dev/null
++++ b/source/htslib/htslib/hts.h
 @@ -1,305 +0,0 @@
 -#ifndef HTS_H
 -#define HTS_H
@@ -25123,10 +25068,9 @@ index 8c9fcd8..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/hts_defs.h b/source/htslib/htslib/hts_defs.h
-deleted file mode 100644
-index efc4f6c..0000000
+index efc4f6cd..e69de29b 100644
 --- a/source/htslib/htslib/hts_defs.h
-+++ /dev/null
++++ b/source/htslib/htslib/hts_defs.h
 @@ -1,47 +0,0 @@
 -/*  hts_defs.h -- Miscellaneous definitions.
 -
@@ -25176,10 +25120,9 @@ index efc4f6c..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/kfunc.h b/source/htslib/htslib/kfunc.h
-deleted file mode 100644
-index 0a6ad92..0000000
+index 0a6ad922..e69de29b 100644
 --- a/source/htslib/htslib/kfunc.h
-+++ /dev/null
++++ b/source/htslib/htslib/kfunc.h
 @@ -1,49 +0,0 @@
 -#ifndef __KFUNC_H__
 -#define __KFUNC_H__
@@ -25231,10 +25174,9 @@ index 0a6ad92..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/khash.h b/source/htslib/htslib/khash.h
-deleted file mode 100644
-index 2d910de..0000000
+index 2d910dec..e69de29b 100644
 --- a/source/htslib/htslib/khash.h
-+++ /dev/null
++++ b/source/htslib/htslib/khash.h
 @@ -1,617 +0,0 @@
 -/* The MIT License
 -
@@ -25854,10 +25796,9 @@ index 2d910de..0000000
 -
 -#endif /* __AC_KHASH_H */
 diff --git a/source/htslib/htslib/khash_str2int.h b/source/htslib/htslib/khash_str2int.h
-deleted file mode 100644
-index db26d72..0000000
+index db26d72c..e69de29b 100644
 --- a/source/htslib/htslib/khash_str2int.h
-+++ /dev/null
++++ b/source/htslib/htslib/khash_str2int.h
 @@ -1,98 +0,0 @@
 -#ifndef __KHASH_UTILS_H__
 -#define __KHASH_UTILS_H__
@@ -25958,10 +25899,9 @@ index db26d72..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/klist.h b/source/htslib/htslib/klist.h
-deleted file mode 100644
-index 8b33f27..0000000
+index 8b33f271..e69de29b 100644
 --- a/source/htslib/htslib/klist.h
-+++ /dev/null
++++ b/source/htslib/htslib/klist.h
 @@ -1,121 +0,0 @@
 -/* The MIT License
 -
@@ -26085,10 +26025,9 @@ index 8b33f27..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/knetfile.h b/source/htslib/htslib/knetfile.h
-deleted file mode 100644
-index c980258..0000000
+index c9802587..e69de29b 100644
 --- a/source/htslib/htslib/knetfile.h
-+++ /dev/null
++++ b/source/htslib/htslib/knetfile.h
 @@ -1,75 +0,0 @@
 -#ifndef KNETFILE_H
 -#define KNETFILE_H
@@ -26166,10 +26105,9 @@ index c980258..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/kseq.h b/source/htslib/htslib/kseq.h
-deleted file mode 100644
-index 577cdc4..0000000
+index 577cdc45..e69de29b 100644
 --- a/source/htslib/htslib/kseq.h
-+++ /dev/null
++++ b/source/htslib/htslib/kseq.h
 @@ -1,253 +0,0 @@
 -/* The MIT License
 -
@@ -26425,10 +26363,9 @@ index 577cdc4..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/ksort.h b/source/htslib/htslib/ksort.h
-deleted file mode 100644
-index aa0bb93..0000000
+index aa0bb93e..e69de29b 100644
 --- a/source/htslib/htslib/ksort.h
-+++ /dev/null
++++ b/source/htslib/htslib/ksort.h
 @@ -1,285 +0,0 @@
 -/* The MIT License
 -
@@ -26716,10 +26653,9 @@ index aa0bb93..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/kstdint.h b/source/htslib/htslib/kstdint.h
-deleted file mode 100644
-index e948850..0000000
+index e948850d..e69de29b 100644
 --- a/source/htslib/htslib/kstdint.h
-+++ /dev/null
++++ b/source/htslib/htslib/kstdint.h
 @@ -1,64 +0,0 @@
 -#ifndef KSTDINT_H
 -#define KSTDINT_H
@@ -26786,10 +26722,9 @@ index e948850..0000000
 -
 -#endif /* ~defined(KSTDINT_H) */
 diff --git a/source/htslib/htslib/kstring.h b/source/htslib/htslib/kstring.h
-deleted file mode 100644
-index 2567efc..0000000
+index 2567efcb..e69de29b 100644
 --- a/source/htslib/htslib/kstring.h
-+++ /dev/null
++++ b/source/htslib/htslib/kstring.h
 @@ -1,270 +0,0 @@
 -/* The MIT License
 -
@@ -27062,10 +26997,9 @@ index 2567efc..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/sam.h b/source/htslib/htslib/sam.h
-deleted file mode 100644
-index e046d01..0000000
+index e046d017..e69de29b 100644
 --- a/source/htslib/htslib/sam.h
-+++ /dev/null
++++ b/source/htslib/htslib/sam.h
 @@ -1,401 +0,0 @@
 -#ifndef BAM_H
 -#define BAM_H
@@ -27469,10 +27403,9 @@ index e046d01..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/synced_bcf_reader.h b/source/htslib/htslib/synced_bcf_reader.h
-deleted file mode 100644
-index 2f79a21..0000000
+index 2f79a210..e69de29b 100644
 --- a/source/htslib/htslib/synced_bcf_reader.h
-+++ /dev/null
++++ b/source/htslib/htslib/synced_bcf_reader.h
 @@ -1,255 +0,0 @@
 -/*
 -	The synced_bcf_reader allows to keep multiple VCFs open and stream them
@@ -27730,10 +27663,9 @@ index 2f79a21..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/tbx.h b/source/htslib/htslib/tbx.h
-deleted file mode 100644
-index 71b4ac2..0000000
+index 71b4ac2e..e69de29b 100644
 --- a/source/htslib/htslib/tbx.h
-+++ /dev/null
++++ b/source/htslib/htslib/tbx.h
 @@ -1,52 +0,0 @@
 -#ifndef TBX_H
 -#define TBX_H
@@ -27788,10 +27720,9 @@ index 71b4ac2..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/vcf.h b/source/htslib/htslib/vcf.h
-deleted file mode 100644
-index ef95ee0..0000000
+index ef95ee0c..e69de29b 100644
 --- a/source/htslib/htslib/vcf.h
-+++ /dev/null
++++ b/source/htslib/htslib/vcf.h
 @@ -1,824 +0,0 @@
 -/*
 -    todo: 
@@ -28618,10 +28549,9 @@ index ef95ee0..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/vcf_sweep.h b/source/htslib/htslib/vcf_sweep.h
-deleted file mode 100644
-index 9d21d8a..0000000
+index 9d21d8a0..e69de29b 100644
 --- a/source/htslib/htslib/vcf_sweep.h
-+++ /dev/null
++++ b/source/htslib/htslib/vcf_sweep.h
 @@ -1,15 +0,0 @@
 -#ifndef __VCF_SWEEP_H__
 -#define __VCF_SWEEP_H__
@@ -28639,10 +28569,9 @@ index 9d21d8a..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib/vcfutils.h b/source/htslib/htslib/vcfutils.h
-deleted file mode 100644
-index 18b9503..0000000
+index 18b9503b..e69de29b 100644
 --- a/source/htslib/htslib/vcfutils.h
-+++ /dev/null
++++ b/source/htslib/htslib/vcfutils.h
 @@ -1,94 +0,0 @@
 -/*
 -    Time will show if this module will be merged into others 
@@ -28739,10 +28668,9 @@ index 18b9503..0000000
 -
 -#endif
 diff --git a/source/htslib/htslib_vars.mk b/source/htslib/htslib_vars.mk
-deleted file mode 100644
-index 73ac5eb..0000000
+index 73ac5eb5..e69de29b 100644
 --- a/source/htslib/htslib_vars.mk
-+++ /dev/null
++++ b/source/htslib/htslib_vars.mk
 @@ -1,20 +0,0 @@
 -# Makefile variables useful for third-party code using htslib's public API.
 -#
@@ -28765,10 +28693,9 @@ index 73ac5eb..0000000
 -htslib_vcf_sweep_h = $(HTSPREFIX)htslib/vcf_sweep.h $(htslib_hts_h) $(htslib_vcf_h)
 -htslib_vcfutils_h = $(HTSPREFIX)htslib/vcfutils.h $(htslib_vcf_h)
 diff --git a/source/htslib/kfunc.c b/source/htslib/kfunc.c
-deleted file mode 100644
-index 10c0973..0000000
+index 10c09731..e69de29b 100644
 --- a/source/htslib/kfunc.c
-+++ /dev/null
++++ b/source/htslib/kfunc.c
 @@ -1,254 +0,0 @@
 -#include <math.h>
 -#include <stdlib.h>
@@ -29025,10 +28952,9 @@ index 10c0973..0000000
 -
 -
 diff --git a/source/htslib/knetfile.c b/source/htslib/knetfile.c
-deleted file mode 100644
-index 64b3fa6..0000000
+index 64b3fa6f..e69de29b 100644
 --- a/source/htslib/knetfile.c
-+++ /dev/null
++++ b/source/htslib/knetfile.c
 @@ -1,622 +0,0 @@
 -/* The MIT License
 -
@@ -29653,10 +29579,9 @@ index 64b3fa6..0000000
 -}
 -#endif
 diff --git a/source/htslib/kstring.c b/source/htslib/kstring.c
-deleted file mode 100644
-index b4202f5..0000000
+index b4202f55..e69de29b 100644
 --- a/source/htslib/kstring.c
-+++ /dev/null
++++ b/source/htslib/kstring.c
 @@ -1,229 +0,0 @@
 -#include <stdarg.h>
 -#include <stdio.h>
@@ -29888,10 +29813,9 @@ index b4202f5..0000000
 -}
 -#endif
 diff --git a/source/htslib/sam.5 b/source/htslib/sam.5
-deleted file mode 100644
-index 4c86aa8..0000000
+index 4c86aa8a..e69de29b 100644
 --- a/source/htslib/sam.5
-+++ /dev/null
++++ b/source/htslib/sam.5
 @@ -1,45 +0,0 @@
 -'\" t
 -.TH sam 5 "August 2013" "htslib" "Bioinformatics formats"
@@ -29939,10 +29863,9 @@ index 4c86aa8..0000000
 -https://github.com/samtools/hts-specs
 -The full SAM/BAM file format specification
 diff --git a/source/htslib/sam.c b/source/htslib/sam.c
-deleted file mode 100644
-index bc5e3ca..0000000
+index bc5e3ca5..e69de29b 100644
 --- a/source/htslib/sam.c
-+++ /dev/null
++++ b/source/htslib/sam.c
 @@ -1,1797 +0,0 @@
 -#include <stdio.h>
 -#include <stdlib.h>
@@ -31742,10 +31665,9 @@ index bc5e3ca..0000000
 -
 -#endif // ~!defined(BAM_NO_PILEUP)
 diff --git a/source/htslib/synced_bcf_reader.c b/source/htslib/synced_bcf_reader.c
-deleted file mode 100644
-index 5fc9594..0000000
+index 5fc95948..e69de29b 100644
 --- a/source/htslib/synced_bcf_reader.c
-+++ /dev/null
++++ b/source/htslib/synced_bcf_reader.c
 @@ -1,1183 +0,0 @@
 -#include <stdio.h>
 -#include <unistd.h>
@@ -32931,10 +32853,9 @@ index 5fc9594..0000000
 -}
 -
 diff --git a/source/htslib/tabix.1 b/source/htslib/tabix.1
-deleted file mode 100644
-index 1bd9533..0000000
+index 1bd9533d..e69de29b 100644
 --- a/source/htslib/tabix.1
-+++ /dev/null
++++ b/source/htslib/tabix.1
 @@ -1,132 +0,0 @@
 -.TH tabix 1 "11 May 2010" "tabix-0.2.0" "Bioinformatics tools"
 -.SH NAME
@@ -33069,10 +32990,9 @@ index 1bd9533..0000000
 -.PP
 -.BR samtools (1)
 diff --git a/source/htslib/tabix.c b/source/htslib/tabix.c
-deleted file mode 100644
-index 2a30fed..0000000
+index 2a30fed1..e69de29b 100644
 --- a/source/htslib/tabix.c
-+++ /dev/null
++++ b/source/htslib/tabix.c
 @@ -1,374 +0,0 @@
 -#include <stdio.h>
 -#include <stdlib.h>
@@ -33449,10 +33369,9 @@ index 2a30fed..0000000
 -	return 0;
 -}
 diff --git a/source/htslib/tbx.c b/source/htslib/tbx.c
-deleted file mode 100644
-index 035cb68..0000000
+index 035cb689..e69de29b 100644
 --- a/source/htslib/tbx.c
-+++ /dev/null
++++ b/source/htslib/tbx.c
 @@ -1,290 +0,0 @@
 -#include <stdlib.h>
 -#include <string.h>
@@ -33745,10 +33664,9 @@ index 035cb68..0000000
 -}
 -
 diff --git a/source/htslib/vcf.5 b/source/htslib/vcf.5
-deleted file mode 100644
-index 13f6313..0000000
+index 13f63132..e69de29b 100644
 --- a/source/htslib/vcf.5
-+++ /dev/null
++++ b/source/htslib/vcf.5
 @@ -1,96 +0,0 @@
 -'\" t
 -.TH vcf 5 "August 2013" "htslib" "Bioinformatics formats"
@@ -33847,10 +33765,9 @@ index 13f6313..0000000
 -PMID:15789306
 -.\" (http://www.ncbi.nlm.nih.gov/pubmed/15789306)
 diff --git a/source/htslib/vcf.c b/source/htslib/vcf.c
-deleted file mode 100644
-index 2f77865..0000000
+index 2f77865d..e69de29b 100644
 --- a/source/htslib/vcf.c
-+++ /dev/null
++++ b/source/htslib/vcf.c
 @@ -1,2967 +0,0 @@
 -#include <zlib.h>
 -#include <stdio.h>
@@ -36820,10 +36737,9 @@ index 2f77865..0000000
 -}
 -
 diff --git a/source/htslib/vcf_sweep.c b/source/htslib/vcf_sweep.c
-deleted file mode 100644
-index 2598460..0000000
+index 25984605..e69de29b 100644
 --- a/source/htslib/vcf_sweep.c
-+++ /dev/null
++++ b/source/htslib/vcf_sweep.c
 @@ -1,158 +0,0 @@
 -#include "htslib/vcf_sweep.h"
 -#include "htslib/bgzf.h"
@@ -36984,10 +36900,9 @@ index 2598460..0000000
 -bcf_hdr_t *bcf_sweep_hdr(bcf_sweep_t *sw) { return sw->hdr; }
 -
 diff --git a/source/htslib/vcfutils.c b/source/htslib/vcfutils.c
-deleted file mode 100644
-index a4a9c2f..0000000
+index a4a9c2fe..e69de29b 100644
 --- a/source/htslib/vcfutils.c
-+++ /dev/null
++++ b/source/htslib/vcfutils.c
 @@ -1,642 +0,0 @@
 -#include "htslib/vcfutils.h"
 -
@@ -37632,7 +37547,7 @@ index a4a9c2f..0000000
 -}
 -
 diff --git a/source/signalFromBAM.h b/source/signalFromBAM.h
-index 0406fdc..aac4416 100644
+index 0406fdcd..aac44168 100644
 --- a/source/signalFromBAM.h
 +++ b/source/signalFromBAM.h
 @@ -1,6 +1,6 @@

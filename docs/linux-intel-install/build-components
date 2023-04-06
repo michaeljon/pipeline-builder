@@ -2,6 +2,22 @@
 
 ROOT_DIR=${HOME}/pipeline
 
+echo "Build zlib, zlib-ng, and pigz components"
+cd ${ROOT_DIR}/src/zlib-ng-2.0.7
+./configure --zlib-compat
+make
+make install prefix=${ROOT_DIR}
+
+cd ${ROOT_DIR}/src/zlib-1.2.13
+./configure --prefix=${ROOT_DIR} --eprefix=${ROOT_DIR}
+make
+make install prefix=${ROOT_DIR}
+
+cd ${ROOT_DIR}/src/pigz-2.7
+make
+cp pigz ${ROOT_DIR}/bin
+cp unpigz ${ROOT_DIR}/bin
+
 echo "Building SAMTOOLS components"
 cd ${ROOT_DIR}/src/htslib-1.17
 ./configure --prefix=${ROOT_DIR} --exec-prefix=${ROOT_DIR}
@@ -35,7 +51,7 @@ make install prefix=${ROOT_DIR}
 
 echo "Building vcftools"
 cd ${ROOT_DIR}/src/vcftools-0.1.16
-ZLIB_LIBS="-L${ROOT_DIR}/lib" 
+ZLIB_LIBS="-L${ROOT_DIR}/lib"
 ZLIB_CFLAGS="-I${ROOT_DIR}/include"
 ./configure --prefix=${ROOT_DIR} --exec-prefix=${ROOT_DIR} --enable-pca
 make
@@ -49,7 +65,10 @@ cp bwa ${ROOT_DIR}/bin
 cd ${ROOT_DIR}/src/hisat2
 make all
 HISAT2_BIN_LIST="hisat2 hisat2-build hisat2-build-s hisat2-build-l hisat2-align-s hisat2-align-l hisat2-inspect hisat2-inspect-s hisat2-inspect-l hisat2-repeat"
-for f in ${HISAT2_BIN_LIST}; do echo $f; cp $f ${ROOT_DIR}/bin; done
+for f in ${HISAT2_BIN_LIST}; do
+    echo $f
+    cp $f ${ROOT_DIR}/bin
+done
 cp *.py ${ROOT_DIR}/bin
 
 cd ${ROOT_DIR}/src/star/source
@@ -60,22 +79,6 @@ cd ${ROOT_DIR}/src/minimap2-2.24
 make
 cp minimap2 ${ROOT_DIR}/bin
 cp minimap2.1 ${ROOT_DIR}/share/man/man1
-
-echo "Build zlib, zlib-ng, and pigz components"
-cd ${ROOT_DIR}/src/zlib-ng-2.0.7
-./configure --zlib-compat
-make
-make install prefix=${ROOT_DIR}
-
-cd ${ROOT_DIR}/src/zlib-1.2.13
-./configure --prefix=${ROOT_DIR} --eprefix=${ROOT_DIR}
-make
-make install prefix=${ROOT_DIR}
-
-cd ${ROOT_DIR}/src/pigz-2.7
-make
-cp pigz ${ROOT_DIR}/bin
-cp unpigz ${ROOT_DIR}/bin
 
 echo "Building BIOBAMBAM and components - this'll take a while"
 cd ${ROOT_DIR}/src/libmaus2-2.0.813-release-20221210220409
