@@ -46,11 +46,9 @@ make
 cp bwa ${ROOT_DIR}/bin
 
 cd ${ROOT_DIR}/src/hisat2
-gh pr checkout 251
-git submodule update --init --recursive
 make all
-HISAT2_BIN_LIST=(hisat2 hisat2-build hisat2-build-s hisat2-build-l hisat2-align-s hisat2-align-l hisat2-inspect hisat2-inspect-s hisat2-inspect-l hisat2-repeat)
-for f in ${HISAT2_BIN_LIST}; do cp $f ${ROOT_DIR}/bin; done
+HISAT2_BIN_LIST="hisat2 hisat2-build hisat2-build-s hisat2-build-l hisat2-align-s hisat2-align-l hisat2-inspect hisat2-inspect-s hisat2-inspect-l hisat2-repeat"
+for f in ${HISAT2_BIN_LIST}; do echo $f; cp $f ${ROOT_DIR}/bin; done
 cp *.py ${ROOT_DIR}/bin
 
 cd ${ROOT_DIR}/src/star/source
