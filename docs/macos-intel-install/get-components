@@ -12,7 +12,8 @@ if [[ -z "${SKIP_BREW}" ]]; then
         autoconf \
         gsl \
         pkg-config \
-        libomp
+        libomp \
+        gnu-sed
 fi
 
 ROOT_DIR=${HOME}/pipeline

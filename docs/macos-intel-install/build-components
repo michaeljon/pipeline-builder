@@ -93,7 +93,7 @@ cp minimap2.1 ${ROOT_DIR}/share/man/man1
 echo "Building BIOBAMBAM and components - this'll take a while"
 cd ${ROOT_DIR}/src/libmaus2-2.0.813-release-20221210220409
 ./configure --enable-compile-testprograms=no --prefix=${ROOT_DIR}
-sed -i '/#if defined(__APPLE__)/a#include <sys/sysctl.h>' src/libmaus2/types/types.hpp
+gsed -i '/#if defined(__APPLE__)/a#include <sys/sysctl.h>' src/libmaus2/types/types.hpp
 make
 make install prefix=${ROOT_DIR}
 
