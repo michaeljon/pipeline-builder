@@ -737,7 +737,7 @@ def callVariantsUsingGatk(script: IO[Any], options: OptionsDict):
     # 8 hmm threads / 9 jobs
     # [2022-07-11 23:04:40] Calling variants using GATK
     # [2022-07-12 00:56:43] GATK variant calling completed
-    cores = int(options["cores"] * .75) # set aside some cpu so we can use the ec2 still
+    cores = int(options["cores"] * 0.75)  # set aside some cpu so we can use the ec2 still
     hmmThreads = 1
     jobs = int(cores / hmmThreads)
 
@@ -1166,7 +1166,7 @@ def doAlignmentQC(script: IO[Any], options: OptionsDict, sorted: str):
 
     if skipFastQc == False:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --svg --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
                 SAMPLE=sample,
                 STATS=stats,
                 R1=filenames[0],

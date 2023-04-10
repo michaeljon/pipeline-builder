@@ -758,7 +758,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
 
     if skipFastQc == False:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --svg --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
                 SAMPLE=sample,
                 STATS=stats,
                 R1=filenames[0],
@@ -1007,6 +1007,14 @@ def getFileNames(options: OptionsDict) -> FastqSet:
     sample = options["sample"]
     fastq_dir = options["fastq_dir"]
 
+    filenames = (
+        options["r1"],
+        options["r2"],
+    )
+
+    if exists(expandvars(filenames[0])) == True and exists(expandvars(filenames[1])) == True:
+        return filenames
+
     # assume we have the _001 pattern first
     filenames = (
         "{FASTQ_DIR}/{SAMPLE}_R1_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
@@ -1151,6 +1159,7 @@ def runTrimmomaticPreprocessor(
     bin = options["bin"]
     sample = options["sample"]
     stats = options["stats"]
+    threads = options["cores"]
 
     u1 = o1.replace(".trimmed", ".unpaired")
     u2 = o2.replace(".trimmed", ".unpaired")
@@ -1163,15 +1172,17 @@ def runTrimmomaticPreprocessor(
 if [[ ! -f {O1} || ! -f {O2} ]]; then
     logthis "${{yellow}}Running trimmomatic preprocessor${{reset}}"
 
-    java -jar {BIN}/trimmomatic-0.39.jar PE \\
+    java -jar {BIN}/trimmomatic-0.39.jar \\
+        PE \\
+        -threads {THREADS} \\
         {R1} \\
         {R2} \\
         {O1} {U1} \\
         {O2} {U2} \\
-        ILLUMINACLIP:{BIN}/adapters/TruSeq3-PE-2.fa:2:30:10 \\
-        LEADING:5 \\
-        TRAILING:5 \\
-        SLIDINGWINDOW:4:20 \\
+        ILLUMINACLIP:{BIN}/adapters/NexteraPE-PE.fa:2:30:10:2:True \\
+        HEADCROP:15 \\
+        LEADING:3 \\
+        TRAILING:3 \\
         MINLEN:30 2> {STATS}/{SAMPLE}_trim_out.log
 
     logthis "${{yellow}}trimmomatic preprocessor completed${{reset}}"
@@ -1179,7 +1190,7 @@ else
     logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
 """.format(
-            R1=r1, R2=r2, O1=o1, O2=o2, U1=u1, U2=u2, STATS=stats, SAMPLE=sample, BIN=bin
+            R1=r1, R2=r2, O1=o1, O2=o2, U1=u1, U2=u2, STATS=stats, SAMPLE=sample, BIN=bin, THREADS=threads
         )
     )
 
@@ -1494,6 +1505,25 @@ def defineArguments() -> Namespace:
         dest="sample",
         help="short name of sample, e.g. DPZw_k file must be in <WORKING>/pipeline/<sample>_R[12].fastq.gz",
     )
+
+    parser.add_argument(
+        "--r1",
+        required=True,
+        action="store",
+        metavar="R1",
+        dest="r1",
+        help="Full path to the forward (R1) read FASTQ",
+    )
+
+    parser.add_argument(
+        "--r2",
+        required=True,
+        action="store",
+        metavar="R2",
+        dest="r2",
+        help="Full path to the reverse (R2) read FASTQ",
+    )
+
     parser.add_argument(
         "--work-dir",
         required=True,

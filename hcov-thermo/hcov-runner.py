@@ -779,7 +779,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
 
     if skipFastQc == False:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}.fastqc.zip ]]; then fastqc --threads 2 --outdir {STATS} --noextract {FILENAME}; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}.fastqc.zip ]]; then fastqc --svg --threads 2 --outdir {STATS} --noextract {FILENAME}; fi' \\\n""".format(
                 SAMPLE=sample,
                 STATS=stats,
                 FILENAME=filename,
@@ -1228,6 +1228,7 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict):
 
     alignFASTQ(script, filename, options)
     sortAlignedAndMappedData(script, options)
+    generateDepth(script, options)
 
     if processUnmapped == True:
         extractUmappedReads(script, options)

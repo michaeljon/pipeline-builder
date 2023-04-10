@@ -2,6 +2,7 @@
 
 SAMPLE=$1
 FASTQ=$2
+CHIP=$3
 
 ORGANISM=hcov-panel
 ASSEMBLY=hcov-panel
@@ -13,8 +14,6 @@ if [[ -z ${PIPELINE_ROOT} ]]; then
 fi
 
 echo Starting ${SAMPLE} run
-
-set -e
 
 # give us a place to work
 mkdir -p ${PIPELINE_ROOT}/pipeline/${SAMPLE}
@@ -33,7 +32,7 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov-thermo/hcov-runner.py \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner \
     --temp-dir ${PIPELINE_ROOT}/tmp \
-    --fastq-dir ${PIPELINE_ROOT}/fastq \
+    --fastq-dir ${PIPELINE_ROOT}/fastq/${CHIP} \
     --skip-variant-qc \
     --skip-annotation \
     --caller bcftools \

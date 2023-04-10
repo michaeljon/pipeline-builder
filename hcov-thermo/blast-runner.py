@@ -793,7 +793,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
 
     if skipFastQc == False:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}.fastqc.zip ]]; then fastqc --threads 2 --outdir {STATS} --noextract {FILENAME}; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}.fastqc.zip ]]; then fastqc --svg --threads 2 --outdir {STATS} --noextract {FILENAME}; fi' \\\n""".format(
                 SAMPLE=sample,
                 STATS=stats,
                 FILENAME=filename,

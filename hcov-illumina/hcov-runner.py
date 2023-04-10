@@ -761,7 +761,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
 
     if skipFastQc == False:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --svg --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
                 SAMPLE=sample,
                 STATS=stats,
                 R1=filenames[0],
@@ -914,7 +914,7 @@ function logthis() {{
 ulimit -n 8192
 
 # perl stuff
-export PATH={WORKING}/perl5/bin:$PATH
+export PATH=$HOME/.local/bin:{WORKING}/perl5/bin:$PATH
 export PERL5LIB={WORKING}/perl5/lib/perl5:$PERL5LIB
 export PERL_LOCAL_LIB_ROOT={WORKING}/perl5:$PERL_LOCAL_LIB_ROOT
 
@@ -1000,13 +1000,23 @@ def verifyOptions(options: OptionsDict):
     options["__canAssignClades"] = referenceName == "MN908947.3"
     options["__canAnnotateVariants"] = referenceName == "MN908947.3"
 
+
 fallback_warning_shown = False
+
 
 def getFileNames(options: OptionsDict) -> FastqSet:
     global fallback_warning_shown
 
     sample = options["sample"]
     fastq_dir = options["fastq_dir"]
+
+    filenames = (
+        options["r1"],
+        options["r2"],
+    )
+
+    if exists(expandvars(filenames[0])) == True and exists(expandvars(filenames[1])) == True:
+        return filenames
 
     # assume we have the _001 pattern first
     filenames = (
@@ -1016,7 +1026,7 @@ def getFileNames(options: OptionsDict) -> FastqSet:
 
     if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
         if fallback_warning_shown == False:
-            print("Falling back to shortened fastq file names")
+            print("Falling back to shortened fastq file names, files not found at")
             fallback_warning_shown = True
 
         # if that didn't work, try for the redacted names
@@ -1152,6 +1162,7 @@ def runTrimmomaticPreprocessor(
     bin = options["bin"]
     sample = options["sample"]
     stats = options["stats"]
+    threads = options["cores"]
 
     u1 = o1.replace(".trimmed", ".unpaired")
     u2 = o2.replace(".trimmed", ".unpaired")
@@ -1164,15 +1175,17 @@ def runTrimmomaticPreprocessor(
 if [[ ! -f {O1} || ! -f {O2} ]]; then
     logthis "${{yellow}}Running trimmomatic preprocessor${{reset}}"
 
-    java -jar {BIN}/trimmomatic-0.39.jar PE \\
+    java -jar {BIN}/trimmomatic-0.39.jar \\
+        PE \\
+        -threads {THREADS} \\
         {R1} \\
         {R2} \\
         {O1} {U1} \\
         {O2} {U2} \\
-        ILLUMINACLIP:{BIN}/adapters/TruSeq3-PE-2.fa:2:30:10 \\
-        LEADING:5 \\
-        TRAILING:5 \\
-        SLIDINGWINDOW:4:20 \\
+        ILLUMINACLIP:{BIN}/adapters/NexteraPE-PE.fa:2:30:10:2:True \\
+        HEADCROP:15 \\
+        LEADING:3 \\
+        TRAILING:3 \\
         MINLEN:30 2> {STATS}/{SAMPLE}_trim_out.log
 
     logthis "${{yellow}}trimmomatic preprocessor completed${{reset}}"
@@ -1180,7 +1193,7 @@ else
     logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
 """.format(
-            R1=r1, R2=r2, O1=o1, O2=o2, U1=u1, U2=u2, STATS=stats, SAMPLE=sample, BIN=bin
+            R1=r1, R2=r2, O1=o1, O2=o2, U1=u1, U2=u2, STATS=stats, SAMPLE=sample, BIN=bin, THREADS=threads
         )
     )
 
@@ -1493,8 +1506,27 @@ def defineArguments() -> Namespace:
         action="store",
         metavar="SAMPLE",
         dest="sample",
-        help="short name of sample, e.g. DPZw_k file must be in <WORKING>/pipeline/<sample>_R[12].fastq.gz",
+        help="short name of sample, e.g. DPZw_k",
     )
+
+    parser.add_argument(
+        "--r1",
+        required=True,
+        action="store",
+        metavar="R1",
+        dest="r1",
+        help="Full path to the forward (R1) read FASTQ",
+    )
+
+    parser.add_argument(
+        "--r2",
+        required=True,
+        action="store",
+        metavar="R2",
+        dest="r2",
+        help="Full path to the reverse (R2) read FASTQ",
+    )
+
     parser.add_argument(
         "--work-dir",
         required=True,

@@ -242,7 +242,7 @@ def fragment(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
     fragmentCount = options["fragmentCount"]
-    
+
     filename = getFileName(options)
 
     script.write(
@@ -607,7 +607,7 @@ def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
     # 8 hmm threads / 9 jobs
     # [2022-07-11 23:04:40] Calling variants using GATK
     # [2022-07-12 00:56:43] GATK variant calling completed
-    cores = int(options["cores"] * .75) # set aside some cpu so we can use the ec2 still
+    cores = int(options["cores"] * 0.75)  # set aside some cpu so we can use the ec2 still
     hmmThreads = 1
     jobs = int(cores / hmmThreads)
 
@@ -1036,7 +1036,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
 
     if skipFastQc == False:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}.fastqc.zip ]]; then fastqc --threads 2 --outdir {STATS} --noextract {FILENAME}; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}.fastqc.zip ]]; then fastqc --svg --threads 2 --outdir {STATS} --noextract {FILENAME}; fi' \\\n""".format(
                 SAMPLE=sample,
                 STATS=stats,
                 FILENAME=filename,
