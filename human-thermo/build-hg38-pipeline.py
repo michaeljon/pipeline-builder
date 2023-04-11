@@ -742,7 +742,7 @@ if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
         --output_file {OUTPUT} \\
         --stats_file {STATS}/{SUMMARY}
 
-    tabix -p vcf {OUTPUT}
+    tabix --force -p vcf {OUTPUT}
 
     logthis "Completed annotation"
 else
@@ -857,7 +857,7 @@ fi
 if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz.tbi ]]; then
     logthis "Indexing {PIPELINE}/{SAMPLE}.unannotated.vcf.gz"
 
-    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+    tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
     logthis "Indexing {PIPELINE}/{SAMPLE}.unannotated.vcf.gz complete"
 else
@@ -1070,9 +1070,9 @@ cd {STATS}/qc
 multiqc \\
     --verbose \\
     --force \\
-    --cl_config 'custom_logo: "{STATS}/ovationlogo.png"' \\
-    --cl_config 'custom_logo_url: "https://www.ovation.io"' \\
-    --cl_config 'custom_logo_title: "Ovation"' \\
+    --cl-config 'custom_logo: "{STATS}/ovationlogo.png"' \\
+    --cl-config 'custom_logo_url: "https://www.ovation.io"' \\
+    --cl-config 'custom_logo_title: "Ovation"' \\
     {STATS}
 
 # Save the output

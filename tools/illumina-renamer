@@ -16,5 +16,5 @@ ls -1 /home/michaeljon/pipeline/fastq/${BATCH} |
 
             split($0, s, /_/); 
             "uuidgen" | getline uuid; close("uuidgen")
-            printf "%s\t%s_%s_%02d\t%s/%s\t%s/%s\n", uuid, BATCH, s[1], s[2], PATH, R1, PATH, R2
+            printf "%s\t%s_%s_%s\t%s/%s\t%s/%s\n", uuid, s[1], s[2], s[3], PATH, R1, PATH, R2
         }' >${SAMPLE_LIST}
