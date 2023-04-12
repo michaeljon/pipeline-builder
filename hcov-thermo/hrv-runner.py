@@ -282,8 +282,6 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         --output {PIPELINE}/{SAMPLE}.unannotated.vcf \\
         -- --tags AC,AN,AF,VAF,MAF,FORMAT/VAF 
 
-    rm -f {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp
-
     bgzip --force {PIPELINE}/{SAMPLE}.unannotated.vcf
     tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
