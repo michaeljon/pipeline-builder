@@ -264,8 +264,6 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         --output {PIPELINE}/{SAMPLE}.unannotated.vcf \\
         -- --tags AC,AN,AF,VAF,MAF,FORMAT/VAF 2>/dev/null
 
-    rm -f {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp
-
     bgzip --force {PIPELINE}/{SAMPLE}.unannotated.vcf
     tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
@@ -925,7 +923,7 @@ export LD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib64:/usr/local/lib/:$L
 export DYLD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib:/usr/local/lib/:$DYLD_LIBRARY_PATH
 
 # bcftools
-export BCFTOOLS_PLUGINS={WORKING}/bin/plugins
+export BCFTOOLS_PLUGINS={WORKING}/libexec/bcftools
 
 # handy path
 export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.2.6.1:{WORKING}/bin:$PATH\n""".format(
