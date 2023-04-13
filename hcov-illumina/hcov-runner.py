@@ -1182,7 +1182,7 @@ if [[ ! -f {O1} || ! -f {O2} ]]; then
         {R2} \\
         {O1} {U1} \\
         {O2} {U2} \\
-        ILLUMINACLIP:{BIN}/adapters/NexteraPE-PE.fa:2:30:10:2:True \\
+        ILLUMINACLIP:{BIN}/adapters/Ovation-PE.fa:2:30:5:2:True \\
         HEADCROP:15 \\
         LEADING:3 \\
         TRAILING:3 \\
