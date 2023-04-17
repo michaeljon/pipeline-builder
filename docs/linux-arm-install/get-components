@@ -6,6 +6,7 @@ if [[ -z "${SKIP_APT}" ]]; then
     sudo apt install -y \
         cmake pkg-config \
         dotnet6 \
+        dwdiff \
         libboost-all-dev \
         libgsl-dev libperl-dev \
         openjdk-17-jre-headless \

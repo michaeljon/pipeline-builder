@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+CHIP=$1
+SAMPLE_LIST=$2
+
+ls -1 /home/michaeljon/pipeline/fastq/${CHIP} |
+    awk -vCHIP=${CHIP} -vPATH=$(realpath /home/michaeljon/pipeline/fastq/${CHIP}) '
+        BEGIN { 
+            printf "deid\tsample\tfastq\n" \
+        } 
+        
+        /.fastq/ { 
+            split($0, s, /_/); 
+            "uuidgen" | getline uuid; close("uuidgen")
+            printf "%s\t%s_%s_%02d\t%s/%s\n", uuid, CHIP, s[1], s[2], PATH, $0 
+        }' >${SAMPLE_LIST}

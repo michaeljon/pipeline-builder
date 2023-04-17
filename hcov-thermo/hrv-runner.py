@@ -228,8 +228,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         --sample-ploidy 1 \\
         --verbosity ERROR
 
-    bgzip {PIPELINE}/{SAMPLE}.unannotated.vcf
-    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+    bgzip --force {PIPELINE}/{SAMPLE}.unannotated.vcf
+    tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
     logthis "${{green}}GATK variant calling completed${{reset}}"
 else
@@ -282,10 +282,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         --output {PIPELINE}/{SAMPLE}.unannotated.vcf \\
         -- --tags AC,AN,AF,VAF,MAF,FORMAT/VAF 
 
-    rm -f {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp
-
-    bgzip {PIPELINE}/{SAMPLE}.unannotated.vcf
-    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+    bgzip --force {PIPELINE}/{SAMPLE}.unannotated.vcf
+    tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
     logthis "${{green}}bcftools variant calling completed${{reset}}"
 else
@@ -324,7 +322,7 @@ def produceConsensusUsingBcftools(
 if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
     logthis "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.unannotated.vcf.gz${{reset}}"
 
-    bcftools index {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+    bcftools index --force {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
     bcftools consensus \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
         {PIPELINE}/{SAMPLE}.unannotated.vcf.gz >{PIPELINE}/{SAMPLE}.consensus.fa
@@ -360,6 +358,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
     bcftools mpileup \\
         -aa \\
         -A \\
+        --threads 4 \\
         --max-depth 0 \\
         --max-idepth 0 \\
         --count-orphans \\
@@ -437,6 +436,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.pileup.gz ]]; then
     logthis "Generate pileup for {PIPELINE}/{SAMPLE}.sorted.bam"
 
     bcftools mpileup \\
+        --threads 4 \\
         --max-depth 0 \\
         --max-idepth 0 \\
         --count-orphans \\
@@ -502,7 +502,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.annotated.vcf.gz ]]; then
         {REFERENCE_NAME} {PIPELINE}/{SAMPLE}.unannotated.vcf.gz | \\
     bgzip >{PIPELINE}/{SAMPLE}.annotated.vcf.gz
 
-    tabix -p vcf {PIPELINE}/{SAMPLE}.annotated.vcf.gz
+    tabix --force -p vcf {PIPELINE}/{SAMPLE}.annotated.vcf.gz
 
     logthis "Completed snpeff annotation"
 else
@@ -599,11 +599,12 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.diff ]]; then
         tr -d '\\n' | 
         sed 's/\\(.\\)/\\1 /g' | 
         tr ' ' '\\n' >{PIPELINE}/{SAMPLE}.consensus.flat.fna
-    dwdiff -L8 -s -3 \\
-        {REFERENCE}/{ASSEMBLY}.flat.fna \\
-        {PIPELINE}/{SAMPLE}.consensus.flat.fna >{PIPELINE}/{SAMPLE}.diff
 
-    logthis "Consensus difference already completed for {SAMPLE}, ${{green}}skipping${{reset}}"
+    (dwdiff -L8 -s -3 \\
+        {REFERENCE}/{ASSEMBLY}.flat.fna \\
+        {PIPELINE}/{SAMPLE}.consensus.flat.fna || true) >{PIPELINE}/{SAMPLE}.diff
+
+    logthis "Consensus difference completed for {SAMPLE}, ${{green}}skipping${{reset}}"
 else
     logthis "Consensus difference already generated, ${{green}}skipping${{reset}}"
 fi
@@ -776,7 +777,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
 
     if skipFastQc == False:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}.fastqc.zip ]]; then fastqc --threads 2 --outdir {STATS} --noextract {FILENAME}; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}.fastqc.zip ]]; then fastqc --svg --threads 2 --outdir {STATS} --noextract {FILENAME}; fi' \\\n""".format(
                 SAMPLE=sample,
                 STATS=stats,
                 FILENAME=filename,
@@ -810,9 +811,9 @@ cd {STATS}/qc
 multiqc \\
     --verbose \\
     --force \\
-    --cl_config 'custom_logo: "{STATS}/ovationlogo.png"' \\
-    --cl_config 'custom_logo_url: "https://www.ovation.io"' \\
-    --cl_config 'custom_logo_title: "Ovation"' \\
+    --cl-config 'custom_logo: "{STATS}/ovationlogo.png"' \\
+    --cl-config 'custom_logo_url: "https://www.ovation.io"' \\
+    --cl-config 'custom_logo_title: "Ovation"' \\
     {STATS}
 
 # Save the output

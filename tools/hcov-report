@@ -15,7 +15,7 @@ mkdir -p ${PIPELINE_ROOT}/${DESTINATION_FOLDER}
 
 for FILENAME in $(find ${PIPELINE_ROOT}/pipeline -name '*.sorted.bam' -print); do
     LOCATION=$(dirname $FILENAME)
-    SAMPLE=$(echo $FILENAME | cut -d/ -f6 | sed 's/.sorted.bam//')
+    SAMPLE=$(basename $FILENAME | sed 's/.sorted.bam//')
 
     if [[ ! -f ${LOCATION}/${SAMPLE}.depth.gz ]]; then
         echo -ne "\033[0K${SAMPLE}:*: calculating depth...\r"

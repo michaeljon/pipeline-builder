@@ -6,6 +6,7 @@ if [[ -z "${SKIP_BREW}" ]]; then
         cmake \
         gcc \
         boost \
+        dwdiff wdiff \
         nasm \
         libgit2 \
         llvm \

@@ -737,7 +737,7 @@ def callVariantsUsingGatk(script: IO[Any], options: OptionsDict):
     # 8 hmm threads / 9 jobs
     # [2022-07-11 23:04:40] Calling variants using GATK
     # [2022-07-12 00:56:43] GATK variant calling completed
-    cores = int(options["cores"] * .75) # set aside some cpu so we can use the ec2 still
+    cores = int(options["cores"] * 0.75)  # set aside some cpu so we can use the ec2 still
     hmmThreads = 1
     jobs = int(cores / hmmThreads)
 
@@ -872,7 +872,7 @@ if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
         --output_file {OUTPUT} \\
         --stats_file {STATS}/{SUMMARY}
 
-    tabix -p vcf {OUTPUT}
+    tabix --force -p vcf {OUTPUT}
 
     logthis "Completed annotation"
 else
@@ -987,7 +987,7 @@ fi
 if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz.tbi ]]; then
     logthis "Indexing {PIPELINE}/{SAMPLE}.unannotated.vcf.gz"
 
-    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+    tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
     logthis "Indexing {PIPELINE}/{SAMPLE}.unannotated.vcf.gz complete"
 else
@@ -1166,7 +1166,7 @@ def doAlignmentQC(script: IO[Any], options: OptionsDict, sorted: str):
 
     if skipFastQc == False:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --svg --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
                 SAMPLE=sample,
                 STATS=stats,
                 R1=filenames[0],
@@ -1201,9 +1201,9 @@ cd {STATS}/qc
 multiqc \\
     --verbose \\
     --force \\
-    --cl_config 'custom_logo: "{STATS}/ovationlogo.png"' \\
-    --cl_config 'custom_logo_url: "https://www.ovation.io"' \\
-    --cl_config 'custom_logo_title: "Ovation"' \\
+    --cl-config 'custom_logo: "{STATS}/ovationlogo.png"' \\
+    --cl-config 'custom_logo_url: "https://www.ovation.io"' \\
+    --cl-config 'custom_logo_title: "Ovation"' \\
     {STATS}
 
 # Save the output

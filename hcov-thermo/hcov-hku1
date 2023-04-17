@@ -2,6 +2,7 @@
 
 SAMPLE=$1
 FASTQ=$2
+CHIP=$3
 
 ORGANISM=hcov-hku1
 ASSEMBLY=GCA_000858765.1_ViralProj15139_genomic
@@ -31,7 +32,7 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov-thermo/hcov-runner.py \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner \
     --temp-dir ${PIPELINE_ROOT}/tmp \
-    --fastq-dir ${PIPELINE_ROOT}/fastq \
+    --fastq-dir ${PIPELINE_ROOT}/fastq/${CHIP} \
     --skip-variant-qc \
     --skip-annotation \
     --caller bcftools \

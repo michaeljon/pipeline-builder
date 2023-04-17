@@ -11,7 +11,18 @@ from os import cpu_count, system
 FastqSet = Tuple[str, str]
 OptionsDict = Dict[str, Any]
 
-panel_choices = ["MN908947.3", "AF304460.1", "AY597011.2", "AY567487.2", "AY585228.1", "JX869059.2", "NC_038311.1", "NC_038312.1", "NC_038878.1", "panel"]
+panel_choices = [
+    "MN908947.3",
+    "AF304460.1",
+    "AY597011.2",
+    "AY567487.2",
+    "AY585228.1",
+    "JX869059.2",
+    "NC_038311.1",
+    "NC_038312.1",
+    "NC_038878.1",
+    "panel",
+]
 panel_choice_help = (
     "'Chromosome' name from reference assembly "
     + "(MN908947.3, sars-cov-2), "
@@ -216,8 +227,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         --sample-ploidy 1 \\
         --verbosity ERROR
 
-    bgzip {PIPELINE}/{SAMPLE}.unannotated.vcf
-    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+    bgzip --force {PIPELINE}/{SAMPLE}.unannotated.vcf
+    tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
     logthis "${{green}}GATK variant calling completed${{reset}}"
 else
@@ -227,8 +238,6 @@ fi
             REFERENCE=reference, ASSEMBLY=assembly, SAMPLE=sample
         )
     )
-
-
 
 
 def callVariantsUsingBcftools(script: TextIOWrapper, options: OptionsDict):
@@ -272,10 +281,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         --output {PIPELINE}/{SAMPLE}.unannotated.vcf \\
         -- --tags AC,AN,AF,VAF,MAF,FORMAT/VAF 2>/dev/null
 
-    rm -f {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp
-
-    bgzip {PIPELINE}/{SAMPLE}.unannotated.vcf
-    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+    bgzip --force {PIPELINE}/{SAMPLE}.unannotated.vcf
+    tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
     logthis "${{green}}bcftools variant calling completed${{reset}}"
 else
@@ -314,7 +321,7 @@ def produceConsensusUsingBcftools(
 if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
     logthis "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.unannotated.vcf.gz${{reset}}"
 
-    bcftools index {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+    bcftools index --force {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
     bcftools consensus \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
         {PIPELINE}/{SAMPLE}.unannotated.vcf.gz >{PIPELINE}/{SAMPLE}.consensus.fa
@@ -350,6 +357,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
     bcftools mpileup \\
         -aa \\
         -A \\
+        --threads 4 \\
         --max-depth 0 \\
         --max-idepth 0 \\
         --count-orphans \\
@@ -427,6 +435,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.pileup.gz ]]; then
     logthis "Generate pileup for {PIPELINE}/{SAMPLE}.sorted.bam"
 
     bcftools mpileup \\
+        --threads 4 \\
         --max-depth 0 \\
         --max-idepth 0 \\
         --count-orphans \\
@@ -492,7 +501,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.annotated.vcf.gz ]]; then
         {REFERENCE_NAME} {PIPELINE}/{SAMPLE}.unannotated.vcf.gz | \\
     bgzip >{PIPELINE}/{SAMPLE}.annotated.vcf.gz
 
-    tabix -p vcf {PIPELINE}/{SAMPLE}.annotated.vcf.gz
+    tabix --force -p vcf {PIPELINE}/{SAMPLE}.annotated.vcf.gz
 
     logthis "Completed snpeff annotation"
 else
@@ -589,11 +598,12 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.diff ]]; then
         tr -d '\\n' | 
         sed 's/\\(.\\)/\\1 /g' | 
         tr ' ' '\\n' >{PIPELINE}/{SAMPLE}.consensus.flat.fna
-    dwdiff -L8 -s -3 \\
-        {REFERENCE}/{ASSEMBLY}.flat.fna \\
-        {PIPELINE}/{SAMPLE}.consensus.flat.fna >{PIPELINE}/{SAMPLE}.diff
 
-    logthis "Consensus difference already completed for {SAMPLE}, ${{green}}skipping${{reset}}"
+    (dwdiff -L8 -s -3 \\
+        {REFERENCE}/{ASSEMBLY}.flat.fna \\
+        {PIPELINE}/{SAMPLE}.consensus.flat.fna || true) >{PIPELINE}/{SAMPLE}.diff
+
+    logthis "Consensus difference completed for {SAMPLE}, ${{green}}skipping${{reset}}"
 else
     logthis "Consensus difference already generated, ${{green}}skipping${{reset}}"
 fi
@@ -766,7 +776,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
 
     if skipFastQc == False:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --svg --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
                 SAMPLE=sample,
                 STATS=stats,
                 R1=filenames[0],
@@ -801,9 +811,9 @@ cd {STATS}/qc
 multiqc \\
     --verbose \\
     --force \\
-    --cl_config 'custom_logo: "{STATS}/ovationlogo.png"' \\
-    --cl_config 'custom_logo_url: "https://www.ovation.io"' \\
-    --cl_config 'custom_logo_title: "Ovation"' \\
+    --cl-config 'custom_logo: "{STATS}/ovationlogo.png"' \\
+    --cl-config 'custom_logo_url: "https://www.ovation.io"' \\
+    --cl-config 'custom_logo_title: "Ovation"' \\
     {STATS}
 
 # Save the output
@@ -930,7 +940,7 @@ export LD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib64:/usr/local/lib/:$L
 export DYLD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib:/usr/local/lib/:$DYLD_LIBRARY_PATH
 
 # bcftools
-export BCFTOOLS_PLUGINS={WORKING}/bin/plugins
+export BCFTOOLS_PLUGINS={WORKING}/libexec/bcftools
 
 # handy path
 export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.2.6.1:{WORKING}/bin:$PATH\n""".format(
@@ -1014,6 +1024,14 @@ def getFileNames(options: OptionsDict) -> FastqSet:
 
     sample = options["sample"]
     fastq_dir = options["fastq_dir"]
+
+    filenames = (
+        options["r1"],
+        options["r2"],
+    )
+
+    if exists(expandvars(filenames[0])) == True and exists(expandvars(filenames[1])) == True:
+        return filenames
 
     # assume we have the _001 pattern first
     filenames = (
@@ -1159,6 +1177,7 @@ def runTrimmomaticPreprocessor(
     bin = options["bin"]
     sample = options["sample"]
     stats = options["stats"]
+    threads = options["cores"]
 
     u1 = o1.replace(".trimmed", ".unpaired")
     u2 = o2.replace(".trimmed", ".unpaired")
@@ -1171,15 +1190,17 @@ def runTrimmomaticPreprocessor(
 if [[ ! -f {O1} || ! -f {O2} ]]; then
     logthis "${{yellow}}Running trimmomatic preprocessor${{reset}}"
 
-    java -jar {BIN}/trimmomatic-0.39.jar PE \\
+    java -jar {BIN}/trimmomatic-0.39.jar \\
+        PE \\
+        -threads {THREADS} \\
         {R1} \\
         {R2} \\
         {O1} {U1} \\
         {O2} {U2} \\
-        ILLUMINACLIP:{BIN}/adapters/TruSeq3-PE-2.fa:2:30:10 \\
-        LEADING:5 \\
-        TRAILING:5 \\
-        SLIDINGWINDOW:4:20 \\
+        ILLUMINACLIP:{BIN}/adapters/Ovation-PE.fa:2:30:5:2:True \\
+        HEADCROP:15 \\
+        LEADING:3 \\
+        TRAILING:3 \\
         MINLEN:30 2> {STATS}/{SAMPLE}_trim_out.log
 
     logthis "${{yellow}}trimmomatic preprocessor completed${{reset}}"
@@ -1187,7 +1208,7 @@ else
     logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
 """.format(
-            R1=r1, R2=r2, O1=o1, O2=o2, U1=u1, U2=u2, STATS=stats, SAMPLE=sample, BIN=bin
+            R1=r1, R2=r2, O1=o1, O2=o2, U1=u1, U2=u2, STATS=stats, SAMPLE=sample, BIN=bin, THREADS=threads
         )
     )
 
@@ -1502,6 +1523,25 @@ def defineArguments() -> Namespace:
         dest="sample",
         help="short name of sample, e.g. DPZw_k file must be in <WORKING>/pipeline/<sample>_R[12].fastq.gz",
     )
+
+    parser.add_argument(
+        "--r1",
+        required=True,
+        action="store",
+        metavar="R1",
+        dest="r1",
+        help="Full path to the forward (R1) read FASTQ",
+    )
+
+    parser.add_argument(
+        "--r2",
+        required=True,
+        action="store",
+        metavar="R2",
+        dest="r2",
+        help="Full path to the reverse (R2) read FASTQ",
+    )
+
     parser.add_argument(
         "--work-dir",
         required=True,
