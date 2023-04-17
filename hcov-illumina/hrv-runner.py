@@ -630,6 +630,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
     stats = options["stats"]
     threads = options["cores"]
     skipFastQc = options["skipFastQc"]
+    doPicardQc = options["doPicardQc"]
 
     filenames = getTrimmedFileNames(options)
 
@@ -645,41 +646,42 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
         )
     )
 
-    checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then gatk CollectAlignmentSummaryMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.alignment_metrics.txt; fi' \\\n""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-            STATS=stats,
-            THREADS=threads,
-            SORTED=sorted,
+    if doPicardQc == True:
+        checks.append(
+            """'if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then gatk CollectAlignmentSummaryMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.alignment_metrics.txt; fi' \\\n""".format(
+                REFERENCE=reference,
+                ASSEMBLY=assembly,
+                PIPELINE=pipeline,
+                SAMPLE=sample,
+                STATS=stats,
+                THREADS=threads,
+                SORTED=sorted,
+            )
         )
-    )
 
-    checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then gatk CollectGcBiasMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.gc_bias_metrics.txt -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf -S {STATS}/{SAMPLE}.gc_bias_summary.txt; fi' \\\n""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-            STATS=stats,
-            THREADS=threads,
-            SORTED=sorted,
+        checks.append(
+            """'if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then gatk CollectGcBiasMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.gc_bias_metrics.txt -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf -S {STATS}/{SAMPLE}.gc_bias_summary.txt; fi' \\\n""".format(
+                REFERENCE=reference,
+                ASSEMBLY=assembly,
+                PIPELINE=pipeline,
+                SAMPLE=sample,
+                STATS=stats,
+                THREADS=threads,
+                SORTED=sorted,
+            )
         )
-    )
 
-    checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then gatk CollectWgsMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.wgs_metrics.txt --MINIMUM_BASE_QUALITY 20 --MINIMUM_MAPPING_QUALITY 20 --COVERAGE_CAP 10000 --READ_LENGTH 151 --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list --USE_FAST_ALGORITHM --INCLUDE_BQ_HISTOGRAM; fi' \\\n""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-            STATS=stats,
-            THREADS=threads,
-            SORTED=sorted,
+        checks.append(
+            """'if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then gatk CollectWgsMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.wgs_metrics.txt --MINIMUM_BASE_QUALITY 20 --MINIMUM_MAPPING_QUALITY 20 --COVERAGE_CAP 10000 --READ_LENGTH 151 --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list --USE_FAST_ALGORITHM --INCLUDE_BQ_HISTOGRAM; fi' \\\n""".format(
+                REFERENCE=reference,
+                ASSEMBLY=assembly,
+                PIPELINE=pipeline,
+                SAMPLE=sample,
+                STATS=stats,
+                THREADS=threads,
+                SORTED=sorted,
+            )
         )
-    )
 
     checks.append(
         """'if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then samtools stats -@ 8 -r {REFERENCE}/{ASSEMBLY}.fna {SORTED} >{STATS}/{SAMPLE}.samstats; fi' \\\n""".format(
@@ -1516,6 +1518,13 @@ def defineArguments() -> Namespace:
         dest="doAlignmentQc",
         default=True,
         help="Skip alignment QC process on input and output files",
+    )
+    parser.add_argument(
+        "--skip-picard-qc",
+        action="store_false",
+        dest="doPicardQc",
+        default=True,
+        help="Skip any picard QC process on input and output files",
     )
     parser.add_argument(
         "--skip-fastqc",

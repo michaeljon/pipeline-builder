@@ -33,6 +33,7 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov-thermo/hcov-runner.py \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner \
     --temp-dir ${PIPELINE_ROOT}/tmp \
     --fastq-dir ${PIPELINE_ROOT}/fastq/${CHIP} \
+    --skip-picard-qc \
     --skip-variant-qc \
     --skip-annotation \
     --caller bcftools \
