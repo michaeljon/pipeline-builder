@@ -549,10 +549,6 @@ def runVariantPipeline(script: TextIOWrapper, options: OptionsDict):
 
 def generateConsensus(script: TextIOWrapper, options: OptionsDict):
     consensusGenerator = options["consensusGenerator"]
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
 
     if consensusGenerator == "ivar":
         produceConsensusUsingIvar(script, options)
@@ -560,40 +556,6 @@ def generateConsensus(script: TextIOWrapper, options: OptionsDict):
         produceConsensusUsingBcftools(script, options)
     elif consensusGenerator == "gatk":
         produceConsensusUsingGatk(script, options)
-
-    script.write(
-        """
-if [[ ! -f {REFERENCE}/{ASSEMBLY}.flat.fna ]]; then
-    tail -n +2 {REFERENCE}/{ASSEMBLY}.fna | 
-        grep -v '^>' | 
-        tr -d '\\n' | 
-        sed 's/\\(.\\)/\\1 /g' | 
-        tr ' ' '\\n' > {REFERENCE}/{ASSEMBLY}.flat.fna
-else
-    logthis "Flat reference already generated, ${{green}}skipping${{reset}}"
-fi
-
-if [[ ! -f {PIPELINE}/{SAMPLE}.diff ]]; then
-    logthis "Generating consensus difference for {SAMPLE}"
-
-    tail -n +2 {PIPELINE}/{SAMPLE}.consensus.fa | 
-        grep -v '^>' | 
-        tr -d '\\n' | 
-        sed 's/\\(.\\)/\\1 /g' | 
-        tr ' ' '\\n' >{PIPELINE}/{SAMPLE}.consensus.flat.fna
-
-    (dwdiff -L8 -s -3 \\
-        {REFERENCE}/{ASSEMBLY}.flat.fna \\
-        {PIPELINE}/{SAMPLE}.consensus.flat.fna || true) >{PIPELINE}/{SAMPLE}.diff
-
-    logthis "Consensus difference completed for {SAMPLE}, ${{green}}skipping${{reset}}"
-else
-    logthis "Consensus difference already generated, ${{green}}skipping${{reset}}"
-fi
-        """.format(
-            REFERENCE=reference, ASSEMBLY=assembly, PIPELINE=pipeline, SAMPLE=sample
-        )
-    )
 
 
 def doVariantQC(script: TextIOWrapper, options: OptionsDict):

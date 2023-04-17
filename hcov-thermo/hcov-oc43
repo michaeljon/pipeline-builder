@@ -37,6 +37,7 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov-thermo/hcov-runner.py \
     --skip-annotation \
     --caller bcftools \
     --aligner bwa \
+    --preprocessor cutadapt \
     --sorter biobambam
 
 cp ${PIPELINE_ROOT}/pipeline-builder/assets/software_versions_mqc.html ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}
