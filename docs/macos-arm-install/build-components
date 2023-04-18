@@ -67,6 +67,14 @@ make install prefix=${ROOT_DIR} CXX=${CXX} CC=${CC}
 export CXXFLAGS=${SAVE_CXXFLAGS}
 export LDFLAGS=${SAVE_LDFLAGS}
 
+echo "Building REGTOOLS components"
+git clone https://github.com/griffithlab/regtools
+cd regtools/
+mkdir build
+cd build/
+cmake -DCMAKE_INSTALL_PREFIX=${ROOT_DIR} ..
+make
+
 echo "Building vcftools"
 cd ${ROOT_DIR}/src/vcftools-0.1.16
 ZLIB_LIBS="-L${ROOT_DIR}/lib"
