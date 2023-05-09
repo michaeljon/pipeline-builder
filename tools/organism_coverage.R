@@ -34,7 +34,7 @@ for (arg in args) {
       geom_smooth() +
       theme_hc(base_size = 16) +
       labs(
-        title = sprintf("Depth by position in organism for %s", sample),
+        title = sample,
         subtitle = sprintf("Organism: %s", organism)
       )
 
