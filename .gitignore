@@ -22,5 +22,13 @@ tools/fq/obj
 tools/fq/tmp
 
 hcov-illumina/samples
+hcov-illumina/*.log
 hcov-thermo/samples
+hcov-thermo/*.log
 human/samples
+
+rna-pipeline/working*
+rna-pipeline/jobs.tsv
+rna-pipeline/rna-sequence.log
+
+tools/variant-store/tools/*.tsv

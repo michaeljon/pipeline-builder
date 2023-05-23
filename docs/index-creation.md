@@ -9,7 +9,7 @@ For now we "install" our references in `~/reference/${ORGANISM}`. The current li
 First, we create our main index. This one feeds `bwa-mem2` which is our primary aligner.
 
 ```bash
-bwa-mem2 index GCF_000001405.40_GRCh38.p14_genomic.fna
+bwa-mem2 index ${REFERENCE}.fna
 ```
 
 That command will build the BWT indexes from the reference. The filename for the reference will be used to construct the index file names: `.0123`, `.amb`, `.ann`, `.pac`, and `.bwt.2bit.64`. This last file is based on the processor installed on the EC2 instance and its support for various Intel extensions.
@@ -19,7 +19,7 @@ This particular step can take upwards of an hour depending on the EC2 instance. 
 We also create a set of index files for our "old" aligner `bwa` for comparison.
 
 ```bash
-bwa index GCF_000001405.40_GRCh38.p14_genomic.fna
+bwa index ${REFERENCE}.fna
 ```
 
 In this case some of the same files are constructed, but there are two new ones: `.sa` and `.bwt`.
@@ -33,10 +33,30 @@ hisat2-build -p 16 reference.fasta reference
 minimap2 -d reference.mmi reference.fasta
 ```
 
+### salmon indexes for RNA-seq classification
+
+```bash
+salmon index -t GCF_000001405.40_GRCh38.p14_rna.gbff -i GCF_000001405.40_GRCh38.salmon.idx --gencode
+```
+
+### STAR index for RNA-seq
+
+```bash
+# run from inside the specific reference
+STAR \
+    --runThreadN `nproc` \
+    --runMode genomeGenerate \
+    --genomeDir .
+    --genomeFastaFiles GCF_000001405.40_GRCh38.p14_genomic.fna \
+    --sjdbGTFfile GCF_000001405.40_GRCh38.p14_genomic.gff \
+    --sjdbGTFtagExonParentTranscript Parent \
+    --sjdbOverhang 150
+```
+
 ### samtools indexes
 
 ```bash
-samtools faidx GCF_000001405.40_GRCh38.p14_genomic.fna
+samtools faidx ${REFERENCE}.fna
 ```
 
 This command creates a single index file with a `.fai` extension.
@@ -47,8 +67,8 @@ This index can be created by the pipeline, but if running many pipelines in para
 
 ```bash
 gatk CreateSequenceDictionary \
-    -R GCF_000001405.40_GRCh38.p14_genomic.fna \
-    -O GCF_000001405.40_GRCh38.p14_genomic.dict
+    -R ${REFERENCE}.fna \
+    -O ${REFERENCE}.dict
 ```
 
 The output filename is used directly by the pipeline tooling so it needs to follow the above convention directly.
@@ -99,7 +119,7 @@ mv GCF_000001405.39.gz GCF_000001405.39.non-indexed.vcf.gz
 # update the sequence dictionary in the vcf
 gatk UpdateVcfSequenceDictionary \
     -I GCF_000001405.39.non-indexed.vcf.gz \
-    -SD GCF_000001405.40_GRCh38.p14_genomic.dict \
+    -SD ${REFERENCE}.dict \
     -O GCF_000001405.39.gz
 
 # then index the feature file (still in vcf format)

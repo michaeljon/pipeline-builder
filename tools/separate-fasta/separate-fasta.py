@@ -50,11 +50,7 @@ def verify_options(options: Dict[str, Any]):
         quit(1)
 
     if exists(options["output_dir"]) == False:
-        print(
-            "Output directory not found at {PATH}, creating...".format(
-                PATH=options["output_dir"]
-            )
-        )
+        print("Output directory not found at {PATH}, creating...".format(PATH=options["output_dir"]))
         mkdir(options["output_dir"])
 
 
@@ -104,6 +100,9 @@ if __name__ == "__main__":
         "AY567487.2": "hcov-nl63",
         "AY585228.1": "hcov-oc43",
         "MN908947.3": "sars-cov-2",
+        "NC_038311.1": "hrv-a",
+        "NC_038312.1": "hrv-b",
+        "NC_038878.1": "hrv-c",
     }
 
     opts = define_arguments()

@@ -213,8 +213,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         --sample-ploidy 1 \\
         --verbosity ERROR
 
-    bgzip {PIPELINE}/{SAMPLE}.unannotated.vcf
-    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+    bgzip --force {PIPELINE}/{SAMPLE}.unannotated.vcf
+    tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
     logthis "${{green}}GATK variant calling completed${{reset}}"
 else
@@ -222,50 +222,6 @@ else
 fi
 """.format(
             REFERENCE=reference, ASSEMBLY=assembly, SAMPLE=sample
-        )
-    )
-
-
-def callVariantsUsingLofreq(
-    script: TextIOWrapper,
-    options: OptionsDict,
-):
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
-
-    script.write(
-        """
-# call variants
-if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
-    logthis "${{yellow}}Calling variants using lofreq${{reset}}"
-
-    lofreq indelqual \\
-        --dindel \\
-        --ref {REFERENCE}/{ASSEMBLY}.fna \\
-        --verbose \\
-        --out - \\
-        {PIPELINE}/{SAMPLE}.sorted.bam |
-    lofreq call \\
-        --ref {REFERENCE}/{ASSEMBLY}.fna \\
-        --call-indels \\
-        --no-default-filter \\
-        --max-depth 1000000 \\
-        --force-overwrite \\
-        --verbose \\
-        --out {PIPELINE}/{SAMPLE}.unannotated.vcf \\
-        -
-
-    bgzip {PIPELINE}/{SAMPLE}.unannotated.vcf
-    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
-
-    logthis "${{green}}lofreq variant calling completed${{reset}}"
-else
-    logthis "Variants already called for {PIPELINE}/{SAMPLE}.sorted.bam, ${{green}}skipping${{reset}}"
-fi
-""".format(
-            REFERENCE=reference, ASSEMBLY=assembly, SAMPLE=sample, PIPELINE=pipeline
         )
     )
 
@@ -311,10 +267,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         --output {PIPELINE}/{SAMPLE}.unannotated.vcf \\
         -- --tags AC,AN,AF,VAF,MAF,FORMAT/VAF 2>/dev/null
 
-    rm -f {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp
-
-    bgzip {PIPELINE}/{SAMPLE}.unannotated.vcf
-    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+    bgzip --force {PIPELINE}/{SAMPLE}.unannotated.vcf
+    tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
     logthis "${{green}}bcftools variant calling completed${{reset}}"
 else
@@ -333,8 +287,6 @@ def callVariants(script: TextIOWrapper, options: OptionsDict):
         callVariantsUsingGatk(script, options)
     elif caller == "bcftools":
         callVariantsUsingBcftools(script, options)
-    elif caller == "lofreq":
-        callVariantsUsingLofreq(script, options)
     else:
         print("Unexpected value {CALLER} given for the --caller option".format(CALLER=caller))
         quit(1)
@@ -355,7 +307,7 @@ def produceConsensusUsingBcftools(
 if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
     logthis "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.unannotated.vcf.gz${{reset}}"
 
-    bcftools index {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+    bcftools index --force {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
     bcftools consensus \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
         {PIPELINE}/{SAMPLE}.unannotated.vcf.gz >{PIPELINE}/{SAMPLE}.consensus.fa
@@ -391,6 +343,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
     bcftools mpileup \\
         -aa \\
         -A \\
+        --threads 4 \\
         --max-depth 0 \\
         --max-idepth 0 \\
         --count-orphans \\
@@ -533,7 +486,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.annotated.vcf.gz ]]; then
         {REFERENCE_NAME} {PIPELINE}/{SAMPLE}.unannotated.vcf.gz | \\
     bgzip >{PIPELINE}/{SAMPLE}.annotated.vcf.gz
 
-    tabix -p vcf {PIPELINE}/{SAMPLE}.annotated.vcf.gz
+    tabix --force -p vcf {PIPELINE}/{SAMPLE}.annotated.vcf.gz
 
     logthis "Completed snpeff annotation"
 else
@@ -598,10 +551,6 @@ def runVariantPipeline(script: TextIOWrapper, options: OptionsDict):
 
 def generateConsensus(script: TextIOWrapper, options: OptionsDict):
     consensusGenerator = options["consensusGenerator"]
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
 
     if consensusGenerator == "ivar":
         produceConsensusUsingIvar(script, options)
@@ -609,39 +558,6 @@ def generateConsensus(script: TextIOWrapper, options: OptionsDict):
         produceConsensusUsingBcftools(script, options)
     elif consensusGenerator == "gatk":
         produceConsensusUsingGatk(script, options)
-
-    script.write(
-        """
-if [[ ! -f {REFERENCE}/{ASSEMBLY}.flat.fna ]]; then
-    tail -n +2 {REFERENCE}/{ASSEMBLY}.fna | 
-        grep -v '^>' | 
-        tr -d '\\n' | 
-        sed 's/\\(.\\)/\\1 /g' | 
-        tr ' ' '\\n' > {REFERENCE}/{ASSEMBLY}.flat.fna
-else
-    logthis "Flat reference already generated, ${{green}}skipping${{reset}}"
-fi
-
-if [[ ! -f {PIPELINE}/{SAMPLE}.diff ]]; then
-    logthis "Generating consensus difference for {SAMPLE}"
-
-    tail -n +2 {PIPELINE}/{SAMPLE}.consensus.fa | 
-        grep -v '^>' | 
-        tr -d '\\n' | 
-        sed 's/\\(.\\)/\\1 /g' | 
-        tr ' ' '\\n' >{PIPELINE}/{SAMPLE}.consensus.flat.fna
-    dwdiff -L8 -s -3 \\
-        {REFERENCE}/{ASSEMBLY}.flat.fna \\
-        {PIPELINE}/{SAMPLE}.consensus.flat.fna >{PIPELINE}/{SAMPLE}.diff
-
-    logthis "Consensus difference already completed for {SAMPLE}, ${{green}}skipping${{reset}}"
-else
-    logthis "Consensus difference already generated, ${{green}}skipping${{reset}}"
-fi
-        """.format(
-            REFERENCE=reference, ASSEMBLY=assembly, PIPELINE=pipeline, SAMPLE=sample
-        )
-    )
 
 
 def doVariantQC(script: TextIOWrapper, options: OptionsDict):
@@ -716,6 +632,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
     stats = options["stats"]
     threads = options["cores"]
     skipFastQc = options["skipFastQc"]
+    doPicardQc = options["doPicardQc"]
 
     filenames = getTrimmedFileNames(options)
 
@@ -731,41 +648,42 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
         )
     )
 
-    checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then gatk CollectAlignmentSummaryMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.alignment_metrics.txt; fi' \\\n""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-            STATS=stats,
-            THREADS=threads,
-            SORTED=sorted,
+    if doPicardQc == True:
+        checks.append(
+            """'if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then gatk CollectAlignmentSummaryMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.alignment_metrics.txt; fi' \\\n""".format(
+                REFERENCE=reference,
+                ASSEMBLY=assembly,
+                PIPELINE=pipeline,
+                SAMPLE=sample,
+                STATS=stats,
+                THREADS=threads,
+                SORTED=sorted,
+            )
         )
-    )
 
-    checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then gatk CollectGcBiasMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.gc_bias_metrics.txt -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf -S {STATS}/{SAMPLE}.gc_bias_summary.txt; fi' \\\n""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-            STATS=stats,
-            THREADS=threads,
-            SORTED=sorted,
+        checks.append(
+            """'if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then gatk CollectGcBiasMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.gc_bias_metrics.txt -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf -S {STATS}/{SAMPLE}.gc_bias_summary.txt; fi' \\\n""".format(
+                REFERENCE=reference,
+                ASSEMBLY=assembly,
+                PIPELINE=pipeline,
+                SAMPLE=sample,
+                STATS=stats,
+                THREADS=threads,
+                SORTED=sorted,
+            )
         )
-    )
 
-    checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then gatk CollectWgsMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.wgs_metrics.txt --MINIMUM_BASE_QUALITY 20 --MINIMUM_MAPPING_QUALITY 20 --COVERAGE_CAP 250 --READ_LENGTH 151 --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list --USE_FAST_ALGORITHM --INCLUDE_BQ_HISTOGRAM; fi' \\\n""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-            STATS=stats,
-            THREADS=threads,
-            SORTED=sorted,
+        checks.append(
+            """'if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then gatk CollectWgsMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.wgs_metrics.txt --MINIMUM_BASE_QUALITY 20 --MINIMUM_MAPPING_QUALITY 20 --COVERAGE_CAP 10000 --READ_LENGTH 151 --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list --USE_FAST_ALGORITHM --INCLUDE_BQ_HISTOGRAM; fi' \\\n""".format(
+                REFERENCE=reference,
+                ASSEMBLY=assembly,
+                PIPELINE=pipeline,
+                SAMPLE=sample,
+                STATS=stats,
+                THREADS=threads,
+                SORTED=sorted,
+            )
         )
-    )
 
     checks.append(
         """'if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then samtools stats -@ 8 -r {REFERENCE}/{ASSEMBLY}.fna {SORTED} >{STATS}/{SAMPLE}.samstats; fi' \\\n""".format(
@@ -807,7 +725,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
 
     if skipFastQc == False:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --svg --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
                 SAMPLE=sample,
                 STATS=stats,
                 R1=filenames[0],
@@ -842,9 +760,9 @@ cd {STATS}/qc
 multiqc \\
     --verbose \\
     --force \\
-    --cl_config 'custom_logo: "{STATS}/ovationlogo.png"' \\
-    --cl_config 'custom_logo_url: "https://www.ovation.io"' \\
-    --cl_config 'custom_logo_title: "Ovation"' \\
+    --cl-config 'custom_logo: "{STATS}/ovationlogo.png"' \\
+    --cl-config 'custom_logo_url: "https://www.ovation.io"' \\
+    --cl-config 'custom_logo_title: "Ovation"' \\
     {STATS}
 
 # Save the output
@@ -960,7 +878,7 @@ function logthis() {{
 ulimit -n 8192
 
 # perl stuff
-export PATH={WORKING}/perl5/bin:$PATH
+export PATH=$HOME/.local/bin:{WORKING}/perl5/bin:$PATH
 export PERL5LIB={WORKING}/perl5/lib/perl5:$PERL5LIB
 export PERL_LOCAL_LIB_ROOT={WORKING}/perl5:$PERL_LOCAL_LIB_ROOT
 
@@ -971,7 +889,7 @@ export LD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib64:/usr/local/lib/:$L
 export DYLD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib:/usr/local/lib/:$DYLD_LIBRARY_PATH
 
 # bcftools
-export BCFTOOLS_PLUGINS={WORKING}/bin/plugins
+export BCFTOOLS_PLUGINS={WORKING}/libexec/bcftools
 
 # handy path
 export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.2.6.1:{WORKING}/bin:$PATH\n""".format(
@@ -1046,13 +964,23 @@ def verifyOptions(options: OptionsDict):
     options["__canAssignClades"] = referenceName == "MN908947.3"
     options["__canAnnotateVariants"] = referenceName == "MN908947.3"
 
+
 fallback_warning_shown = False
+
 
 def getFileNames(options: OptionsDict) -> FastqSet:
     global fallback_warning_shown
 
     sample = options["sample"]
     fastq_dir = options["fastq_dir"]
+
+    filenames = (
+        options["r1"],
+        options["r2"],
+    )
+
+    if exists(expandvars(filenames[0])) == True and exists(expandvars(filenames[1])) == True:
+        return filenames
 
     # assume we have the _001 pattern first
     filenames = (
@@ -1062,7 +990,7 @@ def getFileNames(options: OptionsDict) -> FastqSet:
 
     if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
         if fallback_warning_shown == False:
-            print("Falling back to shortened fastq file names")
+            print("Falling back to shortened fastq file names, files not found at")
             fallback_warning_shown = True
 
         # if that didn't work, try for the redacted names
@@ -1198,6 +1126,7 @@ def runTrimmomaticPreprocessor(
     bin = options["bin"]
     sample = options["sample"]
     stats = options["stats"]
+    threads = options["cores"]
 
     u1 = o1.replace(".trimmed", ".unpaired")
     u2 = o2.replace(".trimmed", ".unpaired")
@@ -1210,15 +1139,17 @@ def runTrimmomaticPreprocessor(
 if [[ ! -f {O1} || ! -f {O2} ]]; then
     logthis "${{yellow}}Running trimmomatic preprocessor${{reset}}"
 
-    java -jar {BIN}/trimmomatic-0.39.jar PE \\
+    java -jar {BIN}/trimmomatic-0.39.jar \\
+        PE \\
+        -threads {THREADS} \\
         {R1} \\
         {R2} \\
         {O1} {U1} \\
         {O2} {U2} \\
-        ILLUMINACLIP:{BIN}/adapters/TruSeq3-PE-2.fa:2:30:10 \\
-        LEADING:5 \\
-        TRAILING:5 \\
-        SLIDINGWINDOW:4:20 \\
+        ILLUMINACLIP:{BIN}/adapters/Ovation-PE.fa:2:30:5:2:True \\
+        HEADCROP:15 \\
+        LEADING:3 \\
+        TRAILING:3 \\
         MINLEN:30 2> {STATS}/{SAMPLE}_trim_out.log
 
     logthis "${{yellow}}trimmomatic preprocessor completed${{reset}}"
@@ -1226,7 +1157,7 @@ else
     logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
 """.format(
-            R1=r1, R2=r2, O1=o1, O2=o2, U1=u1, U2=u2, STATS=stats, SAMPLE=sample, BIN=bin
+            R1=r1, R2=r2, O1=o1, O2=o2, U1=u1, U2=u2, STATS=stats, SAMPLE=sample, BIN=bin, THREADS=threads
         )
     )
 
@@ -1459,6 +1390,31 @@ fi
     )
 
 
+def generateDepth(script: TextIOWrapper, options: OptionsDict):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
+    script.write(
+        """
+#
+# calculate depth by position
+#
+if [[ ! -f {PIPELINE}/{SAMPLE}.depth.gz ]]; then
+    logthis "${{yellow}}Calculating depth by position${{reset}}"
+
+    samtools depth {PIPELINE}/{SAMPLE}.sorted.bam | gzip >{PIPELINE}/{SAMPLE}.depth.gz
+
+    logthis "${{yellow}}Depth calculation complete${{reset}}"
+else
+    logthis "Depth calculation already complete, ${{green}}skipping${{reset}}"
+fi
+    """.format(
+            SAMPLE=sample,
+            PIPELINE=pipeline,
+        )
+    )
+
+
 def alignAndSort(script: TextIOWrapper, options: OptionsDict):
     processUnmapped = options["processUnmapped"]
     alignOnly = options["alignOnly"]
@@ -1473,6 +1429,7 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict):
     preprocessFASTQ(script, filenames[0], filenames[1], trimmedFilenames[0], trimmedFilenames[1], options)
     alignFASTQ(script, trimmedFilenames[0], trimmedFilenames[1], options)
     sortAlignedAndMappedData(script, options)
+    generateDepth(script, options)
 
     if processUnmapped == True:
         extractUmappedReads(script, options)
@@ -1513,8 +1470,27 @@ def defineArguments() -> Namespace:
         action="store",
         metavar="SAMPLE",
         dest="sample",
-        help="short name of sample, e.g. DPZw_k file must be in <WORKING>/pipeline/<sample>_R[12].fastq.gz",
+        help="short name of sample, e.g. DPZw_k",
     )
+
+    parser.add_argument(
+        "--r1",
+        required=True,
+        action="store",
+        metavar="R1",
+        dest="r1",
+        help="Full path to the forward (R1) read FASTQ",
+    )
+
+    parser.add_argument(
+        "--r2",
+        required=True,
+        action="store",
+        metavar="R2",
+        dest="r2",
+        help="Full path to the reverse (R2) read FASTQ",
+    )
+
     parser.add_argument(
         "--work-dir",
         required=True,
@@ -1544,6 +1520,13 @@ def defineArguments() -> Namespace:
         dest="doAlignmentQc",
         default=True,
         help="Skip alignment QC process on input and output files",
+    )
+    parser.add_argument(
+        "--skip-picard-qc",
+        action="store_false",
+        dest="doPicardQc",
+        default=True,
+        help="Skip any picard QC process on input and output files",
     )
     parser.add_argument(
         "--skip-fastqc",
@@ -1601,8 +1584,8 @@ def defineArguments() -> Namespace:
         action="store",
         dest="caller",
         default="bcftools",
-        choices=["bcftools", "gatk", "lofreq"],
-        help="Use `bcftools`, `gatk`, or `lofreq` as the variant caller",
+        choices=["bcftools", "gatk"],
+        help="Use `bcftools` or `gatk` as the variant caller",
     )
 
     parser.add_argument(

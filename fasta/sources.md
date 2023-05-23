@@ -1,6 +1,6 @@
 # List of sources used in Ovation's pipelines
 
-## Virome sequence sources (use the GenBank files)
+## Virome sequence sources (use the RefSeq files when possible)
 
 ### HCoV-229E
 
@@ -26,6 +26,18 @@
 
 - https://www.ncbi.nlm.nih.gov/nuccore/MN908947.3
 - https://www.ncbi.nlm.nih.gov/assembly/GCF_009858895.2/
+
+### HRV-A1
+
+- https://www.ncbi.nlm.nih.gov/assembly/GCF_002816835.1
+
+### HRV-B3
+
+- https://www.ncbi.nlm.nih.gov/assembly/GCF_002816855.1
+
+### HRV-C
+
+- https://www.ncbi.nlm.nih.gov/assembly/GCF_002816885.1
 
 ## Human
 

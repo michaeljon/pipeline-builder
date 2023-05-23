@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+
+# installables
+if [[ -z "${SKIP_APT}" ]]; then
+    sudo apt update
+    sudo apt install -y \
+        cmake pkg-config \
+        dotnet6 \
+        dwdiff \
+        libboost-all-dev \
+        libgsl-dev libperl-dev \
+        openjdk-17-jre-headless \
+        bzip2 unzip libdeflate-dev libbz2-dev liblzma-dev \
+        python3 python3-pip python-is-python3
+fi
+
+ROOT_DIR=${HOME}/pipeline
+
+mkdir -p ${ROOT_DIR}
+
+mkdir -p \
+    ${ROOT_DIR}/components \
+    ${ROOT_DIR}/src \
+    ${ROOT_DIR}/output \
+    ${ROOT_DIR}/bin \
+    ${ROOT_DIR}/lib \
+    ${ROOT_DIR}/libexec \
+    ${ROOT_DIR}/share \
+    ${ROOT_DIR}/stats \
+    ${ROOT_DIR}/tmp \
+    ${ROOT_DIR}/perl5 \
+    ${ROOT_DIR}/reference
+
+# samtools / bamtools / bedtools
+curl --silent https://github.com/samtools/htslib/releases/download/1.17/htslib-1.17.tar.bz2 --location -o ${ROOT_DIR}/components/htslib.tgz &&
+    tar xf ${ROOT_DIR}/components/htslib.tgz -C ${ROOT_DIR}/src
+
+curl --silent https://github.com/samtools/samtools/releases/download/1.17/samtools-1.17.tar.bz2 --location -o ${ROOT_DIR}/components/samtools.tgz &&
+    tar xf ${ROOT_DIR}/components/samtools.tgz -C ${ROOT_DIR}/src
+
+curl --silent https://github.com/samtools/bcftools/releases/download/1.17/bcftools-1.17.tar.bz2 --location -o ${ROOT_DIR}/components/bcftools.tgz &&
+    tar xf ${ROOT_DIR}/components/bcftools.tgz -C ${ROOT_DIR}/src
+
+curl --silent https://github.com/pezmaster31/bamtools/archive/refs/tags/v2.5.2.tar.gz --location -o ${ROOT_DIR}/components/bamtools.tgz &&
+    tar xf ${ROOT_DIR}/components/bamtools.tgz -C ${ROOT_DIR}/src
+
+curl --silent https://github.com/arq5x/bedtools2/releases/download/v2.30.0/bedtools-2.30.0.tar.gz --location -o ${ROOT_DIR}/components/bedtools.tgz &&
+    tar xf ${ROOT_DIR}/components/bedtools.tgz -C ${ROOT_DIR}/src
+
+# aligners and other stuff
+git clone https://github.com/lh3/bwa.git ${ROOT_DIR}/src/bwa
+git clone https://github.com/alexdobin/STAR.git ${ROOT_DIR}/src/star
+git clone https://github.com/DaehwanKimLab/hisat2.git ${ROOT_DIR}/src/hisat2
+curl --silent https://github.com/lh3/minimap2/archive/refs/tags/v2.24.tar.gz --location -o ${ROOT_DIR}/components/minimap2.tgz &&
+    tar xf ${ROOT_DIR}/components/minimap2.tgz -C ${ROOT_DIR}/src
+
+curl --silent https://bitbucket.org/kokonech/qualimap/downloads/qualimap_v2.2.1.zip --location -o ${ROOT_DIR}/components/qualimap.zip &&
+    unzip ${ROOT_DIR}/components/qualimap.zip -d ${ROOT_DIR}/bin
+
+curl --silent https://github.com/vcftools/vcftools/releases/download/v0.1.16/vcftools-0.1.16.tar.gz --location -o ${ROOT_DIR}/components/vcftools.tgz &&
+    tar xf ${ROOT_DIR}/components/vcftools.tgz -C ${ROOT_DIR}/src
+
+curl --silent https://github.com/shenwei356/seqkit/releases/download/v2.4.0/seqkit_linux_arm64.tar.gz --location -o ${ROOT_DIR}/components/seqkit.tgz &&
+    tar xf ${ROOT_DIR}/components/seqkit.tgz -C ${ROOT_DIR}/bin
+
+curl --silent https://github.com/usadellab/Trimmomatic/files/5854859/Trimmomatic-0.39.zip --location -o ${ROOT_DIR}/components/trimmomatic.zip &&
+    unzip ${ROOT_DIR}/components/trimmomatic.zip -d ${ROOT_DIR}/bin
+
+# gatk and picard
+curl --silent https://github.com/broadinstitute/gatk/releases/download/4.4.0.0/gatk-4.4.0.0.zip --location -o ${ROOT_DIR}/components/gatk.zip &&
+    unzip ${ROOT_DIR}/components/gatk.zip -d ${ROOT_DIR}/bin
+
+curl --silent https://github.com/broadinstitute/picard/releases/download/3.0.0/picard.jar --location -o ${ROOT_DIR}/bin/picard.jar
+
+# other supporting tools
+curl --silent https://gitlab.com/german.tischler/libmaus2/-/archive/2.0.813-release-20221210220409/libmaus2-2.0.813-release-20221210220409.tar.gz --location -o ${ROOT_DIR}/components/libmaus2.tgz &&
+    tar xf ${ROOT_DIR}/components/libmaus2.tgz -C ${ROOT_DIR}/src
+
+curl --silent https://gitlab.com/german.tischler/biobambam2/-/archive/2.0.185-release-20221211202123/biobambam2-2.0.185-release-20221211202123.tar.gz --location -o ${ROOT_DIR}/components/biobambam2.tgz &&
+    tar xf ${ROOT_DIR}/components/biobambam2.tgz -C ${ROOT_DIR}/src
+
+curl --silent https://github.com/FelixKrueger/TrimGalore/archive/refs/tags/0.6.10.tar.gz --location -o ${ROOT_DIR}/components/TrimGalore.tgz &&
+    tar xf ${ROOT_DIR}/components/TrimGalore.tgz -C ${ROOT_DIR}/bin
+
+curl --silent https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.12.1.zip --location -o ${ROOT_DIR}/components/fastqc.zip &&
+    unzip ${ROOT_DIR}/components/fastqc.zip -d ${ROOT_DIR}/bin
+
+# linux utilities
+curl --silent https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.0.7.tar.gz --location -o ${ROOT_DIR}/components/zlib-ng.tgz &&
+    tar xf ${ROOT_DIR}/components/zlib-ng.tgz -C ${ROOT_DIR}/src
+
+curl --silent https://zlib.net/zlib-1.2.13.tar.gz --location -o ${ROOT_DIR}/components/zlib.tgz &&
+    tar xf ${ROOT_DIR}/components/zlib.tgz -C ${ROOT_DIR}/src
+
+curl --silent https://github.com/madler/pigz/archive/refs/tags/v2.7.tar.gz --location -o ${ROOT_DIR}/components/pigz.tgz &&
+    tar xf ${ROOT_DIR}/components/pigz.tgz -C ${ROOT_DIR}/src
+
+curl https://github.com/cli/cli/releases/download/v2.26.1/gh_2.26.1_linux_arm64.tar.gz --location -o ${ROOT_DIR}/components/gh.tgz &&
+    tar xf ${ROOT_DIR}/components/gh.tgz -C ${ROOT_DIR}/components &&
+    cp -r ${ROOT_DIR}/components/gh_2.26.1_linux_arm64/share/* ${ROOT_DIR}/share &&
+    cp ${ROOT_DIR}/components/gh_2.26.1_linux_arm64/bin/gh ${ROOT_DIR}/bin
+
+# variant annotators
+curl --silent https://snpeff.blob.core.windows.net/versions/snpEff_latest_core.zip --location -o ${ROOT_DIR}/components/snpEff_latest_core.zip
+echo "Downloading nextclade"
+system=$(uname -s)
+arch=$(uname -m)
+
+if [[ ! -f nextclade ]]; then
+    if [[ "${system}" == "Darwin" ]]; then
+        if [[ "${arch}" == "x86_64" ]]; then
+            echo "Downloading nextclade for Intel MacOS"
+            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.13.1/nextclade-x86_64-apple-darwin --location -o ${ROOT_DIR}/bin/nextclade &&
+                chmod +x ${ROOT_DIR}/bin/nextclade
+        else
+            echo "Downloading nextclade for ARM MacOS"
+            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.13.1/nextclade-aarch64-apple-darwin --location -o ${ROOT_DIR}/bin/nextclade &&
+                chmod +x ${ROOT_DIR}/bin/nextclade
+        fi
+    elif [[ "${system}" == "Linux" ]]; then
+        if [[ "${arch}" == "x86_64" ]]; then
+            echo "Downloading nextclade for Intel Linux"
+            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.13.1/nextclade-x86_64-unknown-linux-gnu --location -o ${ROOT_DIR}/bin/nextclade &&
+                chmod +x ${ROOT_DIR}/bin/nextclade
+        else
+            echo "Downloading nextclade for ARM Linux"
+            curl --silent https://github.com/nextstrain/nextclade/releases/download/2.13.1/nextclade-aarch64-unknown-linux-gnu --location -o ${ROOT_DIR}/bin/nextclade &&
+                chmod +x ${ROOT_DIR}/bin/nextclade
+        fi
+    else
+        echo "Nextclade not supported on your platform, maybe"
+    fi
+fi
+
+curl --silent https://github.com/Illumina/Nirvana/archive/refs/tags/v3.18.1.tar.gz --location -o ${ROOT_DIR}/components/nirvana.tgz &&
+    tar xf ${ROOT_DIR}/components/nirvana.tgz -C ${ROOT_DIR}/src

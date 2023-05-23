@@ -51,7 +51,7 @@ def updateDictionary(script: TextIOWrapper, options: OptionsDict):
         chromosome = "|".join([chr for chr in panel_choices if chr != "panel"])
 
     script.write("#\n")
-    script.write("# Build the reference dictionary and interval list\n")
+    script.write("# Build the reference dictionary\n")
     script.write("#\n")
 
     script.write(
@@ -67,23 +67,6 @@ if [[ ! -f {REFERENCE}/{ASSEMBLY}.dict ]]; then
 else
     logthis "Reference dictionary {REFERENCE}/{ASSEMBLY}.dict ${{green}}already completed${{reset}}"
 fi
-
-if [[ ! -f {REFERENCE}/{ASSEMBLY}_autosomal.interval_list ]]; then
-    # build the interval list, this is only done in the case where we're
-    # processing a partial set of chromosomes. in the typical case this would
-    # be a WGS collection.
-
-    logthis "${{yellow}}Building {REFERENCE}/{ASSEMBLY}.interval_list${{reset}}"
-
-    egrep '({CHROMOSOME})\\s' {REFERENCE}/{ASSEMBLY}.fna.fai |
-        awk '{{print $1"\\t1\\t"$2"\\t+\\t"$1}}' |
-        cat {REFERENCE}/{ASSEMBLY}.dict - >{REFERENCE}/{ASSEMBLY}_autosomal.interval_list
-
-    logthis "Building {REFERENCE}/{ASSEMBLY}_autosomal.interval_list finished"
-else
-    logthis "Interval list {REFERENCE}/{ASSEMBLY}_autosomal.interval_list ${{green}}already completed${{reset}}"
-fi
-
 """.format(
             REFERENCE=reference, ASSEMBLY=assembly, BIN=bin, CHROMOSOME=chromosome
         )
@@ -231,8 +214,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         --sample-ploidy 1 \\
         --verbosity ERROR
 
-    bgzip {PIPELINE}/{SAMPLE}.unannotated.vcf
-    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+    bgzip --force {PIPELINE}/{SAMPLE}.unannotated.vcf
+    tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
     logthis "${{green}}GATK variant calling completed${{reset}}"
 else
@@ -240,50 +223,6 @@ else
 fi
 """.format(
             REFERENCE=reference, ASSEMBLY=assembly, SAMPLE=sample
-        )
-    )
-
-
-def callVariantsUsingLofreq(
-    script: TextIOWrapper,
-    options: OptionsDict,
-):
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
-
-    script.write(
-        """
-# call variants
-if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
-    logthis "${{yellow}}Calling variants using lofreq${{reset}}"
-
-    lofreq indelqual \\
-        --dindel \\
-        --ref {REFERENCE}/{ASSEMBLY}.fna \\
-        --verbose \\
-        --out - \\
-        {PIPELINE}/{SAMPLE}.sorted.bam |
-    lofreq call \\
-        --ref {REFERENCE}/{ASSEMBLY}.fna \\
-        --call-indels \\
-        --no-default-filter \\
-        --max-depth 1000000 \\
-        --force-overwrite \\
-        --verbose \\
-        --out {PIPELINE}/{SAMPLE}.unannotated.vcf \\
-        -
-
-    bgzip {PIPELINE}/{SAMPLE}.unannotated.vcf
-    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
-
-    logthis "${{green}}lofreq variant calling completed${{reset}}"
-else
-    logthis "Variants already called for {PIPELINE}/{SAMPLE}.sorted.bam, ${{green}}skipping${{reset}}"
-fi
-""".format(
-            REFERENCE=reference, ASSEMBLY=assembly, SAMPLE=sample, PIPELINE=pipeline
         )
     )
 
@@ -329,10 +268,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         --output {PIPELINE}/{SAMPLE}.unannotated.vcf \\
         -- --tags AC,AN,AF,VAF,MAF,FORMAT/VAF 
 
-    rm -f {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp
-
-    bgzip {PIPELINE}/{SAMPLE}.unannotated.vcf
-    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+    bgzip --force {PIPELINE}/{SAMPLE}.unannotated.vcf
+    tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
     logthis "${{green}}bcftools variant calling completed${{reset}}"
 else
@@ -351,8 +288,6 @@ def callVariants(script: TextIOWrapper, options: OptionsDict):
         callVariantsUsingGatk(script, options)
     elif caller == "bcftools":
         callVariantsUsingBcftools(script, options)
-    elif caller == "lofreq":
-        callVariantsUsingLofreq(script, options)
     else:
         print("Unexpected value {CALLER} given for the --caller option".format(CALLER=caller))
         quit(1)
@@ -373,7 +308,7 @@ def produceConsensusUsingBcftools(
 if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
     logthis "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.unannotated.vcf.gz${{reset}}"
 
-    bcftools index {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+    bcftools index --force {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
     bcftools consensus \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
         {PIPELINE}/{SAMPLE}.unannotated.vcf.gz >{PIPELINE}/{SAMPLE}.consensus.fa
@@ -409,6 +344,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
     bcftools mpileup \\
         -aa \\
         -A \\
+        --threads 4 \\
         --max-depth 0 \\
         --max-idepth 0 \\
         --count-orphans \\
@@ -486,6 +422,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.pileup.gz ]]; then
     logthis "Generate pileup for {PIPELINE}/{SAMPLE}.sorted.bam"
 
     bcftools mpileup \\
+        --threads 4 \\
         --max-depth 0 \\
         --max-idepth 0 \\
         --count-orphans \\
@@ -551,7 +488,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.annotated.vcf.gz ]]; then
         {REFERENCE_NAME} {PIPELINE}/{SAMPLE}.unannotated.vcf.gz | \\
     bgzip >{PIPELINE}/{SAMPLE}.annotated.vcf.gz
 
-    tabix -p vcf {PIPELINE}/{SAMPLE}.annotated.vcf.gz
+    tabix --force -p vcf {PIPELINE}/{SAMPLE}.annotated.vcf.gz
 
     logthis "Completed snpeff annotation"
 else
@@ -616,10 +553,6 @@ def runVariantPipeline(script: TextIOWrapper, options: OptionsDict):
 
 def generateConsensus(script: TextIOWrapper, options: OptionsDict):
     consensusGenerator = options["consensusGenerator"]
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
 
     if consensusGenerator == "ivar":
         produceConsensusUsingIvar(script, options)
@@ -627,39 +560,6 @@ def generateConsensus(script: TextIOWrapper, options: OptionsDict):
         produceConsensusUsingBcftools(script, options)
     elif consensusGenerator == "gatk":
         produceConsensusUsingGatk(script, options)
-
-    script.write(
-        """
-if [[ ! -f {REFERENCE}/{ASSEMBLY}.flat.fna ]]; then
-    tail -n +2 {REFERENCE}/{ASSEMBLY}.fna | 
-        grep -v '^>' | 
-        tr -d '\\n' | 
-        sed 's/\\(.\\)/\\1 /g' | 
-        tr ' ' '\\n' > {REFERENCE}/{ASSEMBLY}.flat.fna
-else
-    logthis "Flat reference already generated, ${{green}}skipping${{reset}}"
-fi
-
-if [[ ! -f {PIPELINE}/{SAMPLE}.diff ]]; then
-    logthis "Generating consensus difference for {SAMPLE}"
-
-    tail -n +2 {PIPELINE}/{SAMPLE}.consensus.fa | 
-        grep -v '^>' | 
-        tr -d '\\n' | 
-        sed 's/\\(.\\)/\\1 /g' | 
-        tr ' ' '\\n' >{PIPELINE}/{SAMPLE}.consensus.flat.fna
-    dwdiff -L8 -s -3 \\
-        {REFERENCE}/{ASSEMBLY}.flat.fna \\
-        {PIPELINE}/{SAMPLE}.consensus.flat.fna >{PIPELINE}/{SAMPLE}.diff
-
-    logthis "Consensus difference already completed for {SAMPLE}, ${{green}}skipping${{reset}}"
-else
-    logthis "Consensus difference already generated, ${{green}}skipping${{reset}}"
-fi
-        """.format(
-            REFERENCE=reference, ASSEMBLY=assembly, PIPELINE=pipeline, SAMPLE=sample
-        )
-    )
 
 
 def doVariantQC(script: TextIOWrapper, options: OptionsDict):
@@ -734,8 +634,9 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
     stats = options["stats"]
     threads = options["cores"]
     skipFastQc = options["skipFastQc"]
+    doPicardQc = options["doPicardQc"]
 
-    filename = getFileName(options)
+    filename = getTrimmedFileName(options)
 
     sorted = "{PIPELINE}/{SAMPLE}.sorted.bam".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
 
@@ -749,41 +650,42 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
         )
     )
 
-    checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then gatk CollectAlignmentSummaryMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.alignment_metrics.txt; fi' \\\n""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-            STATS=stats,
-            THREADS=threads,
-            SORTED=sorted,
+    if doPicardQc == True:
+        checks.append(
+            """'if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then gatk CollectAlignmentSummaryMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.alignment_metrics.txt; fi' \\\n""".format(
+                REFERENCE=reference,
+                ASSEMBLY=assembly,
+                PIPELINE=pipeline,
+                SAMPLE=sample,
+                STATS=stats,
+                THREADS=threads,
+                SORTED=sorted,
+            )
         )
-    )
 
-    checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then gatk CollectGcBiasMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.gc_bias_metrics.txt -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf -S {STATS}/{SAMPLE}.gc_bias_summary.txt; fi' \\\n""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-            STATS=stats,
-            THREADS=threads,
-            SORTED=sorted,
+        checks.append(
+            """'if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then gatk CollectGcBiasMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.gc_bias_metrics.txt -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf -S {STATS}/{SAMPLE}.gc_bias_summary.txt; fi' \\\n""".format(
+                REFERENCE=reference,
+                ASSEMBLY=assembly,
+                PIPELINE=pipeline,
+                SAMPLE=sample,
+                STATS=stats,
+                THREADS=threads,
+                SORTED=sorted,
+            )
         )
-    )
 
-    checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then gatk CollectWgsMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.wgs_metrics.txt --MINIMUM_BASE_QUALITY 20 --MINIMUM_MAPPING_QUALITY 20 --COVERAGE_CAP 250 --READ_LENGTH 151 --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list --USE_FAST_ALGORITHM --INCLUDE_BQ_HISTOGRAM; fi' \\\n""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-            STATS=stats,
-            THREADS=threads,
-            SORTED=sorted,
+        checks.append(
+            """'if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then gatk CollectWgsMetrics --java-options -Xmx4g --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.wgs_metrics.txt --MINIMUM_BASE_QUALITY 10 --MINIMUM_MAPPING_QUALITY 10 --COVERAGE_CAP 2500 --USE_FAST_ALGORITHM --INCLUDE_BQ_HISTOGRAM; fi' \\\n""".format(
+                REFERENCE=reference,
+                ASSEMBLY=assembly,
+                PIPELINE=pipeline,
+                SAMPLE=sample,
+                STATS=stats,
+                THREADS=threads,
+                SORTED=sorted,
+            )
         )
-    )
 
     checks.append(
         """'if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then samtools stats -@ 8 -r {REFERENCE}/{ASSEMBLY}.fna {SORTED} >{STATS}/{SAMPLE}.samstats; fi' \\\n""".format(
@@ -825,7 +727,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
 
     if skipFastQc == False:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}.fastqc.zip ]]; then fastqc --threads 2 --outdir {STATS} --noextract {FILENAME}; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}.fastqc.zip ]]; then fastqc --svg --threads 1 --outdir {STATS} --noextract {FILENAME}; fi' \\\n""".format(
                 SAMPLE=sample,
                 STATS=stats,
                 FILENAME=filename,
@@ -859,9 +761,9 @@ cd {STATS}/qc
 multiqc \\
     --verbose \\
     --force \\
-    --cl_config 'custom_logo: "{STATS}/ovationlogo.png"' \\
-    --cl_config 'custom_logo_url: "https://www.ovation.io"' \\
-    --cl_config 'custom_logo_title: "Ovation"' \\
+    --cl-config 'custom_logo: "{STATS}/ovationlogo.png"' \\
+    --cl-config 'custom_logo_url: "https://www.ovation.io"' \\
+    --cl-config 'custom_logo_title: "Ovation"' \\
     {STATS}
 
 # Save the output
@@ -1090,9 +992,99 @@ def getFileName(options: OptionsDict) -> str:
     quit(1)
 
 
+def getTrimmedFileName(options: OptionsDict) -> str:
+    sample = options["sample"]
+    pipeline = options["pipeline"]
+
+    return "{PIPELINE}/{SAMPLE}.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample)
+
+
+def runIdentityPreprocessor(
+    script: TextIOWrapper,
+    r1: str,
+    o1: str,
+):
+    script.write(
+        """
+#
+# run the fastp preprocessor
+#
+if [[ ! -f {O1} ]]; then
+    logthis "${{yellow}}Running identity preprocessor${{reset}}"
+
+    ln -s {R1} {O1}
+
+    logthis "${{yellow}}Identity preprocessor completed${{reset}}"
+else
+    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            R1=r1,
+            O1=o1,
+        )
+    )
+
+
+def runCutadaptPreprocessor(
+    script: TextIOWrapper,
+    r1: str,
+    o1: str,
+    options: OptionsDict,
+):
+    sample = options["sample"]
+    stats = options["stats"]
+    threads = options["cores"]
+
+    script.write(
+        """
+#
+# run the cutadapt preprocessor
+#
+if [[ ! -f {O1} ]]; then
+    logthis "${{yellow}}Running cutadapt preprocessor${{reset}}"
+
+    cutadapt \\
+        --cores {THREADS} \\
+        --length 300 \\
+        --cut 15 \\
+        --minimum-length 30 \\
+        --quality-cutoff 18,20 \\
+        --trim-n \\
+        --adapter AAAAAAAAAA$ --times 3 \\
+        --adapter GGGGGGGGGG$ --times 3 \\
+        --output {O1} \\
+        {R1} >{STATS}/{SAMPLE}.cutadapt.log
+
+    logthis "${{yellow}}cutadapt preprocessor completed${{reset}}"
+else
+    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
+fi
+""".format(
+            R1=r1, O1=o1, SAMPLE=sample, STATS=stats, THREADS=threads
+        )
+    )
+
+
+def preprocessFASTQ(
+    script: TextIOWrapper,
+    r1: str,
+    o1: str,
+    options: OptionsDict,
+):
+    preprocessor = options["preprocessor"]
+
+    if preprocessor == "none":
+        runIdentityPreprocessor(script, r1, o1)
+    elif preprocessor == "cutadapt":
+        runCutadaptPreprocessor(script, r1, o1, options)
+    else:
+        print("Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(PREPROCESSOR=preprocessor))
+        quit(1)
+
+
 def runBwaAligner(
     script: TextIOWrapper,
-    o1: str,
+    r1: str,
     options: OptionsDict,
 ):
     aligner = options["aligner"]
@@ -1120,7 +1112,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
         -S \\
         -P \\
         {REFERENCE}/{ASSEMBLY}.fna \\
-        {O1} | 
+        {R1} | 
     samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.aligned.bam
 
     logthis "${{yellow}}Alignment completed${{reset}}"
@@ -1130,7 +1122,7 @@ fi
 
 """.format(
             ALIGNER=aligner,
-            O1=o1,
+            R1=r1,
             ASSEMBLY=assembly,
             REFERENCE=reference,
             SAMPLE=sample,
@@ -1143,7 +1135,7 @@ fi
 
 def runHisatAligner(
     script: TextIOWrapper,
-    o1: str,
+    r1: str,
     options: OptionsDict,
 ):
     reference = options["reference"]
@@ -1163,7 +1155,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
 
     hisat2 \\
             -x {REFERENCE}/{ASSEMBLY} \\
-            -1 {O1} \\
+            -1 {R1} \\
             --rg-id "ID:{SAMPLE}" \\
             --rg "PL:IONTORRENT" \\
             --rg "PU:unspecified" \\
@@ -1179,7 +1171,7 @@ else
     logthis "{PIPELINE}/{SAMPLE}.aligned.bam, aligned temp file found, ${{green}}skipping${{reset}}"
 fi
 """.format(
-            O1=o1,
+            R1=r1,
             REFERENCE=reference,
             ASSEMBLY=assembly,
             SAMPLE=sample,
@@ -1192,15 +1184,15 @@ fi
 
 def alignFASTQ(
     script: TextIOWrapper,
-    o1: str,
+    r1: str,
     options: OptionsDict,
 ):
     aligner = options["aligner"]
 
     if aligner == "bwa" or aligner == "bwa-mem2":
-        runBwaAligner(script, o1, options)
+        runBwaAligner(script, r1, options)
     elif aligner == "hisat2":
-        runHisatAligner(script, o1, options)
+        runHisatAligner(script, r1, options)
     else:
         print("Unexpected value {ALIGNER} given for the --aligner option".format(ALIGNER=aligner))
         quit(1)
@@ -1237,18 +1229,46 @@ fi
     )
 
 
+def generateDepth(script: TextIOWrapper, options: OptionsDict):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
+    script.write(
+        """
+#
+# calculate depth by position
+#
+if [[ ! -f {PIPELINE}/{SAMPLE}.depth.gz ]]; then
+    logthis "${{yellow}}Calculating depth by position${{reset}}"
+
+    samtools depth {PIPELINE}/{SAMPLE}.sorted.bam | gzip >{PIPELINE}/{SAMPLE}.depth.gz
+
+    logthis "${{yellow}}Depth calculation complete${{reset}}"
+else
+    logthis "Depth calculation already complete, ${{green}}skipping${{reset}}"
+fi
+    """.format(
+            SAMPLE=sample,
+            PIPELINE=pipeline,
+        )
+    )
+
+
 def alignAndSort(script: TextIOWrapper, options: OptionsDict):
     processUnmapped = options["processUnmapped"]
     alignOnly = options["alignOnly"]
 
     filename = getFileName(options)
+    trimmedFilename = getTrimmedFileName(options)
 
     script.write("#\n")
     script.write("# Align, sort, and mark duplicates\n")
     script.write("#\n")
 
-    alignFASTQ(script, filename, options)
+    preprocessFASTQ(script, filename, trimmedFilename, options)
+    alignFASTQ(script, trimmedFilename, options)
     sortAlignedAndMappedData(script, options)
+    generateDepth(script, options)
 
     if processUnmapped == True:
         extractUmappedReads(script, options)
@@ -1330,11 +1350,27 @@ def defineArguments() -> Namespace:
         help="Skip alignment QC process on input and output files",
     )
     parser.add_argument(
+        "--skip-picard-qc",
+        action="store_false",
+        dest="doPicardQc",
+        default=True,
+        help="Skip any picard QC process on input and output files",
+    )
+    parser.add_argument(
         "--skip-fastqc",
         action="store_true",
         dest="skipFastQc",
         default=False,
         help="Skip running FASTQC statistics",
+    )
+
+    parser.add_argument(
+        "--preprocessor",
+        action="store",
+        dest="preprocessor",
+        default="none",
+        choices=["cutadapt", "none"],
+        help="Optionally run a FASTQ preprocessor",
     )
 
     parser.add_argument(
@@ -1376,8 +1412,8 @@ def defineArguments() -> Namespace:
         action="store",
         dest="caller",
         default="bcftools",
-        choices=["bcftools", "gatk", "lofreq"],
-        help="Use `bcftools`, `gatk`, or `lofreq` as the variant caller",
+        choices=["bcftools", "gatk"],
+        help="Use `bcftools` or `gatk` as the variant caller",
     )
 
     parser.add_argument(

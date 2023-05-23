@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+SAMPLE=$1
+BATCH=$2
+READ1=$3
+READ2=$4
+SEQUENCE_RUNID=$(uuidgen)
+
+ORGANISM=hrv-panel
+ASSEMBLY=hrv-panel
+REFNAME=panel
+
+if [[ -z ${PIPELINE_ROOT} ]]; then
+    echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
+    exit 1
+fi
+
+echo Starting ${BATCH}/${SAMPLE} run
+
+set -e
+
+# give us a place to work
+mkdir -p ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}
+
+# build the pipeline
+python ${PIPELINE_ROOT}/pipeline-builder/hcov-illumina/hrv-runner.py \
+    --no-color \
+    --cores 12 \
+    --sample ${SAMPLE} \
+    --r1 ${READ1} \
+    --r2 ${READ2} \
+    --work-dir ${PIPELINE_ROOT} \
+    --reference-dir ${PIPELINE_ROOT}/reference/${ORGANISM} \
+    --reference-assembly ${ASSEMBLY} \
+    --reference-name ${REFNAME} \
+    --pipeline-dir ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID} \
+    --stats-dir ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID} \
+    --script ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}_runner \
+    --temp-dir ${PIPELINE_ROOT}/temp \
+    --fastq-dir ${PIPELINE_ROOT}/fastq/${BATCH} \
+    --skip-variant-qc \
+    --skip-annotation \
+    --caller bcftools \
+    --aligner bwa \
+    --preprocessor trimmomatic \
+    --sorter biobambam
+
+cp ${PIPELINE_ROOT}/pipeline-builder/assets/software_versions_mqc.html ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}
+cp ${PIPELINE_ROOT}/pipeline-builder/assets/ovationlogo.png ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}
+
+# run the pipeline
+bash ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}_runner >${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}.log 2>&1
+
+echo Finished ${SAMPLE} run

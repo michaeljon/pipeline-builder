@@ -18,24 +18,24 @@ for (arg in args) {
     sort() %>%
     median(na.rm = FALSE)
 
-  if (median_depth >= 50) {
+  if (median_depth >= 10) {
     png(output)
 
     plt <- ggplot(data = df, mapping = aes(x = pos_in_gene, y = depth)) +
       ylim(0, NA) +
-      xlab(sprintf("Position in gene %s", gene)) +
+      xlab(sprintf("Position in %s", gene)) +
       ylab("Depth") +
       geom_hline(
         yintercept = median_depth,
         color = "purple",
         linetype = "dotted",
-        size = 1.5
+        linewidth = 1.5
       ) +
       geom_line(color = "darkgray") +
       geom_smooth() +
-      theme_hc() +
+      theme_hc(base_size = 16) +
       labs(
-        title = sprintf("Depth by position in gene %s for %s", gene, sample),
+        title = sprintf("%s -- %s", sample, gene),
         subtitle = sprintf("Organism: %s", organism)
       )
 

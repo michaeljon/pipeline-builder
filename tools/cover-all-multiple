@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-DESTINATION_FOLDER=zymo_2023_01_06
+DESTINATION_FOLDER=vikor_2023_03_28_chip10
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"

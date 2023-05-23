@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 
-from io import TextIOWrapper
 import argparse
 import math
 
 from argparse import Namespace
-from typing import Dict, Tuple, List, Any
+from typing import Dict, Tuple, List, Any, IO
 from datetime import datetime
 from os.path import exists, expandvars
 from os import cpu_count, system
@@ -85,7 +84,7 @@ def getTrimmedFileNames(options: OptionsDict) -> FastqSet:
     )
 
 
-def runIdentityPreprocessor(script: TextIOWrapper, r1: str, r2: str, o1: str, o2: str):
+def runIdentityPreprocessor(script: IO[Any], r1: str, r2: str, o1: str, o2: str):
     script.write(
         """
 #
@@ -111,7 +110,7 @@ fi
 
 
 def runFastpPreprocessor(
-    script: TextIOWrapper,
+    script: IO[Any],
     r1: str,
     r2: str,
     o1: str,
@@ -134,7 +133,7 @@ def runFastpPreprocessor(
 if [[ ! -f {O1} || ! -f {O2} ]]; then
     logthis "${{yellow}}Running FASTP preprocessor${{reset}}"
 
-    LD_PRELOAD={BIN}/libz.so.1.2.11.zlib-ng \\
+    LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2:{WORKING}/bin/libz.so.1.2.11.zlib-ng \\
     fastp \\
         --report_title "fastp report for sample {SAMPLE}" \\
         --in1 {R1} \\
@@ -163,12 +162,13 @@ fi
             STATS=stats,
             BIN=bin,
             LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
+            WORKING=options["working"],
         )
     )
 
 
 def preprocessFASTQ(
-    script: TextIOWrapper,
+    script: IO[Any],
     r1: str,
     r2: str,
     o1: str,
@@ -187,7 +187,7 @@ def preprocessFASTQ(
 
 
 def runBwaAligner(
-    script: TextIOWrapper,
+    script: IO[Any],
     o1: str,
     o2: str,
     options: OptionsDict,
@@ -235,7 +235,7 @@ fi
 
 
 def alignFASTQ(
-    script: TextIOWrapper,
+    script: IO[Any],
     o1: str,
     o2: str,
     options: OptionsDict,
@@ -251,7 +251,7 @@ def alignFASTQ(
     pass
 
 
-def sortWithBiobambam(script: TextIOWrapper, options: OptionsDict, output: str):
+def sortWithBiobambam(script: IO[Any], options: OptionsDict, output: str):
     sample = options["sample"]
     pipeline = options["pipeline"]
     threads = options["cores"]
@@ -295,7 +295,7 @@ fi
     )
 
 
-def sortWithSamtools(script: TextIOWrapper, options: OptionsDict, output: str):
+def sortWithSamtools(script: IO[Any], options: OptionsDict, output: str):
     sample = options["sample"]
     pipeline = options["pipeline"]
     reference = options["reference"]
@@ -354,7 +354,7 @@ fi
     )
 
 
-def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output: str):
+def sortAlignedAndMappedData(script: IO[Any], options: OptionsDict, output: str):
     sorter = options["sorter"]
 
     if sorter == "biobambam":
@@ -363,7 +363,7 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, output
         sortWithSamtools(script, options, output)
 
 
-def fragment(script: TextIOWrapper, r1: str, r2: str, options: OptionsDict):
+def fragment(script: IO[Any], r1: str, r2: str, options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
     fragmentCount = options["fragmentCount"]
@@ -386,7 +386,7 @@ logthis "${{yellow}}Fragmenting trimmed FASTQ completed${{reset}}"
     )
 
 
-def alignFragments(script: TextIOWrapper, options: OptionsDict):
+def alignFragments(script: IO[Any], options: OptionsDict):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     sample = options["sample"]
@@ -428,7 +428,7 @@ logthis "${{yellow}}Fragment alignment complete${{reset}}"
     )
 
 
-def sortParallelWithBiobambam(script: TextIOWrapper, options: OptionsDict):
+def sortParallelWithBiobambam(script: IO[Any], options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
     threads = options["cores"]
@@ -478,7 +478,7 @@ logthis "${{yellow}}Fragment sorting and marking duplicates completed${{reset}}"
     )
 
 
-def sortParallelWithSamtools(script: TextIOWrapper, options: OptionsDict):
+def sortParallelWithSamtools(script: IO[Any], options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
     reference = options["reference"]
@@ -531,7 +531,7 @@ logthis "${{yellow}}Sorting and marking duplicates compeleted${{reset}}"
     )
 
 
-def sortFragments(script: TextIOWrapper, options: OptionsDict):
+def sortFragments(script: IO[Any], options: OptionsDict):
     sorter = options["sorter"]
 
     if sorter == "biobambam":
@@ -540,12 +540,12 @@ def sortFragments(script: TextIOWrapper, options: OptionsDict):
         sortParallelWithSamtools(script, options)
 
 
-def combine(script: TextIOWrapper, options: OptionsDict, output: str):
+def combine(script: IO[Any], options: OptionsDict, output: str):
     # samtools merge -f -o {OUTPUT} -c -p <*.bam>
     pass
 
 
-def extractUmappedReads(script: TextIOWrapper, options: OptionsDict):
+def extractUmappedReads(script: IO[Any], options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -575,7 +575,7 @@ fi
     )
 
 
-def alignAndSort(script: TextIOWrapper, options: OptionsDict, output: str):
+def alignAndSort(script: IO[Any], options: OptionsDict, output: str):
     processUnmapped = options["processUnmapped"]
     filenames = getFileNames(options)
     trimmedFilenames = getTrimmedFileNames(options)
@@ -632,7 +632,7 @@ exit
         )
 
 
-def genBQSRTables(script: TextIOWrapper, options: OptionsDict):
+def genBQSRTables(script: IO[Any], options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -668,7 +668,7 @@ logthis "${{green}}BQSR table generation complete${{reset}}"
     )
 
 
-def applyBQSRTables(script: TextIOWrapper, options: OptionsDict):
+def applyBQSRTables(script: IO[Any], options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -706,12 +706,12 @@ logthis "${{green}}BQSR calibration completed${{reset}}"
     )
 
 
-def genBQSR(script: TextIOWrapper, options: OptionsDict):
+def genBQSR(script: IO[Any], options: OptionsDict):
     genBQSRTables(script, options)
     applyBQSRTables(script, options)
 
 
-def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
+def callVariantsUsingGatk(script: IO[Any], options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
     intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
@@ -738,7 +738,7 @@ def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
     # 8 hmm threads / 9 jobs
     # [2022-07-11 23:04:40] Calling variants using GATK
     # [2022-07-12 00:56:43] GATK variant calling completed
-    cores = int(options["cores"] * .75) # set aside some cpu so we can use the ec2 still
+    cores = int(options["cores"] * 0.75)  # set aside some cpu so we can use the ec2 still
     hmmThreads = 1
     jobs = int(cores / hmmThreads)
 
@@ -777,7 +777,7 @@ logthis "${{green}}GATK variant calling completed${{reset}}"
     )
 
 
-def callVariantsUsingBcftools(script: TextIOWrapper, options: OptionsDict):
+def callVariantsUsingBcftools(script: IO[Any], options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
     intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
@@ -831,7 +831,7 @@ logthis "BCFTOOLS variant calling completed"
 
 
 def annotate(
-    script: TextIOWrapper,
+    script: IO[Any],
     options: OptionsDict,
     vep: str,
     input: str,
@@ -873,7 +873,7 @@ if [[ ! -f {OUTPUT} || ! -f {STATS}/{SUMMARY} ]]; then
         --output_file {OUTPUT} \\
         --stats_file {STATS}/{SUMMARY}
 
-    tabix -p vcf {OUTPUT}
+    tabix --force -p vcf {OUTPUT}
 
     logthis "Completed annotation"
 else
@@ -892,7 +892,7 @@ fi
     )
 
 
-def scatter(script: TextIOWrapper, options: OptionsDict, sorted: str):
+def scatter(script: IO[Any], options: OptionsDict, sorted: str):
     pipeline = options["pipeline"]
     sample = options["sample"]
     intervalList = "{PIPELINE}/{SAMPLE}.intervals.tsv".format(PIPELINE=pipeline, SAMPLE=sample)
@@ -918,7 +918,7 @@ logthis "${{green}}Scattering completed${{reset}}"
     )
 
 
-def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
+def runIntervals(script: IO[Any], options: OptionsDict, prefix: str):
     caller = options["caller"]
 
     script.write('logthis "${yellow}Processing intervals${reset}"\n')
@@ -936,7 +936,7 @@ def runIntervals(script: TextIOWrapper, options: OptionsDict, prefix: str):
     script.write('logthis "${green}Intervals processed${reset}"\n')
 
 
-def generateConsensus(script: TextIOWrapper, options: OptionsDict):
+def generateConsensus(script: IO[Any], options: OptionsDict):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     pipeline = options["pipeline"]
@@ -963,7 +963,7 @@ fi
     )
 
 
-def gather(script: TextIOWrapper, options: OptionsDict):
+def gather(script: IO[Any], options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -988,7 +988,7 @@ fi
 if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz.tbi ]]; then
     logthis "Indexing {PIPELINE}/{SAMPLE}.unannotated.vcf.gz"
 
-    tabix -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
+    tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
     logthis "Indexing {PIPELINE}/{SAMPLE}.unannotated.vcf.gz complete"
 else
@@ -1000,7 +1000,7 @@ fi
     )
 
 
-def doVariantQC(script: TextIOWrapper, options: OptionsDict):
+def doVariantQC(script: IO[Any], options: OptionsDict):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     knownSites = options["knownSites"]
@@ -1080,7 +1080,7 @@ def doVariantQC(script: TextIOWrapper, options: OptionsDict):
     return checks
 
 
-def doAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
+def doAlignmentQC(script: IO[Any], options: OptionsDict, sorted: str):
     reference = options["reference"]
     assembly = options["referenceAssembly"]
     pipeline = options["pipeline"]
@@ -1167,7 +1167,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
 
     if skipFastQc == False:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --svg --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi' \\\n""".format(
                 SAMPLE=sample,
                 STATS=stats,
                 R1=filenames[0],
@@ -1178,7 +1178,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict, sorted: str):
     return checks
 
 
-def runMultiQC(script: TextIOWrapper, options: OptionsDict):
+def runMultiQC(script: IO[Any], options: OptionsDict):
     stats = options["stats"]
     sample = options["sample"]
 
@@ -1202,9 +1202,9 @@ cd {STATS}/qc
 multiqc \\
     --verbose \\
     --force \\
-    --cl_config 'custom_logo: "{STATS}/ovationlogo.png"' \\
-    --cl_config 'custom_logo_url: "https://www.ovation.io"' \\
-    --cl_config 'custom_logo_title: "Ovation"' \\
+    --cl-config 'custom_logo: "{STATS}/ovationlogo.png"' \\
+    --cl-config 'custom_logo_url: "https://www.ovation.io"' \\
+    --cl-config 'custom_logo_title: "Ovation"' \\
     {STATS}
 
 # Save the output
@@ -1219,7 +1219,7 @@ logthis "MultiQC for {SAMPLE} is complete"
     )
 
 
-def doQualityControl(script: TextIOWrapper, options: OptionsDict, sorted: str):
+def doQualityControl(script: IO[Any], options: OptionsDict, sorted: str):
     pipeline = options["pipeline"]
     sample = options["sample"]
     stats = options["stats"]
@@ -1276,7 +1276,7 @@ logthis "Starting QC processes"
         runMultiQC(script, options)
 
 
-def cleanup(script: TextIOWrapper, options: OptionsDict):
+def cleanup(script: IO[Any], options: OptionsDict):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -1298,7 +1298,7 @@ done
     script.write("\n")
 
 
-def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastqSet):
+def writeHeader(script: IO[Any], options: OptionsDict, filenames: FastqSet):
     script.write("#\n")
     script.write("# generated at {TIME}\n".format(TIME=datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     script.write("#\n")
@@ -1329,13 +1329,13 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: FastqSet
     script.write("#   fragmentCount = {P}\n".format(P=fragmentCount))
 
 
-def writeVersions(script: TextIOWrapper):
+def writeVersions(script: IO[Any]):
     script.write("#\n")
     script.write("# This will write version numbers of tools here...\n")
     script.write("#\n")
 
 
-def writeEnvironment(script: TextIOWrapper, options: OptionsDict):
+def writeEnvironment(script: IO[Any], options: OptionsDict):
     noColor = options["noColor"]
 
     script.write("#\n")
@@ -1378,7 +1378,7 @@ export PERL_LOCAL_LIB_ROOT=/home/ubuntu/perl5:$PERL_LOCAL_LIB_ROOT
 
 # shared library stuff
 export LD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib64:/usr/local/lib/:$LB_LIBRARY_PATH
-export LD_PRELOAD={WORKING}/bin/libz.so.1.2.11.zlib-ng
+export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2:{WORKING}/bin/libz.so.1.2.11.zlib-ng
 
 # handy path
 export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.2.6.1:{WORKING}/bin:$PATH\n""".format(
