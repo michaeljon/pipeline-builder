@@ -948,9 +948,9 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fasta ]]; then
     logthis "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.unannotated.vcf.gz${{reset}}"
 
     bcftools consensus \\
+        --sample {SAMPLE} \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
         {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
-        --sample {SAMPLE} \\
     | sed '/>/ s/$/ | {SAMPLE}/' >{PIPELINE}/{SAMPLE}.consensus.fasta
 
     logthis "${{yellow}}Consensus completed${{reset}}"

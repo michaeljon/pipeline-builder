@@ -11,7 +11,17 @@ from os import cpu_count, system
 FastqSet = Tuple[str, str]
 OptionsDict = Dict[str, Any]
 
-panel_choices = ["MN908947.3", "AF304460.1", "AY597011.2", "AY884001.1", "AY567487.2", "AY585228.1", "AY391777.1", "JX869059.2", "panel"]
+panel_choices = [
+    "MN908947.3",
+    "AF304460.1",
+    "AY597011.2",
+    "AY884001.1",
+    "AY567487.2",
+    "AY585228.1",
+    "AY391777.1",
+    "JX869059.2",
+    "panel",
+]
 panel_choice_help = (
     "'Chromosome' name from reference assembly "
     + "(MN908947.3, sars-cov-2), "
@@ -311,54 +321,13 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
 
     bcftools index --force {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
     bcftools consensus \\
+        --sample {SAMPLE} \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
         {PIPELINE}/{SAMPLE}.unannotated.vcf.gz >{PIPELINE}/{SAMPLE}.consensus.fa
 
     logthis "${{yellow}}Consensus completed${{reset}}"
 else
     logthis "Consensus generation already complete for {PIPELINE}/{SAMPLE}.unannotated.vcf, ${{green}}skipping${{reset}}"
-fi
-""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-        )
-    )
-
-
-def produceConsensusUsingIvar(
-    script: TextIOWrapper,
-    options: OptionsDict,
-):
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
-
-    script.write(
-        """
-# produce consensus using ivar
-if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
-    logthis "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.sorted.bam${{reset}}"
-
-    bcftools mpileup \\
-        -aa \\
-        -A \\
-        --threads 4 \\
-        --max-depth 0 \\
-        --max-idepth 0 \\
-        --count-orphans \\
-        --min-BQ 0 \\
-        --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
-        {PIPELINE}/{SAMPLE}.sorted.bam | \\
-    ivar consensus -t 0 -m 3 -p {PIPELINE}/{SAMPLE}.consensus.fa
-
-    sed -i 's/Consensus_{SAMPLE}.consensus_threshold_0_quality_20/{SAMPLE}/g' {PIPELINE}/{SAMPLE}.consensus.fa
-
-    logthis "${{yellow}}Consensus completed${{reset}}"
-else
-    logthis "Consensus generation already complete for {PIPELINE}/{SAMPLE}.sorted.bam, ${{green}}skipping${{reset}}"
 fi
 """.format(
             REFERENCE=reference,
@@ -423,10 +392,9 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.pileup.gz ]]; then
     logthis "Generate pileup for {PIPELINE}/{SAMPLE}.sorted.bam"
 
     bcftools mpileup \\
-        --max-depth 0 \\
-        --max-idepth 0 \\
-        --count-orphans \\
-        --min-BQ 0 \\
+        --max-depth 1000000 \\
+        --max-idepth 1000000 \\
+        --threads 4 \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
         {PIPELINE}/{SAMPLE}.sorted.bam | gzip >{PIPELINE}/{SAMPLE}.pileup.gz 2>/dev/null
 
@@ -554,9 +522,7 @@ def runVariantPipeline(script: TextIOWrapper, options: OptionsDict):
 def generateConsensus(script: TextIOWrapper, options: OptionsDict):
     consensusGenerator = options["consensusGenerator"]
 
-    if consensusGenerator == "ivar":
-        produceConsensusUsingIvar(script, options)
-    elif consensusGenerator == "bcftools":
+    if consensusGenerator == "bcftools":
         produceConsensusUsingBcftools(script, options)
     elif consensusGenerator == "gatk":
         produceConsensusUsingGatk(script, options)
@@ -1611,7 +1577,7 @@ def defineArguments() -> Namespace:
         action="store",
         dest="consensusGenerator",
         default="bcftools",
-        choices=["ivar", "bcftools", "gatk"],
+        choices=["bcftools", "gatk"],
         help="Choice of consensus FASTA generator",
     )
 
