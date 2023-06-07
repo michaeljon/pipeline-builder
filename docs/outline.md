@@ -1,31 +1,57 @@
 # Outline for boundary variants presentation
 
+- back to basics: terminology refresher
+
+  - a _read_ or _query_ is a small string of nucleotides or bases with _quality_
+  - a _sequence_ is an unordered set of _reads_
+  - a _reference_ is a genetic definition, in terms of nucleotides for a species
+  - a _variant_ is a difference between the _reference_ and the _individual_
+  - a _variant call_ is a recognition of a variant, or the process of identifying variants
+  - we split the process into _sequencing_ and _informatics_
+  - a _pipeline_ or _variant calling pipeline_ is the informatics half of the process
+  - _annotations_ are additional details assigned to an identified variant
+  - variants come in colors: _common_, _rare_, and _novel_
+  - variants have _consequences_, annotations describe those
+  - a _contig_ or _sequence_ is a well-defined region of the genome (think chromosome)
+
 - introduction: reminder on how we process sequences
 
   - two-pass process
   - fragment the sequence file(s) / FASTQ by read and scatter them
   - recombine the aligned reads, sort them
-  - fragment the resulting alignments
+  - fragment the resulting alignments: creates _intervals_
   - perform quality recalibration
-  - call variants
+  - call variants <- we're going to focus here today
   - merge everything back together and annotate
 
 - where the costs are
 
-  - fragmenting the FASTQ (the files are big)
-  - aligning the reads (the more alignment processes the better)
-  - the scatter / gather process
+  - fragmenting the FASTQ (the files are big, 750 million to 1.25 billion reads)
+  - aligning the reads (the more alignment processes the better, reads are independent)
+  - the scatter / gather process(es)
   - calling variants
   - mapping variants to "known sites" (somewhere around 1 billion sites)
+  - annotation of _known_ variants
 
 - how we've called variants so far
 
   - naive model - call variants across the intact BAM
-  - partitioning by chromosome
-  - segue - batch smaller chromosomes to even the load
+  - partitioning by chromosome - 24 intervals
+  - segue - size differences force us to batch smaller chromosomes to even the load, resulting in fewer intervals (not the direction we want to go)
   - the current model - brute force
-    - pre-generate partitions
-    - generate partitions based on alignments
+    - first few months: pre-generate partitions
+    - recent sequences: generate partitions based on alignments
+    - either way it's the same algorithm (create like-sized chunks within a chromosome)
+
+- the current partitioning algorithm
+
+  - after the BAM is constructed, collect the aligned sequence groups
+  - take that list of sequences (which have a name and size) and partition them
+  - we take only _primary_ sequences (named chromosomes) and "chunk" them (our production pipeline uses 25mbp chunks)
+  - the final chunk is optionally merged with its predecessor if it's _too small_
+  - _select_ from the BAM data matching each of these intervals
+  - run the variant calling processes on all intervals
+  - put the results back together
 
 - some numbers, for some fun
 
@@ -34,14 +60,14 @@
     | --------- | ---------- | ---------- | ------- |
     | calibrate | 1668890681 | 1668891052 | 371 |
     | bqsr | 1668889870 | 1668890591 | 721 |
-    | call | 1668891580 | 1668895267 | 3687 |
+    | call | 1668891580 | 1668895267 | **3687** |
 
   - 50 mbp partition sizes
     | step | start time | stop time | seconds |
     | --------- | ---------- | ---------- | ------- |
     | calibrate | 1669176745 | 1669177122 | 377 |
     | bqsr | 1669175857 | 1669176663 | 806 |
-    | call | 1669178065 | 1669182661 | 4596 |
+    | call | 1669178065 | 1669182661 | **4596** |
 
 - where do those numbers come from
 
@@ -111,4 +137,4 @@
   - identify a model for collapsing smaller contigs
     - 700 intervals are too many to deal with
     - average size is around 300 kilobases, expensive to ship
-    - many contigs are alternate defintions of known regions, merge them with parent
+    - many contigs are alternate definitions of known regions, merge them with parent

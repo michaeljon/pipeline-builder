@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 
-SAMPLE=$1
+SAMPLE=hku1-b-${1}
 BATCH=$2
 READ1=$3
 READ2=$4
-SEQUENCE_RUNID=$(uuidgen)
+SEQUENCE_RUNID=${SAMPLE}
 
-ORGANISM=hcov-hku1
-ASSEMBLY=GCA_000858765.1_ViralProj15139_genomic
-REFNAME=AY597011.2
+ORGANISM=hcov-hku1-b
+ASSEMBLY=hcov-hku1-b
+REFNAME=AY884001.1
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
@@ -39,6 +39,7 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov-illumina/hcov-runner.py \
     --temp-dir ${PIPELINE_ROOT}/temp \
     --fastq-dir ${PIPELINE_ROOT}/fastq/${BATCH} \
     --skip-variant-qc \
+    --skip-picard-qc \
     --skip-annotation \
     --caller bcftools \
     --aligner bwa \

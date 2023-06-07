@@ -83,9 +83,9 @@
       }
     }
   },
-  "hcov-hku1": {
+  "hcov-hku1-a": {
     "sequence": "AY597011.2",
-    "name": "hcov-hku1",
+    "name": "hcov-hku1-a",
     "region": {
       "start": 1,
       "stop": 29926
@@ -122,6 +122,44 @@
       "N2": {
         "start": 28342,
         "stop": 28959
+      }
+    }
+  },
+  "hcov-hku1-b": {
+    "sequence": "AY884001.1",
+    "name": "hcov-hku1-b",
+    "region": {
+      "start": 1,
+      "stop": 29815
+    },
+    "genes": {
+      "orf1ab": {
+        "start": 200,
+        "stop": 21657
+      },
+      "HE": {
+        "start": 21690,
+        "stop": 22847
+      },
+      "S": {
+        "start": 22862,
+        "stop": 26917
+      },
+      "orf4": {
+        "start": 26940,
+        "stop": 27269
+      },
+      "E": {
+        "start": 27262,
+        "stop": 27510
+      },
+      "M": {
+        "start": 27522,
+        "stop": 28193
+      },
+      "N": {
+        "start": 28209,
+        "stop": 29534
       }
     }
   },

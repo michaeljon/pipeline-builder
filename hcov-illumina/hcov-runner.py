@@ -11,14 +11,16 @@ from os import cpu_count, system
 FastqSet = Tuple[str, str]
 OptionsDict = Dict[str, Any]
 
-panel_choices = ["MN908947.3", "AF304460.1", "AY597011.2", "AY567487.2", "AY585228.1", "JX869059.2", "panel"]
+panel_choices = ["MN908947.3", "AF304460.1", "AY597011.2", "AY884001.1", "AY567487.2", "AY585228.1", "AY391777.1", "JX869059.2", "panel"]
 panel_choice_help = (
     "'Chromosome' name from reference assembly "
     + "(MN908947.3, sars-cov-2), "
     + "(AF304460.1, hcov-229e), "
-    + "(AY597011.2, hcov-hku1), "
+    + "(AY597011.2, hcov-hku1-a), "
+    + "(AY884001.1, hcov-hku1-b), "
     + "(AY567487.2, hcov-nl63), "
     + "(AY585228.1, hcov-oc43), "
+    + "(AY391777.1, hcov-oc43-2), "
     + "(JX869059.2, hcov-emc), "
     + "(panel, combined panel of all organisms)"
 )
@@ -714,7 +716,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
     )
 
     checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 30 -F 1284 {SORTED} | bedtools genomecov -d -ibam stdin | awk "\\$2 % 100 == 0 {{print \\$1,\\$2,\\$3}}" | sed "s/AF304460.1/hcov_229e/;s/JX869059.2/hcov_emc/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl63/;s/AY585228.1/hcov_oc43/;s/MN908947.3/sars_cov_2/" >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
+        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 30 -F 1284 {SORTED} | bedtools genomecov -d -ibam stdin | awk "\\$2 % 100 == 0 {{print \\$1,\\$2,\\$3}}" | sed "s/AF304460.1/hcov_229e/;s/JX869059.2/hcov_emc/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl63/;s/AY585228.1/hcov_oc43/;s/AY391777.1/hcov_oc43_2/;s/MN908947.3/sars_cov_2/" >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
             REFERENCE=reference,
             ASSEMBLY=assembly,
             SAMPLE=sample,
@@ -886,7 +888,7 @@ export PERL_LOCAL_LIB_ROOT={WORKING}/perl5:$PERL_LOCAL_LIB_ROOT
 export LD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib64:/usr/local/lib/:$LD_LIBRARY_PATH
 
 # shared library stuff (darwin)
-export DYLD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib:/usr/local/lib/:$DYLD_LIBRARY_PATH
+export DYLD_FALLBACK_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin
 
 # bcftools
 export BCFTOOLS_PLUGINS={WORKING}/libexec/bcftools

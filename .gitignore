@@ -30,3 +30,5 @@ human/samples
 rna-pipeline/working*
 rna-pipeline/jobs.tsv
 rna-pipeline/rna-sequence.log
+
+tools/variant-store/tools/*.tsv

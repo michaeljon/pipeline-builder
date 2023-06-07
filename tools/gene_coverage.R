@@ -23,7 +23,7 @@ for (arg in args) {
 
     plt <- ggplot(data = df, mapping = aes(x = pos_in_gene, y = depth)) +
       ylim(0, NA) +
-      xlab(sprintf("Position in gene %s", gene)) +
+      xlab(sprintf("Position in %s", gene)) +
       ylab("Depth") +
       geom_hline(
         yintercept = median_depth,
@@ -35,7 +35,7 @@ for (arg in args) {
       geom_smooth() +
       theme_hc(base_size = 16) +
       labs(
-        title = sprintf("Depth by position in gene %s for %s", gene, sample),
+        title = sprintf("%s -- %s", sample, gene),
         subtitle = sprintf("Organism: %s", organism)
       )
 
