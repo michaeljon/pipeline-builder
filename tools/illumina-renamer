@@ -3,8 +3,8 @@
 BATCH=$1
 SAMPLE_LIST=$2
 
-ls -1 /home/michaeljon/pipeline/fastq/${BATCH} |
-    awk -vBATCH=${BATCH} -vPATH=$(realpath /home/michaeljon/pipeline/fastq/${BATCH}) '
+ls -1 ${PIPELINE_ROOT}/fastq/${BATCH} |
+    awk -vBATCH=${BATCH} -vPATH=$(realpath ${PIPELINE_ROOT}/fastq/${BATCH}) '
         BEGIN { 
             printf "deid\tsample\tr1\tr2\n" \
         } 
