@@ -231,7 +231,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
     bcftools consensus \\
         --sample {SAMPLE} \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
-        -o ${PIPELINE}/{SAMPLE}.consensus.fa \\
+        -o {PIPELINE}/{SAMPLE}.consensus.fa \\
         {PIPELINE}/{SAMPLE}.unannotated.bcf
 
     echo "Converting temporary BCF to VCF"

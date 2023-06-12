@@ -244,10 +244,11 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
     echo "Indexing temporary BCF and calling consensus"
     bcftools index --force {PIPELINE}/{SAMPLE}.unannotated.bcf
 
-    bcftools consensus \\
+    
+      \\
         --sample {SAMPLE} \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
-        -o ${PIPELINE}/{SAMPLE}.consensus.fa \\
+        -o {PIPELINE}/{SAMPLE}.consensus.fa \\
         {PIPELINE}/{SAMPLE}.unannotated.bcf
 
     echo "Converting temporary BCF to VCF"
