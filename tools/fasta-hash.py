@@ -135,6 +135,7 @@ with open("/dev/stdout", "w") as f:
             "Distance",
             # "EditOperations"
         ],
+        delimiter="\t",
     )
     writer.writeheader()
     writer.writerows(results)

@@ -78,16 +78,16 @@ for ok in to_process:
 
             f.write("{}\t{}\t{}\t{:.0f}\t{:.0f}\n".format(sample, ok, gene_name, position + 1, region_data[position]))
 
-    genes = feature_data[ok]["genes"]
-    for gk in genes:
-        with open(dest + "/" + sample + "_" + ok + "_" + gk + ".tsv", "w") as f:
-            f.write("sample\torganism\tgene\tpos_in_gene\tpos_in_genome\tdepth\n")
+    # genes = feature_data[ok]["genes"]
+    # for gk in genes:
+    #     with open(dest + "/" + sample + "_" + ok + "_" + gk + ".tsv", "w") as f:
+    #         f.write("sample\torganism\tgene\tpos_in_gene\tpos_in_genome\tdepth\n")
 
-            region_data = genes[gk]["region_data"]
-            start_pos = genes[gk]["start"]
-            for position in range(len(region_data)):
-                f.write(
-                    "{}\t{}\t{}\t{:.0f}\t{:.0f}\t{:.0f}\n".format(
-                        sample, ok, gk, position + 1, start_pos + position, region_data[position]
-                    )
-                )
+    #         region_data = genes[gk]["region_data"]
+    #         start_pos = genes[gk]["start"]
+    #         for position in range(len(region_data)):
+    #             f.write(
+    #                 "{}\t{}\t{}\t{:.0f}\t{:.0f}\t{:.0f}\n".format(
+    #                     sample, ok, gk, position + 1, start_pos + position, region_data[position]
+    #                 )
+    #             )
