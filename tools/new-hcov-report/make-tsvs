@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+if [[ -z ${PIPELINE_ROOT} ]]; then
+    echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
+    exit 1
+fi
+
+if [[ -z ${DESTINATION_FOLDER} ]]; then
+    echo "Missing DESTINATION_FOLDER environment variable, unable to proceed"
+    exit 1
+fi
+
+if [[ ! -d ${DESTINATION_FOLDER} ]]; then
+    echo "DESTINATION_FOLDER doesn't exist or is not a directory, unable to proceed"
+    exit 1
+fi
+
+echo "sample,organism,depthfile,location,destination,gap" >jobs/tsv-jobs
+for FILENAME in $(find ${PIPELINE_ROOT}/pipeline -type f -name '*.depth.gz'); do
+    LOCATION=$(dirname $FILENAME)
+    SAMPLE=$(basename $FILENAME | sed 's/.depth.gz//')
+    DEPTHFILE=$FILENAME
+
+    if [[ -f "${LOCATION}/${SAMPLE}-consensus-report.tsv" ]]; then
+        awk \
+            -vLOCATION=${LOCATION} \
+            -vSAMPLE=${SAMPLE} \
+            -vDEPTHFILE=${DEPTHFILE} \
+            -vDESTINATION_FOLDER=${DESTINATION_FOLDER} \
+            'BEGIN {FS="\t"; OFS=","} $2 == 1 { print SAMPLE,$4,DEPTHFILE,LOCATION, DESTINATION_FOLDER "/" SAMPLE "_star.tsv", DESTINATION_FOLDER "/" SAMPLE "_gaps.csv" }' \
+            "${LOCATION}/${SAMPLE}-consensus-report.tsv" >>jobs/tsv-jobs
+    fi
+done
+
+# parallel --joblog logs/make-depth-tsv.log --header : --colsep , './hcov-gene-depth.py {sample} "*" {depthfile} {location}' :::: jobs/tsv-jobs
+# parallel --joblog logs/make-region-tsv.log --header : --colsep , './hcov-region-coverage.py {sample} "*" {depthfile} >{destination}' :::: jobs/tsv-jobs
+parallel --joblog logs/gap.log --header : --colsep , "./gap-report.py --region-file ./hcov-regions.json --min-depth 10 --sample {sample} --coverage-file {depthfile} --output {gap}" :::: jobs/tsv-jobs
+
+# echo -e "sample	organism	gene	mean	median	min	max	stdev	bases	seen	coverage" >${DESTINATION_FOLDER}/multiple-call-coverage.tsv
+# cat ${DESTINATION_FOLDER}/*_star.tsv | grep -v '^sample' >>${DESTINATION_FOLDER}/multiple-call-coverage.tsv
+# rm -f ${DESTINATION_FOLDER}/*_star.tsv
+
+echo "sample,organism,gapStart,gapEnd,gapSize,averageDepth,medianDepth,minDepth,maxDepth,stdevDepth,firstQuartileDepth,thirdQuartileDepth,averageDelta,medianDelta,minDelta,maxDelta,stdevDelta,firstQuartileDelta,thirdQuartileDelta,geneStart,geneEnd,gene,overlapType" >${DESTINATION_FOLDER}/gap_report.csv
+cat ${DESTINATION_FOLDER}/*_gaps.csv | grep -v '^sample' >>${DESTINATION_FOLDER}/gap_report.csv
+rm -f ${DESTINATION_FOLDER}/*_gaps.csv

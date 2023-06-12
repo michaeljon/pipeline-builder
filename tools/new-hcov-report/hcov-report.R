@@ -26,9 +26,9 @@ suppressPackageStartupMessages(
 args <- commandArgs(trailingOnly = TRUE)
 
 # test if there is at least one argument: if not, return an error
-if (length(args) != 3) {
+if (length(args) != 4) {
   stop(
-    "Usage: Rscript --vanilla gene_coverage.R <sample> <organism> <input-file>",
+    "Usage: Rscript --vanilla gene_coverage.R <sample> <organism> <input-file> <output-folder>",
     call. = FALSE
   )
 }
@@ -36,13 +36,14 @@ if (length(args) != 3) {
 sample <- args[1]
 organism <- args[2]
 input <- args[3]
+outpath <- args[4]
 
-output <- paste0("graphs/", sample, "-", organism, ".pdf")
+output <- paste0(outpath, "/", sample, "-", organism, ".pdf")
 
 min_median_depth <- 0
 min_coverage <- 95
 
-regions <- read_csv("code/hcov-regions.csv", show_col_types = FALSE)
+regions <- read_csv("./hcov-regions.csv", show_col_types = FALSE)
 
 gene_list <- regions[regions$organism == organism, c("gene", "start", "stop")]
 organism_data <- read_tsv(input, col_names = TRUE, show_col_types = FALSE)

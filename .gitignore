@@ -17,6 +17,9 @@ zymo/
 tools/split/fastqrand
 tools/split/fastqsplit
 
+tools/new-hcov-report/jobs/
+tools/new-hcov-report/logs/
+
 tools/fq/bin
 tools/fq/obj
 tools/fq/tmp

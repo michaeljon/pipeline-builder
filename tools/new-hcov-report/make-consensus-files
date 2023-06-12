@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+echo "sample,fasta,location" >jobs/fasta-jobs
+for FASTA in $(find ${PIPELINE_ROOT}/pipeline -type f -name '*.consensus.fa' | grep -v 'hcov-' | grep -v 'sars-'); do
+    LOCATION=$(dirname $FASTA)
+    SAMPLE=$(basename $FASTA | sed 's/.consensus.fa//')
+
+    echo ${SAMPLE},${FASTA},${LOCATION} >>jobs/fasta-jobs
+done
+
+parallel --joblog logs/fasta-jobs.log --header : --colsep , '../separate-fasta/separate-fasta.py -i {fasta} -o {location}' :::: jobs/fasta-jobs
+parallel --joblog logs/hash-jobs.log --header : --colsep , './do-fasta-hash {sample} {location}' :::: jobs/fasta-jobs

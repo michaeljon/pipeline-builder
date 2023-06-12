@@ -4,6 +4,7 @@ import sys
 import csv
 import hashlib
 import os
+import re
 import pprint
 from Levenshtein import distance, editops
 
@@ -41,6 +42,24 @@ supported_references = {
     "sars-cov-2 (MN908947.3)": "105c82802b67521950854a851fc6eefd",
 }
 
+reference_to_organism_accession = {
+    "AF304460.1": ["hcov-229e", "AF304460.1"],
+    "AY567487.2": ["hcov-nl63", "AY567487.2"],
+    "AY585228.1": ["hcov-oc43", "AY585228.1"],
+    "AY597011.2": ["hcov-hku1", "AY597011.2"],
+    "MN908947.3": ["sars-cov-2", "MN908947.3"],
+    "hcov-229e": ["hcov-229e", "AF304460.1"],
+    "hcov-229e (AF304460.1)": ["hcov-229e", "AF304460.1"],
+    "hcov-hku1": ["hcov-hku1", "AY597011.2"],
+    "hcov-hku1 (AY597011.2)": ["hcov-hku1", "AY597011.2"],
+    "hcov-nl63": ["hcov-nl63", "AY567487.2"],
+    "hcov-nl63 (AY567487.2)": ["hcov-nl63", "AY567487.2"],
+    "hcov-oc43": ["hcov-oc43", "AY585228.1"],
+    "hcov-oc43 (AY585228.1)": ["hcov-oc43", "AY585228.1"],
+    "sars-cov-2": ["sars-cov-2", "MN908947.3"],
+    "sars-cov-2 (MN908947.3)": ["sars-cov-2", "MN908947.3"],
+}
+
 results = []
 
 
@@ -74,6 +93,7 @@ if sys.argv[0].endswith("make-reference.py"):
     hash_to_ref = {}
     hash_to_path = {}
     ref_to_hash = {}
+    ref_to_org_acc = {}
 
     for fa in range(1, len(sys.argv)):
         fasta = read_fasta(sys.argv[fa])
@@ -89,9 +109,14 @@ if sys.argv[0].endswith("make-reference.py"):
         ref_to_hash[org] = fasta["hash"]
         ref_to_hash[ref] = fasta["hash"]
 
+        ref_to_org_acc[key] = [org, ref]
+        ref_to_org_acc[org] = [org, ref]
+        ref_to_org_acc[ref] = [org, ref]
+
     pprint.pprint(hash_to_ref)
     pprint.pprint(hash_to_path)
     pprint.pprint(ref_to_hash)
+    pprint.pprint(ref_to_org_acc)
     exit(0)
 
 
@@ -112,12 +137,17 @@ for fa in range(2, len(sys.argv)):
     fasta = read_fasta(sys.argv[fa])
     ops = editops(target_fasta["fasta"], fasta["fasta"])
     dist = len(ops)
+    sample = re.sub("-(hcov|sars)-.*fa", "", os.path.basename(sys.argv[fa]))
+
+    org, acc = reference_to_organism_accession[sys.argv[1]]
 
     results.append(
         {
             "File": os.path.basename(sys.argv[fa]),
             "HasCalls": 0 if fasta["hash"] in known_references else 1,
-            "Sample": fasta["name"],
+            "Sample": sample,
+            "Organism": org,
+            "Accession": acc,
             "Hash": fasta["hash"],
             "Distance": dist,
             # "EditOperations": ops,
@@ -131,6 +161,8 @@ with open("/dev/stdout", "w") as f:
             "File",
             "HasCalls",
             "Sample",
+            "Organism",
+            "Accession",
             "Hash",
             "Distance",
             # "EditOperations"
