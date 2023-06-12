@@ -1005,6 +1005,7 @@ if [[ ! -f {O1} ]]; then
         --minimum-length 30 \\
         --quality-cutoff 18,20 \\
         --trim-n \\
+        --adapater ATCACCGACTGCCCATAGAGAGGCTGAGAC --times 3 \\
         --adapter AAAAAAAAAA$ --times 3 \\
         --adapter GGGGGGGGGG$ --times 3 \\
         --output {O1} \\
