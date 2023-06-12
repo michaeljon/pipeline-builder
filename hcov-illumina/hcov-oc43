@@ -40,7 +40,6 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov-illumina/hcov-runner.py \
     --fastq-dir ${PIPELINE_ROOT}/fastq/${BATCH} \
     --skip-variant-qc \
     --skip-annotation \
-    --caller bcftools \
     --aligner bwa \
     --preprocessor trimmomatic \
     --sorter biobambam

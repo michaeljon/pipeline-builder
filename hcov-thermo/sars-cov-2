@@ -38,7 +38,6 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov-thermo/hcov-runner.py \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner \
     --temp-dir ${PIPELINE_ROOT}/tmp \
     --fastq-dir ${PIPELINE_ROOT}/fastq/${CHIP} \
-    --caller bcftools \
     --aligner bwa \
     --preprocessor cutadapt \
     --sorter biobambam

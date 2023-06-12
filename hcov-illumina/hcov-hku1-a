@@ -41,7 +41,6 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov-illumina/hcov-runner.py \
     --skip-variant-qc \
     --skip-picard-qc \
     --skip-annotation \
-    --caller bcftools \
     --aligner bwa \
     --preprocessor trimmomatic \
     --sorter biobambam

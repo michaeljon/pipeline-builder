@@ -203,45 +203,10 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict):
         sortWithSamtools(script, options)
 
 
-def callVariantsUsingGatk(script: TextIOWrapper, options: OptionsDict):
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
-
-    script.write(
-        """
-# call variants
-if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
-    logthis "${{yellow}}Calling variants using GATK${{reset}}"
-
-    gatk HaplotypeCaller --java-options '-Xmx8g' \\
-        -R {REFERENCE}/{ASSEMBLY}.fna \\
-        -I {PIPELINE}/{SAMPLE}.sorted.bam \\
-        -O {PIPELINE}/{SAMPLE}.unannotated.vcf \\
-        --standard-min-confidence-threshold-for-calling 10 \\
-        --dont-use-soft-clipped-bases \\
-        --min-base-quality-score 10 \\
-        --max-reads-per-alignment-start 0 \\
-        --linked-de-bruijn-graph \\
-        --recover-all-dangling-branches \\
-        --sample-ploidy 1 \\
-        --verbosity ERROR
-
-    bgzip --force {PIPELINE}/{SAMPLE}.unannotated.vcf
-    tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
-
-    logthis "${{green}}GATK variant calling completed${{reset}}"
-else
-    logthis "Variants already called for {PIPELINE}/{SAMPLE}.sorted.bam, ${{green}}skipping${{reset}}"
-fi
-""".format(
-            REFERENCE=reference, ASSEMBLY=assembly, SAMPLE=sample
-        )
-    )
 
 
-def callVariantsUsingBcftools(script: TextIOWrapper, options: OptionsDict):
+
+def callVariants(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
     reference = options["reference"]
@@ -253,36 +218,48 @@ def callVariantsUsingBcftools(script: TextIOWrapper, options: OptionsDict):
 if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
     logthis "${{yellow}}Calling variants using bcftools${{reset}}"
 
-    if [[ ! -f {PIPELINE}/{SAMPLE}.ploidy ]]; then
-        echo '* * * * 1' >{PIPELINE}/{SAMPLE}.ploidy
-    fi
-
     bcftools mpileup \\
-        --annotate FORMAT/AD,FORMAT/DP,FORMAT/QS,FORMAT/SCR,FORMAT/SP,INFO/AD,INFO/SCR \\
+        --annotate FORMAT/DP,FORMAT/SCR \\
         --max-depth 1000000 \\
         --max-idepth 1000000 \\
-        --threads 4 \\
+        --threads 8 \\
         --output-type u \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
-        {PIPELINE}/{SAMPLE}.sorted.bam  | \\
+        {PIPELINE}/{SAMPLE}.sorted.bam 2>/dev/null | \\
     bcftools call \\
-        --annotate FORMAT/GQ,FORMAT/GP,INFO/PV4 \\
         --variants-only \\
-        --keep-alts \\
         --multiallelic-caller \\
-        --ploidy-file {PIPELINE}/{SAMPLE}.ploidy \\
+        --ploidy 1 \\
         --prior 0.05 \\
-        --threads 4 \\
-        --output-type v  \\
-        --output {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp 
+        --threads 8 \\
+        --output-type u  \\
+        --output {PIPELINE}/{SAMPLE}.bcf.tmp 2>/dev/null
 
-    bcftools +fill-tags \\
-        {PIPELINE}/{SAMPLE}.unannotated.vcf.tmp \\
-        --output-type v  \\
-        --output {PIPELINE}/{SAMPLE}.unannotated.vcf \\
-        -- --tags AC,AN,AF,VAF,MAF,FORMAT/VAF 
+    echo "Normalizing and filtering"
+    bcftools norm -f {REFERENCE}/{ASSEMBLY}.fna \\
+        {PIPELINE}/{SAMPLE}.unannotated.bcf.tmp \\
+        -Ou \\
+        -o {PIPELINE}/{SAMPLE}.norm.bcf.tmp >/dev/null
+    bcftools filter --IndelGap 5 \\
+        {PIPELINE}/{SAMPLE}.norm.bcf.tmp \\
+        -Ou \\
+        -o {PIPELINE}/{SAMPLE}.unannotated.bcf
 
-    bgzip --force {PIPELINE}/{SAMPLE}.unannotated.vcf
+    echo "Indexing temporary BCF and calling consensus"
+    bcftools index --force {PIPELINE}/{SAMPLE}.unannotated.bcf
+
+    bcftools consensus \\
+        --sample {SAMPLE} \\
+        --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
+        -o ${PIPELINE}/{SAMPLE}.consensus.fa \\
+        {PIPELINE}/{SAMPLE}.unannotated.bcf
+
+    echo "Converting temporary BCF to VCF"
+    bcftools convert \\
+        -Ov {PIPELINE}/{SAMPLE}.unannotated.bcf \\
+        -o {PIPELINE}/{SAMPLE}.unannotated.vcf
+
+    bgzip --force --keep {PIPELINE}/{SAMPLE}.unannotated.vcf
     tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
     logthis "${{green}}bcftools variant calling completed${{reset}}"
@@ -295,120 +272,7 @@ fi
     )
 
 
-def callVariants(script: TextIOWrapper, options: OptionsDict):
-    caller = options["caller"]
 
-    if caller == "gatk":
-        callVariantsUsingGatk(script, options)
-    elif caller == "bcftools":
-        callVariantsUsingBcftools(script, options)
-    else:
-        print("Unexpected value {CALLER} given for the --caller option".format(CALLER=caller))
-        quit(1)
-
-
-def produceConsensusUsingBcftools(
-    script: TextIOWrapper,
-    options: OptionsDict,
-):
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
-
-    script.write(
-        """
-# produce consensus using bcftools
-if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
-    logthis "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.unannotated.vcf.gz${{reset}}"
-
-    bcftools index --force {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
-    bcftools consensus \\
-        --sample {SAMPLE} \\
-        --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
-        {PIPELINE}/{SAMPLE}.unannotated.vcf.gz >{PIPELINE}/{SAMPLE}.consensus.fa
-
-    logthis "${{yellow}}Consensus completed${{reset}}"
-else
-    logthis "Consensus generation already complete for {PIPELINE}/{SAMPLE}.unannotated.vcf, ${{green}}skipping${{reset}}"
-fi
-""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-        )
-    )
-
-
-def produceConsensusUsingGatk(
-    script: TextIOWrapper,
-    options: OptionsDict,
-):
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
-
-    script.write(
-        """
-# produce consensus using bcftools
-if [[ ! -f {PIPELINE}/{SAMPLE}.consensus.fa ]]; then
-    logthis "${{yellow}}Building consensus {PIPELINE}/{SAMPLE}.unannotated.vcf.gz${{reset}}"
-
-    gatk IndexFeatureFile \\
-        -I {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
-        --verbosity WARNING
-
-    gatk FastaAlternateReferenceMaker \\
-        -R {REFERENCE}/{ASSEMBLY}.fna \\
-        -V {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
-        -O {PIPELINE}/{SAMPLE}.consensus.fa \\
-        --verbosity WARNING
-
-    logthis "${{yellow}}Consensus completed${{reset}}"
-else
-    logthis "Consensus generation already complete for {PIPELINE}/{SAMPLE}.unannotated.vcf, ${{green}}skipping${{reset}}"
-fi
-""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
-            PIPELINE=pipeline,
-            SAMPLE=sample,
-        )
-    )
-
-
-def producePileup(
-    script: TextIOWrapper,
-    options: OptionsDict,
-):
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-
-    script.write(
-        """
-# create pileup
-if [[ ! -f {PIPELINE}/{SAMPLE}.pileup.gz ]]; then
-    logthis "Generate pileup for {PIPELINE}/{SAMPLE}.sorted.bam"
-
-    bcftools mpileup \\
-        --max-depth 1000000 \\
-        --max-idepth 1000000 \\
-        --threads 4 \\
-        --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
-        {PIPELINE}/{SAMPLE}.sorted.bam | gzip >{PIPELINE}/{SAMPLE}.pileup.gz 
-
-    logthis "Pileup completed for {PIPELINE}/{SAMPLE}.sorted.bam"
-else
-    logthis "Pileup already finished for {PIPELINE}/{SAMPLE}.sorted.bam, ${{green}}skipping${{reset}}"
-fi
-""".format(
-            REFERENCE=reference, ASSEMBLY=assembly, PIPELINE=pipeline, SAMPLE=sample
-        )
-    )
 
 
 def annotate(script: TextIOWrapper, options: OptionsDict):
@@ -516,19 +380,9 @@ def runVariantPipeline(script: TextIOWrapper, options: OptionsDict):
     script.write("#\n")
 
     callVariants(script, options)
-    producePileup(script, options)
     annotate(script, options)
 
     script.write("\n")
-
-
-def generateConsensus(script: TextIOWrapper, options: OptionsDict):
-    consensusGenerator = options["consensusGenerator"]
-
-    if consensusGenerator == "bcftools":
-        produceConsensusUsingBcftools(script, options)
-    elif consensusGenerator == "gatk":
-        produceConsensusUsingGatk(script, options)
 
 
 def doVariantQC(script: TextIOWrapper, options: OptionsDict):
@@ -1377,15 +1231,6 @@ def defineArguments() -> Namespace:
     )
 
     parser.add_argument(
-        "--caller",
-        action="store",
-        dest="caller",
-        default="bcftools",
-        choices=["bcftools", "gatk"],
-        help="Use `bcftools` or `gatk` as the variant caller",
-    )
-
-    parser.add_argument(
         "--skip-annotation",
         action="store_true",
         dest="skipAnnotation",
@@ -1399,15 +1244,6 @@ def defineArguments() -> Namespace:
         dest="noColor",
         default=False,
         help="Turn off colorized log output",
-    )
-
-    parser.add_argument(
-        "--consensus-generator",
-        action="store",
-        dest="consensusGenerator",
-        default="bcftools",
-        choices=["bcftools", "gatk"],
-        help="Choice of consensus FASTA generator",
     )
 
     parser.add_argument(
@@ -1558,7 +1394,6 @@ def main():
 
         alignAndSort(script, options)
         runVariantPipeline(script, options)
-        generateConsensus(script, options)
         assignClade(script, options)
 
         # we'll wait here to make sure all the background stuff is done before we

@@ -36,7 +36,6 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov-thermo/hcov-runner.py \
     --skip-picard-qc \
     --skip-variant-qc \
     --skip-annotation \
-    --caller bcftools \
     --aligner bwa \
     --preprocessor cutadapt \
     --sorter biobambam
