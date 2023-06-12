@@ -189,9 +189,6 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict):
         sortWithSamtools(script, options)
 
 
-
-
-
 def callVariants(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
@@ -223,7 +220,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
 
     echo "Normalizing and filtering"
     bcftools norm -f {REFERENCE}/{ASSEMBLY}.fna \\
-        {PIPELINE}/{SAMPLE}.unannotated.bcf.tmp \\
+        {PIPELINE}/{SAMPLE}.bcf.tmp \\
         -Ou \\
         -o {PIPELINE}/{SAMPLE}.norm.bcf.tmp >/dev/null
     bcftools filter --IndelGap 5 \\
@@ -256,9 +253,6 @@ fi
             REFERENCE=reference, ASSEMBLY=assembly, PIPELINE=pipeline, SAMPLE=sample
         )
     )
-
-
-
 
 
 def annotate(script: TextIOWrapper, options: OptionsDict):
@@ -859,7 +853,7 @@ if [[ ! -f {O1} ]]; then
         --minimum-length 30 \\
         --quality-cutoff 18,20 \\
         --trim-n \\
-        --adapater ATCACCGACTGCCCATAGAGAGGCTGAGAC --times 3 \\
+        --adapter ATCACCGACTGCCCATAGAGAGGCTGAGAC --times 3 \\
         --adapter AAAAAAAAAA$ --times 3 \\
         --adapter GGGGGGGGGG$ --times 3 \\
         --output {O1} \\

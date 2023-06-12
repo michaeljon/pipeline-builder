@@ -233,7 +233,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
 
     echo "Normalizing and filtering"
     bcftools norm -f {REFERENCE}/{ASSEMBLY}.fna \\
-        {PIPELINE}/{SAMPLE}.unannotated.bcf.tmp \\
+        {PIPELINE}/{SAMPLE}.bcf.tmp \\
         -Ou \\
         -o {PIPELINE}/{SAMPLE}.norm.bcf.tmp >/dev/null
     bcftools filter --IndelGap 5 \\
