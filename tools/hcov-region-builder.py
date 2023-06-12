@@ -6,7 +6,6 @@ import json
 feature_data = {}
 organisms = {
     "AF304460.1": "hcov-229e",
-    "JX869059.2": "hcov-emc",
     "AY597011.2": "hcov-hku1",
     "AY567487.2": "hcov-nl63",
     "AY585228.1": "hcov-oc43",

@@ -33,57 +33,7 @@
       }
     }
   },
-  "hcov-emc": {
-    "sequence": "JX869059.2",
-    "name": "hcov-emc",
-    "region": {
-      "start": 1,
-      "stop": 30119
-    },
-    "genes": {
-      "orf1ab": {
-        "start": 279,
-        "stop": 21514
-      },
-      "S": {
-        "start": 21456,
-        "stop": 25517
-      },
-      "orf3": {
-        "start": 25532,
-        "stop": 25843
-      },
-      "orf4a": {
-        "start": 25852,
-        "stop": 26181
-      },
-      "orf4b": {
-        "start": 26093,
-        "stop": 26833
-      },
-      "orf5": {
-        "start": 26840,
-        "stop": 27514
-      },
-      "E": {
-        "start": 27590,
-        "stop": 27838
-      },
-      "M": {
-        "start": 27853,
-        "stop": 28512
-      },
-      "N": {
-        "start": 28566,
-        "stop": 29807
-      },
-      "orf8b": {
-        "start": 28762,
-        "stop": 29100
-      }
-    }
-  },
-  "hcov-hku1-a": {
+  "hcov-hku1": {
     "sequence": "AY597011.2",
     "name": "hcov-hku1-a",
     "region": {
@@ -122,44 +72,6 @@
       "N2": {
         "start": 28342,
         "stop": 28959
-      }
-    }
-  },
-  "hcov-hku1-b": {
-    "sequence": "AY884001.1",
-    "name": "hcov-hku1-b",
-    "region": {
-      "start": 1,
-      "stop": 29815
-    },
-    "genes": {
-      "orf1ab": {
-        "start": 200,
-        "stop": 21657
-      },
-      "HE": {
-        "start": 21690,
-        "stop": 22847
-      },
-      "S": {
-        "start": 22862,
-        "stop": 26917
-      },
-      "orf4": {
-        "start": 26940,
-        "stop": 27269
-      },
-      "E": {
-        "start": 27262,
-        "stop": 27510
-      },
-      "M": {
-        "start": 27522,
-        "stop": 28193
-      },
-      "N": {
-        "start": 28209,
-        "stop": 29534
       }
     }
   },

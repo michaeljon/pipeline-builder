@@ -11,7 +11,7 @@ from sys import platform
 
 OptionsDict = Dict[str, Any]
 
-panel_choices = ["MN908947.3", "AF304460.1", "AY597011.2", "AY567487.2", "AY585228.1", "JX869059.2", "panel"]
+panel_choices = ["MN908947.3", "AF304460.1", "AY597011.2", "AY567487.2", "AY585228.1", "panel"]
 panel_choice_help = (
     "'Chromosome' name from reference assembly "
     + "(MN908947.3, sars-cov-2), "
@@ -19,7 +19,6 @@ panel_choice_help = (
     + "(AY597011.2, hcov-hku1), "
     + "(AY567487.2, hcov-nl63), "
     + "(AY585228.1, hcov-oc43), "
-    + "(JX869059.2, hcov-emc), "
     + "(panel, combined panel of all organisms)"
 )
 
@@ -519,7 +518,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict):
     )
 
     checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 15 -F 1284 {SORTED} | bedtools genomecov -d -ibam stdin | awk "\\$2 % 100 == 0 {{print \\$1,\\$2,\\$3}}" | sed "s/AF304460.1/hcov_229e/;s/JX869059.2/hcov_emc/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl63/;s/AY585228.1/hcov_oc43/;s/MN908947.3/sars_cov_2/" >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
+        """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 15 -F 1284 {SORTED} | bedtools genomecov -d -ibam stdin | awk "\\$2 % 100 == 0 {{print \\$1,\\$2,\\$3}}" | sed "s/AF304460.1/hcov_229e/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl63/;s/AY585228.1/hcov_oc43/;s/MN908947.3/sars_cov_2/" >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
             REFERENCE=reference,
             ASSEMBLY=assembly,
             SAMPLE=sample,
