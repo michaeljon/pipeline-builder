@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 
+if [[ -z ${TEMP_DIR} ]]; then
+    DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    TEMP_DIR=$(mktemp -d -p "$DIR")
+fi
+
+echo "Using ${TEMP_DIR} as working storage"
+
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
     exit 1
@@ -24,6 +31,15 @@ if [[ ! -d ${GRAPH_FOLDER} ]]; then
     echo "GRAPH_FOLDER doesn't exist or is not a directory, unable to proceed"
     exit 1
 fi
+
+# deletes the temp directory
+function cleanup {
+    rm -rf "$WORK_DIR"
+    echo "Deleted temp working directory $WORK_DIR"
+}
+
+# register the cleanup function to be called on the EXIT signal
+trap cleanup EXIT
 
 ./make-consensus-files
 ./make-tsvs
