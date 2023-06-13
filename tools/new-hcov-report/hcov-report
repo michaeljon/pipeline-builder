@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
 
-if [[ -z ${TEMP_DIR} ]]; then
-    DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    TEMP_DIR=$(mktemp -d -p "$DIR")
-fi
-
-echo "Using ${TEMP_DIR} as working storage"
-
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
     exit 1

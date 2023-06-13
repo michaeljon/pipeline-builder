@@ -32,6 +32,12 @@ for i, f in enumerate(sys.argv):
                         feature_data[sequence_id]["region"]["start"] = start_pos
                         feature_data[sequence_id]["region"]["stop"] = stop_pos
 
+                    if elements[2] == "five_prime_UTR":
+                        feature_data[sequence_id]["genes"]["5-prime-utr"] = {"start": start_pos, "stop": stop_pos}
+
+                    if elements[2] == "three_prime_UTR":
+                        feature_data[sequence_id]["genes"]["3-prime-utr"] = {"start": start_pos, "stop": stop_pos}
+
                     elif elements[2] == "gene":
                         infos = elements[8].split(";")
                         if infos != None and len(infos) > 0:

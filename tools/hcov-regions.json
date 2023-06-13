@@ -7,6 +7,14 @@
       "stop": 27317
     },
     "genes": {
+      "5-prime-utr": {
+        "start": 1,
+        "stop": 292
+      },
+      "HCoV229Egp1": {
+        "start": 293,
+        "stop": 20568
+      },
       "S": {
         "start": 20570,
         "stop": 24091
@@ -30,17 +38,25 @@
       "N": {
         "start": 25686,
         "stop": 26855
+      },
+      "3-prime-utr": {
+        "start": 26856,
+        "stop": 27317
       }
     }
   },
   "hcov-hku1": {
     "sequence": "AY597011.2",
-    "name": "hcov-hku1-a",
+    "name": "hcov-hku1",
     "region": {
       "start": 1,
       "stop": 29926
     },
     "genes": {
+      "5-prime-utr": {
+        "start": 1,
+        "stop": 205
+      },
       "orf1ab": {
         "start": 206,
         "stop": 21753
@@ -72,6 +88,10 @@
       "N2": {
         "start": 28342,
         "stop": 28959
+      },
+      "3-prime-utr": {
+        "start": 28960,
+        "stop": 29926
       }
     }
   },
@@ -83,6 +103,10 @@
       "stop": 27553
     },
     "genes": {
+      "5-prime-utr": {
+        "start": 1,
+        "stop": 286
+      },
       "ORF1ab": {
         "start": 287,
         "stop": 20475
@@ -106,6 +130,10 @@
       "N": {
         "start": 26133,
         "stop": 27266
+      },
+      "3-prime-utr": {
+        "start": 27267,
+        "stop": 27553
       }
     }
   },
@@ -117,6 +145,10 @@
       "stop": 30741
     },
     "genes": {
+      "5-prime-utr": {
+        "start": 1,
+        "stop": 209
+      },
       "ORF1ab": {
         "start": 210,
         "stop": 21496
@@ -148,6 +180,10 @@
       "N": {
         "start": 29079,
         "stop": 30425
+      },
+      "3-prime-utr": {
+        "start": 30425,
+        "stop": 30741
       }
     }
   },
@@ -159,6 +195,10 @@
       "stop": 29903
     },
     "genes": {
+      "5-prime-utr": {
+        "start": 1,
+        "stop": 265
+      },
       "orf1ab": {
         "start": 266,
         "stop": 21555
@@ -198,6 +238,10 @@
       "ORF10": {
         "start": 29558,
         "stop": 29674
+      },
+      "3-prime-utr": {
+        "start": 29675,
+        "stop": 29903
       }
     }
   },
@@ -209,9 +253,17 @@
       "stop": 7137
     },
     "genes": {
+      "5-prime-utr": {
+        "start": 1,
+        "stop": 626
+      },
       "D1P36_gp1": {
         "start": 627,
         "stop": 7100
+      },
+      "3-prime-utr": {
+        "start": 7101,
+        "stop": 7137
       }
     }
   },
@@ -223,9 +275,17 @@
       "stop": 7208
     },
     "genes": {
+      "5-prime-utr": {
+        "start": 1,
+        "stop": 262
+      },
       "D1P37_gp1": {
         "start": 627,
         "stop": 7163
+      },
+      "3-prime-utr": {
+        "start": 7164,
+        "stop": 7208
       }
     }
   },
@@ -237,9 +297,17 @@
       "stop": 6944
     },
     "genes": {
+      "5-prime-utr": {
+        "start": 1,
+        "stop": 478
+      },
       "D1P38_gp1": {
         "start": 479,
         "stop": 6907
+      },
+      "3-prime-utr": {
+        "start": 6908,
+        "stop": 6944
       }
     }
   }
