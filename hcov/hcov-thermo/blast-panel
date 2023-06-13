@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+SAMPLE=$1
+FASTQ=$2
+CHIP=$3
+
+ORGANISM=blast-panel
+ASSEMBLY=blast-panel
+REFNAME=panel
+
+if [[ -z ${PIPELINE_ROOT} ]]; then
+    echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
+    exit 1
+fi
+
+echo Starting ${SAMPLE} run
+
+set -e
+
+# give us a place to work
+mkdir -p ${PIPELINE_ROOT}/pipeline/${SAMPLE}
+
+# build the pipeline
+python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/blast-runner.py \
+    --no-color \
+    --cores 8 \
+    --sample ${SAMPLE} \
+    --fastq "${FASTQ}" \
+    --work-dir ${PIPELINE_ROOT} \
+    --reference-dir ${PIPELINE_ROOT}/reference/${ORGANISM} \
+    --reference-assembly ${ASSEMBLY} \
+    --reference-name ${REFNAME} \
+    --pipeline-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE} \
+    --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE} \
+    --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner \
+    --temp-dir ${PIPELINE_ROOT}/tmp \
+    --fastq-dir ${PIPELINE_ROOT}/fastq/${CHIP} \
+    --aligner bwa \
+    --sorter biobambam
+
+cp ${PIPELINE_ROOT}/pipeline-builder/assets/software_versions_mqc.html ${PIPELINE_ROOT}/pipeline/${SAMPLE}
+cp ${PIPELINE_ROOT}/pipeline-builder/assets/ovationlogo.png ${PIPELINE_ROOT}/pipeline/${SAMPLE}
+
+# run the pipeline
+bash ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner >${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
+
+echo Finished ${SAMPLE} run
