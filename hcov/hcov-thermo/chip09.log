@@ -1,8 +1,0 @@
-Seq	Host	Starttime	JobRuntime	Send	Receive	Exitval	Signal	Command
-1	:	1681410689.516	   118.661	0	288	0	0		 ./hcov-panel 6efc7be4-86e7-43c9-8269-9a9320189513 /home/michaeljon/pipeline/fastq/Chip09/Sample_1_IonXpress_001_R_2023_03_25_11_52_46_user_GSS5PR-0172-14-20230325_Chip_9.fastq Chip09
-4	:	1681410689.524	   141.412	0	288	0	0		 ./hcov-panel 44ab12d3-e876-4050-b989-e1c6c79a5807 /home/michaeljon/pipeline/fastq/Chip09/Sample_19_IonXpress_019_R_2023_03_25_11_52_46_user_GSS5PR-0172-14-20230325_Chip_9.fastq Chip09
-2	:	1681410689.518	   146.174	0	288	0	0		 ./hcov-panel ff54c942-0c63-45f1-a4a5-38db3c39f17c /home/michaeljon/pipeline/fastq/Chip09/Sample_5_IonXpress_005_R_2023_03_25_11_52_46_user_GSS5PR-0172-14-20230325_Chip_9.fastq Chip09
-5	:	1681410808.181	   118.653	0	288	0	0		 ./hcov-panel 91689ea2-50a3-430e-bdde-ddd07208d4f9 /home/michaeljon/pipeline/fastq/Chip09/Sample_20_IonXpress_020_R_2023_03_25_11_52_46_user_GSS5PR-0172-14-20230325_Chip_9.fastq Chip09
-6	:	1681410830.940	   128.233	0	288	0	0		 ./hcov-panel 698dd728-08af-4311-912b-4e097d60fe93 /home/michaeljon/pipeline/fastq/Chip09/Sample_23_IonXpress_023_R_2023_03_25_11_52_46_user_GSS5PR-0172-14-20230325_Chip_9.fastq Chip09
-7	:	1681410835.718	   363.657	0	288	0	0		 ./hcov-panel 7c0d5a9f-c2a1-416d-862c-fb075e2c600c /home/michaeljon/pipeline/fastq/Chip09/Sample_30_IonXpress_030_R_2023_03_25_11_52_46_user_GSS5PR-0172-14-20230325_Chip_9.fastq Chip09
-3	:	1681410689.521	  1807.170	0	288	0	0		 ./hcov-panel 3eccc95f-918f-4642-bdec-d12e72d271b4 /home/michaeljon/pipeline/fastq/Chip09/Sample_8_IonXpress_008_R_2023_03_25_11_52_46_user_GSS5PR-0172-14-20230325_Chip_9.fastq Chip09
