@@ -33,7 +33,6 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov-thermo/hrv-runner.py \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner \
     --temp-dir ${PIPELINE_ROOT}/tmp \
     --fastq-dir ${PIPELINE_ROOT}/fastq/${CHIP} \
-    --skip-variant-qc \
     --skip-annotation \
     --aligner bwa \
     --preprocessor cutadapt \

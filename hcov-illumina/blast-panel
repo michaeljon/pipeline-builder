@@ -38,8 +38,6 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov-illumina/blast-runner.py \
     --script ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}_runner \
     --temp-dir ${PIPELINE_ROOT}/temp \
     --fastq-dir ${PIPELINE_ROOT}/fastq/${BATCH} \
-    --skip-variant-qc \
-    --skip-annotation \
     --aligner bwa \
     --preprocessor trimmomatic \
     --sorter biobambam

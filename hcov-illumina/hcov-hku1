@@ -38,8 +38,6 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov-illumina/hcov-runner.py \
     --script ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}_runner \
     --temp-dir ${PIPELINE_ROOT}/temp \
     --fastq-dir ${PIPELINE_ROOT}/fastq/${BATCH} \
-    --skip-variant-qc \
-    --skip-picard-qc \
     --skip-annotation \
     --aligner bwa \
     --preprocessor trimmomatic \
