@@ -502,6 +502,13 @@ def defineArguments(panel_choices: List[str], panel_choice_help: str) -> Namespa
     )
 
     parser.add_argument(
+        "--run-qc",
+        action="store_true",
+        dest="runQc",
+        default=False,
+        help="Enable running any / all QC processes",
+    )
+    parser.add_argument(
         "--skip-multi-qc",
         action="store_false",
         dest="doMultiQc",
@@ -748,9 +755,9 @@ def main(panel_choices: List[str], panel_choice_help: str):
         # run multiqc and cleanup
         script.write('logthis "${green}Done with front-end processing${reset}"\n')
 
-        doQualityControl(script, options, filenames)
-
-        script.write('logthis "${green}Done with back-end processing${reset}"\n')
+        if options["runQc"] == True:
+            doQualityControl(script, options, filenames)
+            script.write('logthis "${green}Done with back-end processing${reset}"\n')
 
         script.write("\n")
         script.write("touch {PIPELINE}/01-completed\n".format(PIPELINE=options["pipeline"]))
