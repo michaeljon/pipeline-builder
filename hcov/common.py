@@ -62,7 +62,7 @@ export DYLD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib:/usr/local/lib/:$D
 export BCFTOOLS_PLUGINS={WORKING}/libexec/bcftools
 
 # handy path
-export PATH={WORKING}/bin/ensembl-vep:{WORKING}/bin/FastQC:{WORKING}/bin/gatk-4.2.6.1:{WORKING}/bin:$PATH\n""".format(
+export PATH={WORKING}/bin/FastQC:{WORKING}/bin:$PATH\n""".format(
             WORKING=options["working"]
         )
     )
