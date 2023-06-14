@@ -1,12 +1,7 @@
 #!/usr/bin/env python
 
 import sys
-import csv
-import hashlib
 import os
-import re
-import pprint
-from Levenshtein import distance, editops
 
 
 def read_fasta(fa):
@@ -33,7 +28,7 @@ def write_fasta(filename, sample_name, fasta):
         if sample_name.endswith("!"):
             f.write(">" + str(sample_name.removesuffix("!")) + "\n")
         else:
-            f.write(">" + str(sample_name) + " (" + fasta["name"] + ")\n")
+            f.write(">" + str(sample_name) + " | (" + fasta["name"] + ")\n")
 
         f.writelines([l + "\n" for l in fasta["fasta"]])
 
