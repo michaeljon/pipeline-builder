@@ -653,7 +653,7 @@ parallel --joblog {PIPELINE}/{SAMPLE}.bqsr.log --header --colsep $'\\t' \\
             -O {PIPELINE}/{{root}}_bqsr.table \\
             --verbosity ERROR \\
             --preserve-qscores-less-than 6 \\
-            --known-sites "{REFERENCE}/{KNOWN_SITES}/{{interval}}.vcf.gz" \\
+            --known-sites "{REFERENCE}/{KNOWN_SITES}" \\
             -L {{interval}}
      fi' :::: {INTERVAL_LIST}
 logthis "${{green}}BQSR table generation complete${{reset}}"
@@ -757,7 +757,7 @@ parallel -j {JOBS} --joblog {PIPELINE}/{SAMPLE}.call.log --header --colsep $'\\t
             -I {PIPELINE}/{{root}}_bqsr.bam \\
             -O {PIPELINE}/{{root}}.vcf \\
             --verbosity ERROR \\
-            --dbsnp "{REFERENCE}/{KNOWN_SITES}/{{interval}}.vcf.gz" \\
+            --dbsnp "{REFERENCE}/{KNOWN_SITES}" \\
             --pairHMM FASTEST_AVAILABLE \\
             --native-pair-hmm-threads {THREADS} \\
             -L {{interval}}

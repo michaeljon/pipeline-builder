@@ -18,7 +18,7 @@ for (arg in args) {
     sort() %>%
     median(na.rm = FALSE)
 
-  if (median_depth >= 10) {
+  if (median_depth >= 5) {
     png(output)
 
     plt <- ggplot(data = df, mapping = aes(x = pos_in_gene, y = depth)) +

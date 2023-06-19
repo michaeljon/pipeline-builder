@@ -1,6 +1,10 @@
 {
   "files.autoSave": "onFocusChange",
   "editor.formatOnSave": true,
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter"
+  },
+  "black-formatter.importStrategy": "fromEnvironment",
   "python.formatting.provider": "black",
-  "python.formatting.blackPath": "/usr/local/bin/black"
+  "sarif-viewer.connectToGithubCodeScanning": "off"
 }
