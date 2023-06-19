@@ -19,7 +19,7 @@ python ${PIPELINE_ROOT}/pipeline-builder/human/human-hg38/build-hg38-pipeline.py
     --work-dir ${PIPELINE_ROOT} \
     --reference-dir ${PIPELINE_ROOT}/reference/GRCh38.p14 \
     --reference-assembly GCF_000001405.40_GRCh38.p14_genomic \
-    --known-sites known-sites-50mb \
+    --known-sites GCF_000001405.40.gz \
     --segment 50000000 \
     --vep-dir ${PIPELINE_ROOT}/reference/vep_data \
     --pipeline-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE} \
