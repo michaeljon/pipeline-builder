@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+FASTQ=$1
+SAMPLE=$2
+
+echo ${SAMPLE} from ${FASTQ}
+
+if [[ -z ${PIPELINE_ROOT} ]]; then
+    echo "PIPELINE_ROOT has not been set"
+    exit 1
+fi
+
+# give us a place to work
+mkdir -p ${PIPELINE_ROOT}/pipeline/${SAMPLE}
+mkdir -p ${PIPELINE_ROOT}/stats/${SAMPLE}
+
+# build the pipeline
+python ${PIPELINE_ROOT}/pipeline-builder/human/human-thermo/build-hg38-pipeline.py \
+    --no-color \
+    --sample ${SAMPLE} \
+    --fastq ${FASTQ} \
+    --work-dir ${PIPELINE_ROOT} \
+    --reference-dir ${PIPELINE_ROOT}/reference/GRCh38.p14 \
+    --reference-assembly GCF_000001405.40_GRCh38.p14_genomic \
+    --known-sites GCF_000001405.40.gz \
+    --segment 50000000 \
+    --vep-dir ${PIPELINE_ROOT}/reference/vep_data \
+    --pipeline-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE} \
+    --stats-dir ${PIPELINE_ROOT}/stats/${SAMPLE} \
+    --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner \
+    --temp-dir ${PIPELINE_ROOT}/stats/temp \
+    --fastq-dir ${PIPELINE_ROOT}/fastq/vikor \
+    --aligner bwa-mem2 \
+    --sorter biobambam \
+    --caller gatk \
+    --clean
+
+# interval list
+cp ${PIPELINE_ROOT}/pipeline-builder/human-thermo/interval_list.tsv ${PIPELINE_ROOT}/pipeline/${SAMPLE}
+
+cp ${PIPELINE_ROOT}/pipeline-builder/assets/software_versions_mqc.html ${PIPELINE_ROOT}/stats/${SAMPLE}
+cp ${PIPELINE_ROOT}/pipeline-builder/assets/ovationlogo.png ${PIPELINE_ROOT}/stats/${SAMPLE}
+
+# run the pipeline
+bash ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner >${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
+
+# rm -f ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}.aligned.sam.gz
+# rm -f ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}.sorted.bam

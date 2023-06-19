@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+if [[ -z ${DESTINATION_FOLDER} ]]; then
+    echo "Missing DESTINATION_FOLDER environment variable, unable to proceed"
+    exit 1
+fi
+
+if [[ ! -d ${DESTINATION_FOLDER} ]]; then
+    echo "DESTINATION_FOLDER doesn't exist or is not a directory, unable to proceed"
+    exit 1
+fi
+
+echo "sample,fasta,location" >jobs/fasta-jobs
+for FASTA in $(find ${PIPELINE_ROOT}/pipeline -type f -name '*.consensus.fa' | grep -v 'hcov-' | grep -v 'sars-'); do
+    LOCATION=$(dirname $FASTA)
+    SAMPLE=$(basename $FASTA | sed 's/.consensus.fa//')
+
+    echo ${SAMPLE},${FASTA},${LOCATION} >>jobs/fasta-jobs
+done
+
+parallel --joblog logs/fasta-jobs.log --header : --colsep , '../separate-fasta/separate-fasta.py -i {fasta} -o {location}' :::: jobs/fasta-jobs
+parallel --joblog logs/hash-jobs.log --header : --colsep , './do-fasta-hash {sample} {location}' :::: jobs/fasta-jobs
+
+printf "File\tHasCalls\tSample\tOrganism\tAccession\tHash\tDistance\n" >${DESTINATION_FOLDER}/consensus-report.tsv
+for CSV in $(find ${PIPELINE_ROOT}/pipeline -type f -name '*-consensus-report.tsv'); do
+    tail -n +2 $CSV >>${DESTINATION_FOLDER}/consensus-report.tsv
+done

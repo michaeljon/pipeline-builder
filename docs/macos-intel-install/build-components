@@ -8,9 +8,9 @@ export CCPATH=/usr/local/bin
 export CC=/usr/local/bin/gcc-${CCVERSION}
 export CXX=/usr/local/bin/g++-${CCVERSION}
 export CXXCPP=/usr/local/bin/cpp-${CCVERSION}
-export CFLAGS="-I${HOME}/pipeline/include -I/usr/local/include -Wno-deprecated-declarations  -Wno-unused-result"
+export CFLAGS="-I${ROOT_DIR}/include -I/usr/local/include -Wno-deprecated-declarations  -Wno-unused-result"
 export CXXFLAGS=${CFLAGS}
-export LDFLAGS="-L${HOME}/pipeline/lib -L/usr/local/lib"
+export LDFLAGS="-L${ROOT_DIR}/lib -L/usr/local/lib"
 
 echo "Build zlib, zlib-ng, and pigz components"
 cd ${ROOT_DIR}/src/zlib-ng-2.0.7
@@ -58,6 +58,14 @@ echo "Building BEDTOOLS components"
 cd ${ROOT_DIR}/src/bedtools2
 make prefix=${ROOT_DIR}
 make install prefix=${ROOT_DIR}
+
+echo "Building REGTOOLS components"
+git clone https://github.com/griffithlab/regtools
+cd regtools/
+mkdir build
+cd build/
+cmake -DCMAKE_INSTALL_PREFIX=${ROOT_DIR} ..
+make
 
 echo "Building vcftools"
 cd ${ROOT_DIR}/src/vcftools-0.1.16

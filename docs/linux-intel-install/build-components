@@ -2,6 +2,10 @@
 
 ROOT_DIR=${HOME}/pipeline
 
+export CFLAGS="-I${ROOT_DIR}/include -I/usr/include -Wno-deprecated-declarations  -Wno-unused-result"
+export CXXFLAGS=${CFLAGS}
+export LDFLAGS="-L${ROOT_DIR}/lib -L/usr/lib"
+
 echo "Build zlib, zlib-ng, and pigz components"
 cd ${ROOT_DIR}/src/zlib-ng-2.0.7
 ./configure --zlib-compat
@@ -48,6 +52,14 @@ echo "Building BEDTOOLS components"
 cd ${ROOT_DIR}/src/bedtools2
 make prefix=${ROOT_DIR}
 make install prefix=${ROOT_DIR}
+
+echo "Building REGTOOLS components"
+git clone https://github.com/griffithlab/regtools
+cd regtools/
+mkdir build
+cd build/
+cmake -DCMAKE_INSTALL_PREFIX=${ROOT_DIR} ..
+make
 
 echo "Building vcftools"
 cd ${ROOT_DIR}/src/vcftools-0.1.16

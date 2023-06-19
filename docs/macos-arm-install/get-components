@@ -54,6 +54,8 @@ curl --silent https://github.com/arq5x/bedtools2/releases/download/v2.30.0/bedto
 git clone https://github.com/lh3/bwa.git ${ROOT_DIR}/src/bwa
 git clone https://github.com/alexdobin/STAR.git ${ROOT_DIR}/src/star
 git clone https://github.com/DaehwanKimLab/hisat2.git ${ROOT_DIR}/src/hisat2
+git clone https://github.com/griffithlab/regtools ${ROOT_DIR}/src/regtools
+
 curl --silent https://github.com/lh3/minimap2/archive/refs/tags/v2.24.tar.gz --location -o ${ROOT_DIR}/components/minimap2.tgz &&
     tar xf ${ROOT_DIR}/components/minimap2.tgz -C ${ROOT_DIR}/src
 

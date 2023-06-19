@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+if [[ -z ${PIPELINE_ROOT} ]]; then
+    echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
+    exit 1
+fi
+
+if [[ -z ${GRAPH_FOLDER} ]]; then
+    echo "Missing GRAPH_FOLDER environment variable, unable to proceed"
+    exit 1
+fi
+
+if [[ ! -d ${GRAPH_FOLDER} ]]; then
+    echo "GRAPH_FOLDER doesn't exist or is not a directory, unable to proceed"
+    exit 1
+fi
+
+echo "sample,tsv,organism" >jobs/graph-jobs
+
+for FILENAME in $(find ${PIPELINE_ROOT}/pipeline -type f -name '*-consensus-report.tsv'); do
+    LOCATION=$(dirname $FILENAME)
+
+    awk \
+        -vTSV=${FILENAME} \
+        -vLOCATION=${LOCATION} \
+        'BEGIN { FS="\t"; OFS=","} $2 == 1 { print $3, LOCATION "/" $3 "_" $4 "__all.tsv" ,$4 }' \
+        ${FILENAME} >>jobs/graph-jobs
+done
+
+parallel --joblog logs/graphing.log --header : --colsep , "Rscript --vanilla ./hcov-report.R {sample} {organism} {tsv} ${GRAPH_FOLDER}" :::: jobs/graph-jobs

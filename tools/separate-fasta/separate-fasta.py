@@ -95,7 +95,6 @@ def separate_extensions(file_name: str) -> Tuple[str, Sequence[str]]:
 if __name__ == "__main__":
     organism_names = {
         "AF304460.1": "hcov-229e",
-        "JX869059.2": "hcov-emc",
         "AY597011.2": "hcov-hku1",
         "AY567487.2": "hcov-nl63",
         "AY585228.1": "hcov-oc43",
@@ -111,7 +110,7 @@ if __name__ == "__main__":
 
     (file_prefix, extensions) = separate_extensions(basename(options["input_file"]))
 
-    for (organism_id, section_contents) in read_fasta_sections(options["input_file"]):
+    for organism_id, section_contents in read_fasta_sections(options["input_file"]):
         file_name = "{PREFIX}-{ORGANISM_NAME}{EXTENSIONS}".format(
             PREFIX=file_prefix,
             ORGANISM_NAME=organism_names[organism_id],

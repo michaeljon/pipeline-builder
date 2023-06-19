@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+if [[ -z ${PIPELINE_ROOT} ]]; then
+    echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
+    exit 1
+fi
+
+if [[ -z ${DESTINATION_FOLDER} ]]; then
+    echo "Missing DESTINATION_FOLDER environment variable, unable to proceed"
+    exit 1
+fi
+
+if [[ ! -d ${DESTINATION_FOLDER} ]]; then
+    echo "DESTINATION_FOLDER doesn't exist or is not a directory, unable to proceed"
+    exit 1
+fi
+
+if [[ -z ${GRAPH_FOLDER} ]]; then
+    echo "Missing GRAPH_FOLDER environment variable, unable to proceed"
+    exit 1
+fi
+
+if [[ ! -d ${GRAPH_FOLDER} ]]; then
+    echo "GRAPH_FOLDER doesn't exist or is not a directory, unable to proceed"
+    exit 1
+fi
+
+# deletes the temp directory
+function cleanup {
+    rm -rf "$WORK_DIR"
+    echo "Deleted temp working directory $WORK_DIR"
+}
+
+# register the cleanup function to be called on the EXIT signal
+trap cleanup EXIT
+
+./make-consensus-files
+./make-tsvs
+./make-graphs

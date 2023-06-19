@@ -6,7 +6,6 @@ import json
 feature_data = {}
 organisms = {
     "AF304460.1": "hcov-229e",
-    "JX869059.2": "hcov-emc",
     "AY597011.2": "hcov-hku1",
     "AY567487.2": "hcov-nl63",
     "AY585228.1": "hcov-oc43",
@@ -32,6 +31,12 @@ for i, f in enumerate(sys.argv):
                     if elements[2] == "region":
                         feature_data[sequence_id]["region"]["start"] = start_pos
                         feature_data[sequence_id]["region"]["stop"] = stop_pos
+
+                    if elements[2] == "five_prime_UTR":
+                        feature_data[sequence_id]["genes"]["5-prime-utr"] = {"start": start_pos, "stop": stop_pos}
+
+                    if elements[2] == "three_prime_UTR":
+                        feature_data[sequence_id]["genes"]["3-prime-utr"] = {"start": start_pos, "stop": stop_pos}
 
                     elif elements[2] == "gene":
                         infos = elements[8].split(";")

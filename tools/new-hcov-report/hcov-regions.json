@@ -45,6 +45,7 @@
       }
     }
   },
+
   "hcov-hku1": {
     "sequence": "AY597011.2",
     "name": "hcov-hku1",
@@ -95,6 +96,7 @@
       }
     }
   },
+
   "hcov-nl63": {
     "sequence": "AY567487.2",
     "name": "hcov-nl63",

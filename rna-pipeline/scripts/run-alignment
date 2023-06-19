@@ -65,6 +65,8 @@ fastqc --threads 2 ${R1_TRIMMED} ${R2_TRIMMED} -o ${WORKING}/stats >/dev/null 2>
 # run alignment
 STAR \
     --genomeDir ${REFERENCE} \
+    --twopassMode Basic \
+    --outSAMstrandField intronMotif \
     --readFilesIn ${R1_TRIMMED} ${R2_TRIMMED} \
     --runThreadN $(nproc) \
     --outSAMtype BAM SortedByCoordinate \
