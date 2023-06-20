@@ -2,13 +2,22 @@
 
 import argparse
 
+import re
 from argparse import Namespace
-from os import mkdir
+from os import mkdir, path
 from os.path import basename, exists, expandvars, join, splitext
 from typing import Any, Dict, List, Sequence, Tuple
 
 # This script reads a FASTA file containing data for multiple organisms and writes
 # the data for each organism out as its own FASTA file.
+
+organism_names = {
+    "AF304460.1": "hcov-229e",
+    "AY597011.2": "hcov-hku1",
+    "AY567487.2": "hcov-nl63",
+    "AY585228.1": "hcov-oc43",
+    "MN908947.3": "sars-cov-2",
+}
 
 
 def define_arguments() -> Namespace:
@@ -68,7 +77,19 @@ def read_fasta_sections(fasta_path: str) -> Sequence[Tuple[str, str]]:
                     sections.append((current_organism_id, current_section_contents))
                     current_section_contents = ""
 
-                current_organism_id = line.split(" ")[0].replace(">", "")
+                for k in organism_names.keys():
+                    if k in line:
+                        current_organism_id = k
+
+                line = (
+                    ">"
+                    + path.basename(fasta_path).replace(".consensus.fa", "")
+                    + " | "
+                    + current_organism_id
+                    + " ("
+                    + organism_names[current_organism_id]
+                    + ")\n"
+                )
 
             current_section_contents += line
 
@@ -93,17 +114,6 @@ def separate_extensions(file_name: str) -> Tuple[str, Sequence[str]]:
 
 
 if __name__ == "__main__":
-    organism_names = {
-        "AF304460.1": "hcov-229e",
-        "AY597011.2": "hcov-hku1",
-        "AY567487.2": "hcov-nl63",
-        "AY585228.1": "hcov-oc43",
-        "MN908947.3": "sars-cov-2",
-        "NC_038311.1": "hrv-a",
-        "NC_038312.1": "hrv-b",
-        "NC_038878.1": "hrv-c",
-    }
-
     opts = define_arguments()
     options = expand_paths(opts)
     verify_options(options)
