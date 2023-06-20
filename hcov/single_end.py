@@ -22,7 +22,7 @@ def getFileNames(options: OptionsDict) -> FastqSet:
     fastq_dir = options["fastq_dir"]
 
     if exists(expandvars(fastq)) == True:
-        return fastq
+        return [fastq]
 
     filename = "{FASTQ_DIR}/{FASTQ}".format(FASTQ_DIR=fastq_dir, FASTQ=fastq)
 
@@ -569,12 +569,13 @@ def main(panel_choices: List[str], panel_choice_help: str):
         script.truncate(0)
 
         script.write("#!/usr/bin/env bash\n")
+
         writeHeader(script, options, filenames)
         writeVersions(script)
         writeEnvironment(script, options)
 
         script.write("\n")
-        script.write("touch {PIPELINE}/00-started\n".format(PIPELINE=options["pipeline"]))
+        script.write("touch {PIPELINE}/{SAMPLE}.name.txt\n".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]))
         script.write("\n")
 
         updateDictionary(script, options, panel_choices)
@@ -590,9 +591,5 @@ def main(panel_choices: List[str], panel_choice_help: str):
         if options["runQc"] == True:
             doQualityControl(script, options, filenames)
             script.write('logthis "${green}Done with back-end processing${reset}"\n')
-
-        script.write("\n")
-        script.write("touch {PIPELINE}/01-completed\n".format(PIPELINE=options["pipeline"]))
-        script.write("\n")
 
     system("chmod +x " + options["script"])

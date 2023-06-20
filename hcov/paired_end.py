@@ -742,7 +742,7 @@ def main(panel_choices: List[str], panel_choice_help: str):
         writeEnvironment(script, options)
 
         script.write("\n")
-        script.write("touch {PIPELINE}/00-started\n".format(PIPELINE=options["pipeline"]))
+        script.write("touch {PIPELINE}/{SAMPLE}.name.txt\n".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]))
         script.write("\n")
 
         updateDictionary(script, options, panel_choices)
@@ -758,9 +758,5 @@ def main(panel_choices: List[str], panel_choice_help: str):
         if options["runQc"] == True:
             doQualityControl(script, options, filenames)
             script.write('logthis "${green}Done with back-end processing${reset}"\n')
-
-        script.write("\n")
-        script.write("touch {PIPELINE}/01-completed\n".format(PIPELINE=options["pipeline"]))
-        script.write("\n")
 
     system("chmod +x " + options["script"])

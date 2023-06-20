@@ -172,6 +172,7 @@ def callVariants(script: TextIOWrapper, options: OptionsDict):
     pipeline = options["pipeline"]
     reference = options["reference"]
     assembly = options["referenceAssembly"]
+    bin = options["bin"]
 
     script.write(
         """
@@ -194,41 +195,98 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         --prior 0.05 \\
         --threads 8 \\
         --output-type u  \\
-        --output {PIPELINE}/{SAMPLE}.bcf.tmp 2>/dev/null
+        --output {PIPELINE}/{SAMPLE}.tmp.bcf 2>/dev/null
 
-    echo "Normalizing and filtering"
+    logthis "Normalizing and filtering"
     bcftools norm -f {REFERENCE}/{ASSEMBLY}.fna \\
-        {PIPELINE}/{SAMPLE}.bcf.tmp \\
+        {PIPELINE}/{SAMPLE}.tmp.bcf \\
         -Ou \\
-        -o {PIPELINE}/{SAMPLE}.norm.bcf.tmp >/dev/null
-    bcftools filter --IndelGap 5 \\
-        {PIPELINE}/{SAMPLE}.norm.bcf.tmp \\
+        -o {PIPELINE}/{SAMPLE}.norm.bcf
+    bcftools filter -i "QUAL > 80" --IndelGap 5 \\
+        {PIPELINE}/{SAMPLE}.norm.bcf \\
         -Ou \\
-        -o {PIPELINE}/{SAMPLE}.unannotated.bcf
+        -o {PIPELINE}/{SAMPLE}.filtered.bcf
 
-    echo "Indexing temporary BCF and calling consensus"
-    bcftools index --force {PIPELINE}/{SAMPLE}.unannotated.bcf
+    logthis "Indexing temporary BCF and calling consensus"
+    bcftools index --force {PIPELINE}/{SAMPLE}.filtered.bcf
 
     bcftools consensus \\
         --sample {SAMPLE} \\
         --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
         -o {PIPELINE}/{SAMPLE}.consensus.fa \\
-        {PIPELINE}/{SAMPLE}.unannotated.bcf
+        {PIPELINE}/{SAMPLE}.filtered.bcf
 
-    echo "Converting temporary BCF to VCF"
+    logthis "Converting bcftools temporary BCF to VCF"
     bcftools convert \\
-        -Ov {PIPELINE}/{SAMPLE}.unannotated.bcf \\
+        -Ov {PIPELINE}/{SAMPLE}.filtered.bcf \\
         -o {PIPELINE}/{SAMPLE}.unannotated.vcf
 
     bgzip --force --keep {PIPELINE}/{SAMPLE}.unannotated.vcf
     tabix --force -p vcf {PIPELINE}/{SAMPLE}.unannotated.vcf.gz
 
-    logthis "${{green}}bcftools variant calling completed${{reset}}"
+    logthis "Cleaning up temporary bcftools output"
+    rm -f {PIPELINE}/{SAMPLE}.tmp.bcf
+    rm -f {PIPELINE}/{SAMPLE}.norm.bcf
+    rm -f {PIPELINE}/{SAMPLE}.filtered.bcf
+    rm -f {PIPELINE}/{SAMPLE}.filtered.bcf.csi
 else
-    logthis "Variants already called for {PIPELINE}/{SAMPLE}.sorted.bam, ${{green}}skipping${{reset}}"
+    logthis "Variants already called via bcftools for {PIPELINE}/{SAMPLE}.sorted.bam, ${{green}}skipping${{reset}}"
 fi
+
+if [[ -f {BIN}/freebayes ]]; then
+    if [[ ! -f {PIPELINE}/{SAMPLE}.freebayes-filtered.vcf ]]; then
+        logthis "${{yellow}}Calling variants using freebayes${{reset}}"
+
+        # calling variants using freebays
+        freebayes \\
+            --fasta-reference {REFERENCE}/{ASSEMBLY}.fna \\
+            --ploidy 1 \\
+            {PIPELINE}/{SAMPLE}.sorted.bam >{PIPELINE}/{SAMPLE}.freebayes.tmp.vcf
+
+        bcftools norm -f {REFERENCE}/{ASSEMBLY}.fna \\
+            -o {PIPELINE}/{SAMPLE}.freebayes.norm.bcf \\
+            -Ou \\
+            {PIPELINE}/{SAMPLE}.freebayes.tmp.vcf
+        bcftools filter -i "QUAL > 10" \\
+            -o {PIPELINE}/{SAMPLE}.freebayes.filtered.bcf \\
+            -Ou \\
+            {PIPELINE}/{SAMPLE}.freebayes.norm.bcf
+
+        logthis "Indexing normalized BCF and calling consensus"
+        bcftools index --force {PIPELINE}/{SAMPLE}.freebayes.filtered.bcf
+
+        bcftools consensus \\
+            --sample {SAMPLE} \\
+            --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
+            -o {PIPELINE}/{SAMPLE}.freebayes.consensus.fa \\
+            {PIPELINE}/{SAMPLE}.freebayes.filtered.bcf
+
+        logthis "Converting freebayes temporary BCF to VCF"
+        bcftools convert \\
+            -Ov \\
+            {PIPELINE}/{SAMPLE}.freebayes.filtered.bcf \\
+            -o {PIPELINE}/{SAMPLE}.freebayes.unannotated.vcf
+
+        bgzip --force --keep {PIPELINE}/{SAMPLE}.freebayes.unannotated.vcf
+        tabix --force -p vcf {PIPELINE}/{SAMPLE}.freebayes.unannotated.vcf.gz
+
+        logthis "Cleaning up temporary freebayes output"
+        rm -f {PIPELINE}/{SAMPLE}.freebayes.tmp.vcf
+        rm -f {PIPELINE}/{SAMPLE}.freebayes.norm.bcf
+        rm -f {PIPELINE}/{SAMPLE}.freebayes.filtered.bcf
+        rm -f {PIPELINE}/{SAMPLE}.freebayes.filtered.bcf.csi
+
+        logthis "${{green}}freebayes variant calling completed${{reset}}"
+    else
+        logthis "Variants already called via freebayes for {PIPELINE}/{SAMPLE}.sorted.bam, ${{green}}skipping${{reset}}"
+    fi
+fi    
 """.format(
-            REFERENCE=reference, ASSEMBLY=assembly, PIPELINE=pipeline, SAMPLE=sample
+            BIN=bin,
+            REFERENCE=reference,
+            ASSEMBLY=assembly,
+            PIPELINE=pipeline,
+            SAMPLE=sample,
         )
     )
 
