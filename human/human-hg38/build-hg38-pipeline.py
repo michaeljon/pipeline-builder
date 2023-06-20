@@ -1822,10 +1822,6 @@ def main():
 
         script.write('logthis "${green}Done with back-end processing${reset}"\n')
 
-        script.write("\n")
-        script.write("touch {PIPELINE}/01-completed\n".format(PIPELINE=options["pipeline"]))
-        script.write("\n")
-
     system("chmod +x {SCRIPT}".format(SCRIPT=options["script"]))
 
 

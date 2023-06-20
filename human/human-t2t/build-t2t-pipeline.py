@@ -1783,7 +1783,7 @@ def main():
         writeEnvironment(script, options)
 
         script.write("\n")
-        script.write("touch {PIPELINE}/00-started\n".format(PIPELINE=options["pipeline"]))
+        script.write("touch {PIPELINE}/{SAMPLE}.name.txt\n".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]))
         script.write("\n")
 
         alignAndSort(script, options, sorted)
@@ -1820,10 +1820,6 @@ def main():
         doQualityControl(script, options, sorted)
 
         script.write('logthis "${green}Done with back-end processing${reset}"\n')
-
-        script.write("\n")
-        script.write("touch {PIPELINE}/01-completed\n".format(PIPELINE=options["pipeline"]))
-        script.write("\n")
 
     system("chmod +x {SCRIPT}".format(SCRIPT=options["script"]))
 
