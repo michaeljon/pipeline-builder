@@ -38,10 +38,7 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/blast-runner.py \
     --aligner bwa \
     --sorter biobambam
 
-cp ${PIPELINE_ROOT}/pipeline-builder/assets/software_versions_mqc.html ${PIPELINE_ROOT}/pipeline/${SAMPLE}
-cp ${PIPELINE_ROOT}/pipeline-builder/assets/ovationlogo.png ${PIPELINE_ROOT}/pipeline/${SAMPLE}
-
 # run the pipeline
 bash ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner >${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
 
-echo Finished ${SAMPLE} run
+echo Finished ${SAMPLE} run in ${SEQUENCE_RUNID}

@@ -1,8 +1,0 @@
-Seq	Host	Starttime	JobRuntime	Send	Receive	Exitval	Signal	Command
-1	:	1681412581.967	  2587.729	0	295	0	0		 ./hcov-panel dea32830-c764-4c7e-b4bb-a64c576c27fa zr9663 /home/michaeljon/pipeline/fastq/zr9663/zr9663_1_S45_R1_001.fastq.gz /home/michaeljon/pipeline/fastq/zr9663/zr9663_1_S45_R2_001.fastq.gz
-3	:	1681415169.831	   329.526	0	295	0	0		 ./hcov-panel 6cb66ba9-8708-4269-a745-95ad4034bcce zr9663 /home/michaeljon/pipeline/fastq/zr9663/zr9663_3_S60_R1_001.fastq.gz /home/michaeljon/pipeline/fastq/zr9663/zr9663_3_S60_R2_001.fastq.gz
-4	:	1681415499.370	  1299.005	0	295	0	0		 ./hcov-panel 896e6897-34e7-47d1-a25c-ca19302ea194 zr9663 /home/michaeljon/pipeline/fastq/zr9663/zr9663_4_S55_R1_001.fastq.gz /home/michaeljon/pipeline/fastq/zr9663/zr9663_4_S55_R2_001.fastq.gz
-2	:	1681412581.969	  4543.327	0	295	0	0		 ./hcov-panel 78332caf-b4f5-4567-ac38-7d1fcb42c66d zr9663 /home/michaeljon/pipeline/fastq/zr9663/zr9663_2_S44_R1_001.fastq.gz /home/michaeljon/pipeline/fastq/zr9663/zr9663_2_S44_R2_001.fastq.gz
-6	:	1681417125.303	  1635.719	0	295	0	0		 ./hcov-panel ee314cad-d798-41c4-b49d-0cd229e9e8e8 zr9663 /home/michaeljon/pipeline/fastq/zr9663/zr9663_6_S48_R1_001.fastq.gz /home/michaeljon/pipeline/fastq/zr9663/zr9663_6_S48_R2_001.fastq.gz
-5	:	1681416798.382	  5515.217	0	295	0	0		 ./hcov-panel b80662fc-ae0d-48e2-9bac-3764a6b91faa zr9663 /home/michaeljon/pipeline/fastq/zr9663/zr9663_5_S52_R1_001.fastq.gz /home/michaeljon/pipeline/fastq/zr9663/zr9663_5_S52_R2_001.fastq.gz
-7	:	1681418761.028	  3736.880	0	295	0	0		 ./hcov-panel 15338339-bde5-4d88-b9cb-102d58b42f70 zr9663 /home/michaeljon/pipeline/fastq/zr9663/zr9663_8_S63_R1_001.fastq.gz /home/michaeljon/pipeline/fastq/zr9663/zr9663_8_S63_R2_001.fastq.gz

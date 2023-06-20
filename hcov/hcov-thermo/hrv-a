@@ -38,12 +38,9 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hrv-runner.py \
     --preprocessor cutadapt \
     --sorter biobambam
 
-cp ${PIPELINE_ROOT}/pipeline-builder/assets/software_versions_mqc.html ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}
-cp ${PIPELINE_ROOT}/pipeline-builder/assets/ovationlogo.png ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}
-
 # run the pipeline
 bash ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner >${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}.log 2>&1
 
 echo Run ${SAMPLE} completed, packaging
 
-echo Finished ${SAMPLE} run
+echo Finished ${SAMPLE} run in ${SEQUENCE_RUNID}
