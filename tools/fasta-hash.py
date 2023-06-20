@@ -137,7 +137,11 @@ for fa in range(2, len(sys.argv)):
     fasta = read_fasta(sys.argv[fa])
     ops = editops(target_fasta["fasta"], fasta["fasta"])
     dist = len(ops)
+
     sample = re.sub("-(hcov|sars)-.*fa", "", os.path.basename(sys.argv[fa]))
+
+    if "freebayes" in os.path.basename(sys.argv[fa]):
+        sample += "-freebayes"
 
     org, acc = reference_to_organism_accession[sys.argv[1]]
 
