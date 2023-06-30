@@ -239,7 +239,7 @@ else
     logthis "Variants already called via bcftools for {PIPELINE}/{SAMPLE}.sorted.bam, ${{green}}skipping${{reset}}"
 fi
 
-if [[ -f {BIN}/freebayes ]]; then
+if [[ -x "$(command -v freebayes)" ]]; then
     if [[ ! -f {PIPELINE}/{SAMPLE}.freebayes-filtered.vcf ]]; then
         logthis "${{yellow}}Calling variants using freebayes${{reset}}"
 
