@@ -56,7 +56,7 @@ export PERL_LOCAL_LIB_ROOT={WORKING}/perl5:$PERL_LOCAL_LIB_ROOT
 export LD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib64:/usr/local/lib/:$LD_LIBRARY_PATH
 
 # shared library stuff (darwin)
-export DYLD_LIBRARY_PATH={WORKING}/lib:{WORKING}/bin:/usr/lib:/usr/local/lib/:$DYLD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:{WORKING}/lib:{WORKING}/bin
 
 # bcftools
 export BCFTOOLS_PLUGINS={WORKING}/libexec/bcftools
@@ -93,7 +93,16 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
         print("--sample is a required option")
         quit(1)
 
-    for opt in ["working", "reference", "pipeline", "stats", "temp", "bin", "script", "adapters"]:
+    for opt in [
+        "working",
+        "reference",
+        "pipeline",
+        "stats",
+        "temp",
+        "bin",
+        "script",
+        "adapters",
+    ]:
         options[opt] = expandvars(options[opt])
 
     return options
@@ -101,31 +110,59 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
 
 def verifyOptions(options: OptionsDict):
     if exists(options["bin"]) == False:
-        print("Unable to find your --bin-dir directory at {PATH}".format(PATH=options["bin"]))
+        print(
+            "Unable to find your --bin-dir directory at {PATH}".format(
+                PATH=options["bin"]
+            )
+        )
         quit(1)
 
     if exists(options["lib"]) == False:
-        print("Unable to find your --lib-dir directory at {PATH}".format(PATH=options["lib"]))
+        print(
+            "Unable to find your --lib-dir directory at {PATH}".format(
+                PATH=options["lib"]
+            )
+        )
         quit(1)
 
     if exists(options["working"]) == False:
-        print("Unable to find your --work-dir directory at {PATH}".format(PATH=options["working"]))
+        print(
+            "Unable to find your --work-dir directory at {PATH}".format(
+                PATH=options["working"]
+            )
+        )
         quit(1)
 
     if exists(options["temp"]) == False:
-        print("Unable to find your --temp-dir directory at {PATH}".format(PATH=options["temp"]))
+        print(
+            "Unable to find your --temp-dir directory at {PATH}".format(
+                PATH=options["temp"]
+            )
+        )
         quit(1)
 
     if exists(options["reference"]) == False:
-        print("Unable to find your --reference-dir directory at {PATH}".format(PATH=options["reference"]))
+        print(
+            "Unable to find your --reference-dir directory at {PATH}".format(
+                PATH=options["reference"]
+            )
+        )
         quit(1)
 
     if exists(options["pipeline"]) == False:
-        print("Unable to find your --pipeline-dir directory at {PATH}".format(PATH=options["pipeline"]))
+        print(
+            "Unable to find your --pipeline-dir directory at {PATH}".format(
+                PATH=options["pipeline"]
+            )
+        )
         quit(1)
 
     if exists(options["stats"]) == False:
-        print("Unable to find your --stats-dir directory at {PATH}".format(PATH=options["stats"]))
+        print(
+            "Unable to find your --stats-dir directory at {PATH}".format(
+                PATH=options["stats"]
+            )
+        )
         quit(1)
 
     ## this is a bit of a hack, but necessary since the tools and databases
@@ -137,7 +174,11 @@ def verifyOptions(options: OptionsDict):
 
 def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: List[str]):
     script.write("#\n")
-    script.write("# generated at {TIME}\n".format(TIME=datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    script.write(
+        "# generated at {TIME}\n".format(
+            TIME=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        )
+    )
     script.write("#\n")
     script.write("# Parameters\n")
     for opt in options.keys():

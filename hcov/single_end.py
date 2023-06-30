@@ -37,7 +37,9 @@ def getTrimmedFileNames(options: OptionsDict) -> FastqSet:
     sample = options["sample"]
     pipeline = options["pipeline"]
 
-    return ["{PIPELINE}/{SAMPLE}.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample)]
+    return [
+        "{PIPELINE}/{SAMPLE}.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample)
+    ]
 
 
 def runIdentityPreprocessor(
@@ -120,7 +122,11 @@ def preprocessFASTQ(
     elif preprocessor == "cutadapt":
         runCutadaptPreprocessor(script, r1, o1, options)
     else:
-        print("Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(PREPROCESSOR=preprocessor))
+        print(
+            "Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(
+                PREPROCESSOR=preprocessor
+            )
+        )
         quit(1)
 
 
@@ -236,7 +242,11 @@ def alignFASTQ(
     elif aligner == "hisat2":
         runHisatAligner(script, r1, options)
     else:
-        print("Unexpected value {ALIGNER} given for the --aligner option".format(ALIGNER=aligner))
+        print(
+            "Unexpected value {ALIGNER} given for the --aligner option".format(
+                ALIGNER=aligner
+            )
+        )
         quit(1)
 
     pass
@@ -573,10 +583,6 @@ def main(panel_choices: List[str], panel_choice_help: str):
         writeHeader(script, options, filenames)
         writeVersions(script)
         writeEnvironment(script, options)
-
-        script.write("\n")
-        script.write("touch {PIPELINE}/{SAMPLE}.name.txt\n".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]))
-        script.write("\n")
 
         updateDictionary(script, options, panel_choices)
 

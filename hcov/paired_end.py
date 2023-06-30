@@ -21,27 +21,44 @@ def getFileNames(options: OptionsDict) -> FastqSet:
         options["r2"],
     ]
 
-    if exists(expandvars(filenames[0])) == True and exists(expandvars(filenames[1])) == True:
+    if (
+        exists(expandvars(filenames[0])) == True
+        and exists(expandvars(filenames[1])) == True
+    ):
         return filenames
 
     # assume we have the _001 pattern first
     filenames = [
-        "{FASTQ_DIR}/{SAMPLE}_R1_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
-        "{FASTQ_DIR}/{SAMPLE}_R2_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+        "{FASTQ_DIR}/{SAMPLE}_R1_001.fastq.gz".format(
+            FASTQ_DIR=fastq_dir, SAMPLE=sample
+        ),
+        "{FASTQ_DIR}/{SAMPLE}_R2_001.fastq.gz".format(
+            FASTQ_DIR=fastq_dir, SAMPLE=sample
+        ),
     ]
 
-    if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
+    if (
+        exists(expandvars(filenames[0])) == False
+        or exists(expandvars(filenames[1])) == False
+    ):
         if fallback_warning_shown == False:
             print("Falling back to shortened fastq file names")
             fallback_warning_shown = True
 
         # if that didn't work, try for the redacted names
         filenames = [
-            "{FASTQ_DIR}/{SAMPLE}_R1.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
-            "{FASTQ_DIR}/{SAMPLE}_R2.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
+            "{FASTQ_DIR}/{SAMPLE}_R1.fastq.gz".format(
+                FASTQ_DIR=fastq_dir, SAMPLE=sample
+            ),
+            "{FASTQ_DIR}/{SAMPLE}_R2.fastq.gz".format(
+                FASTQ_DIR=fastq_dir, SAMPLE=sample
+            ),
         ]
 
-        if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
+        if (
+            exists(expandvars(filenames[0])) == False
+            or exists(expandvars(filenames[1])) == False
+        ):
             print(
                 "Unable to locate the R1 or R2 files at {R1} and {R2}".format(
                     R1=filenames[0],
@@ -59,8 +76,12 @@ def getTrimmedFileNames(options: OptionsDict) -> FastqSet:
     pipeline = options["pipeline"]
 
     return [
-        "{PIPELINE}/{SAMPLE}_R1.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
-        "{PIPELINE}/{SAMPLE}_R2.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample),
+        "{PIPELINE}/{SAMPLE}_R1.trimmed.fastq.gz".format(
+            PIPELINE=pipeline, SAMPLE=sample
+        ),
+        "{PIPELINE}/{SAMPLE}_R2.trimmed.fastq.gz".format(
+            PIPELINE=pipeline, SAMPLE=sample
+        ),
     ]
 
 
@@ -146,7 +167,9 @@ fi
             O1=o1,
             O2=o2,
             REFERENCE=reference,
-            ADAPTERS="--adapter_fasta " + adapters if adapters != "" else "--detect_adapter_for_pe",
+            ADAPTERS="--adapter_fasta " + adapters
+            if adapters != ""
+            else "--detect_adapter_for_pe",
             SAMPLE=sample,
             THREADS=threads,
             PIPELINE=pipeline,
@@ -183,6 +206,7 @@ if [[ ! -f {O1} || ! -f {O2} ]]; then
 
     java -jar {BIN}/trimmomatic-0.39.jar \\
         PE \\
+        -phred33 \\
         -threads {THREADS} \\
         {R1} \\
         {R2} \\
@@ -199,7 +223,16 @@ else
     logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
 """.format(
-            R1=r1, R2=r2, O1=o1, O2=o2, U1=u1, U2=u2, STATS=stats, SAMPLE=sample, BIN=bin, THREADS=threads
+            R1=r1,
+            R2=r2,
+            O1=o1,
+            O2=o2,
+            U1=u1,
+            U2=u2,
+            STATS=stats,
+            SAMPLE=sample,
+            BIN=bin,
+            THREADS=threads,
         )
     )
 
@@ -249,7 +282,15 @@ else
     logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
 fi
 """.format(
-            R1=r1, R2=r2, O1=o1, O2=o2, BIN=bin, THREADS=threads, STATS=stats, SAMPLE=sample, PIPELINE=pipeline
+            R1=r1,
+            R2=r2,
+            O1=o1,
+            O2=o2,
+            BIN=bin,
+            THREADS=threads,
+            STATS=stats,
+            SAMPLE=sample,
+            PIPELINE=pipeline,
         )
     )
 
@@ -273,7 +314,11 @@ def preprocessFASTQ(
     elif preprocessor == "trimgalore":
         runTrimGalore(script, r1, r2, o1, o2, options)
     else:
-        print("Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(PREPROCESSOR=preprocessor))
+        print(
+            "Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(
+                PREPROCESSOR=preprocessor
+            )
+        )
         quit(1)
 
     pass
@@ -396,7 +441,11 @@ def alignFASTQ(
     elif aligner == "hisat2":
         runHisatAligner(script, o1, o2, options)
     else:
-        print("Unexpected value {ALIGNER} given for the --aligner option".format(ALIGNER=aligner))
+        print(
+            "Unexpected value {ALIGNER} given for the --aligner option".format(
+                ALIGNER=aligner
+            )
+        )
         quit(1)
 
     pass
@@ -443,7 +492,14 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict):
     script.write("# Align, sort, and mark duplicates\n")
     script.write("#\n")
 
-    preprocessFASTQ(script, filenames[0], filenames[1], trimmedFilenames[0], trimmedFilenames[1], options)
+    preprocessFASTQ(
+        script,
+        filenames[0],
+        filenames[1],
+        trimmedFilenames[0],
+        trimmedFilenames[1],
+        options,
+    )
     alignFASTQ(script, trimmedFilenames[0], trimmedFilenames[1], options)
     sortAlignedAndMappedData(script, options)
     generateDepth(script, options)
@@ -714,7 +770,10 @@ def defineArguments(panel_choices: List[str], panel_choice_help: str) -> Namespa
 def verifyFileNames(options: OptionsDict):
     filenames = getFileNames(options)
 
-    if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
+    if (
+        exists(expandvars(filenames[0])) == False
+        or exists(expandvars(filenames[1])) == False
+    ):
         print(
             "Unable to locate the R1 or R2 files at {R1} and {R2}".format(
                 R1=filenames[0],
@@ -737,13 +796,11 @@ def main(panel_choices: List[str], panel_choice_help: str):
         script.truncate(0)
 
         script.write("#!/usr/bin/env bash\n")
+        script.write("which bash\n")
+
         writeHeader(script, options, filenames)
         writeVersions(script)
         writeEnvironment(script, options)
-
-        script.write("\n")
-        script.write("touch {PIPELINE}/{SAMPLE}.name.txt\n".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"]))
-        script.write("\n")
 
         updateDictionary(script, options, panel_choices)
 

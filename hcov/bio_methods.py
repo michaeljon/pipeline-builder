@@ -74,7 +74,7 @@ def sortWithBiobambam(script: TextIOWrapper, options: OptionsDict):
 if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
     logthis "${{yellow}}Sorting and marking duplicates${{reset}}"
 
-    bamsormadup \\
+    {BIN}/bamsormadup \\
         SO=coordinate \\
         threads={THREADS} \\
         level=6 \\
