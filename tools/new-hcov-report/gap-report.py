@@ -84,7 +84,7 @@ def defineArguments() -> Namespace:
         action="store",
         metavar="MIN-DEPTH",
         dest="minDepth",
-        default=10,
+        default=1,
         help="Minimum depth to trigger gap detection",
     )
 
@@ -165,7 +165,9 @@ def calculateGaps(coverageData: CoverageData, featureData, minDepth: int) -> Gap
                 while locus < lociCount and coverageData[org][locus] < minDepth:
                     deltas.append(minDepth - coverageData[org][locus])
                     depths.append(coverageData[org][locus])
+
                     locus += 1
+
 
                 gaps[org].append(
                     {
