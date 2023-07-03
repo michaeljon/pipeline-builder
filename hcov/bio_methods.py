@@ -3,9 +3,7 @@ from io import TextIOWrapper
 from bio_types import *
 
 
-def updateDictionary(
-    script: TextIOWrapper, options: OptionsDict, panel_choices: List[str]
-):
+def updateDictionary(script: TextIOWrapper, options: OptionsDict, panel_choices: List[str]):
     bin = options["bin"]
     reference = options["reference"]
     assembly = options["referenceAssembly"]
@@ -62,9 +60,7 @@ def sortWithBiobambam(script: TextIOWrapper, options: OptionsDict):
     bin = options["bin"]
     temp = options["temp"]
 
-    sorted = "{PIPELINE}/{SAMPLE}.sorted.bam".format(
-        PIPELINE=options["pipeline"], SAMPLE=options["sample"]
-    )
+    sorted = "{PIPELINE}/{SAMPLE}.sorted.bam".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
 
     script.write(
         """
@@ -114,9 +110,7 @@ def sortWithSamtools(script: TextIOWrapper, options: OptionsDict):
     bin = options["bin"]
     temp = options["temp"]
 
-    unmarked = "{PIPELINE}/{SAMPLE}.unmarked.bam".format(
-        PIPELINE=pipeline, SAMPLE=sample
-    )
+    unmarked = "{PIPELINE}/{SAMPLE}.unmarked.bam".format(PIPELINE=pipeline, SAMPLE=sample)
 
     script.write(
         """
@@ -482,9 +476,7 @@ def doAlignmentQC(script: TextIOWrapper, filenames, options: OptionsDict):
     doPicardQc = options["doPicardQc"]
     bin = options["bin"]
 
-    sorted = "{PIPELINE}/{SAMPLE}.sorted.bam".format(
-        PIPELINE=options["pipeline"], SAMPLE=options["sample"]
-    )
+    sorted = "{PIPELINE}/{SAMPLE}.sorted.bam".format(PIPELINE=options["pipeline"], SAMPLE=options["sample"])
 
     checks = []
 
@@ -658,9 +650,7 @@ def doQualityControl(script: TextIOWrapper, options: OptionsDict, filenames: Lis
 
     cmd = ""
     if options["doAlignmentQc"] == True or options["doVariantQc"] == True:
-        cmd = "parallel --joblog {PIPELINE}/{SAMPLE}.qc.log ::: \\\n".format(
-            PIPELINE=pipeline, SAMPLE=sample
-        )
+        cmd = "parallel --joblog {PIPELINE}/{SAMPLE}.qc.log ::: \\\n".format(PIPELINE=pipeline, SAMPLE=sample)
 
         if options["doAlignmentQc"] == True:
             for qc in alignment_checks:
