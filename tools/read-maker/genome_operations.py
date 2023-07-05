@@ -8,7 +8,7 @@ def do_transition_variant(contig, position):
     print(
         "{}: ts @{} from {} to {}".format(
             contig["accession"],
-            position - 1,
+            position,
             current_base,
             contig["genome"][position - 1],
         )
@@ -22,7 +22,7 @@ def do_transversion_variant(contig, position, slot):
     print(
         "{}: tv @{} from {} to {}".format(
             contig["accession"],
-            position - 1,
+            position,
             current_base,
             contig["genome"][position - 1],
         )
@@ -36,7 +36,7 @@ def do_explicit_snv(contig, position, base):
     print(
         "{}: snv @{} from {} to {}".format(
             contig["accession"],
-            position - 1,
+            position,
             current_base,
             transitions[current_base],
         )
@@ -50,7 +50,7 @@ def do_explicit_mnv(contig, position, bases):
     print(
         "{}: mnv @{} from {} to {}".format(
             contig["accession"],
-            position - 1,
+            position,
             "[" + ",".join(current_bases) + "]",
             "[" + ",".join(bases) + "]",
         )

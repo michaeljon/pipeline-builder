@@ -4,8 +4,8 @@ from random import random, randint
 from rules import complements
 
 
-def pe_make_read(fa, read_len):
-    contig = randint(0, len(fa) - 1)
+def pe_make_read(fa, read_len, viromes):
+    contig = randint(0, len(viromes) - 1)
 
     forward = perfect_read(fa[contig], read_len)
     reverse = complement(reversed(forward))
