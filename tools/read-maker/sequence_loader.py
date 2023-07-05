@@ -127,7 +127,7 @@ def read_fasta(fa):
     ]
 
 
-def make_genome(fa, read_length):
+def make_genome(fa, viromes, read_length):
     genome = []
 
     fa_clone = copy.deepcopy(fa)
@@ -143,7 +143,7 @@ def make_genome(fa, read_length):
 
         genome.append(clone)
 
-    return genome
+    return [g for g in genome if g["accession"] in viromes]
 
 
 def find_contig(genome, accession):
@@ -368,6 +368,7 @@ if __name__ == "__main__":
     # load and create the sample's genome
     genome = make_genome(
         read_fasta(options["reference"]),
+        options["sequences"],
         target_read_length,
     )
 
