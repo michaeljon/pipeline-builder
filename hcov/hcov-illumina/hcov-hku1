@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 
-SAMPLE=hku1-a-${1}
+SAMPLE=$1
 BATCH=$2
 READ1=$3
 READ2=$4
 SEQUENCE_RUNID=${SAMPLE}
 
-ORGANISM=hcov-hku1-a
-ASSEMBLY=hcov-hku1-a
+ORGANISM=hcov-hku1
+ASSEMBLY=GCA_000858765.1_ViralProj15139_genomic
 REFNAME=AY597011.2
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
@@ -38,7 +38,6 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-illumina/hcov-runner.py \
     --script ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}_runner \
     --temp-dir ${PIPELINE_ROOT}/temp \
     --fastq-dir ${PIPELINE_ROOT}/fastq/${BATCH} \
-    --skip-annotation \
     --aligner bwa \
     --preprocessor trimmomatic \
     --sorter biobambam

@@ -37,9 +37,7 @@ def getTrimmedFileNames(options: OptionsDict) -> FastqSet:
     sample = options["sample"]
     pipeline = options["pipeline"]
 
-    return [
-        "{PIPELINE}/{SAMPLE}.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample)
-    ]
+    return ["{PIPELINE}/{SAMPLE}.trimmed.fastq.gz".format(PIPELINE=pipeline, SAMPLE=sample)]
 
 
 def runIdentityPreprocessor(
@@ -122,11 +120,7 @@ def preprocessFASTQ(
     elif preprocessor == "cutadapt":
         runCutadaptPreprocessor(script, r1, o1, options)
     else:
-        print(
-            "Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(
-                PREPROCESSOR=preprocessor
-            )
-        )
+        print("Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(PREPROCESSOR=preprocessor))
         quit(1)
 
 
@@ -242,11 +236,7 @@ def alignFASTQ(
     elif aligner == "hisat2":
         runHisatAligner(script, r1, options)
     else:
-        print(
-            "Unexpected value {ALIGNER} given for the --aligner option".format(
-                ALIGNER=aligner
-            )
-        )
+        print("Unexpected value {ALIGNER} given for the --aligner option".format(ALIGNER=aligner))
         quit(1)
 
     pass
@@ -287,10 +277,6 @@ def alignAndSort(script: TextIOWrapper, options: OptionsDict):
 
     filenames = getFileNames(options)
     trimmedFilenames = getTrimmedFileNames(options)
-
-    script.write("#\n")
-    script.write("# Align, sort, and mark duplicates\n")
-    script.write("#\n")
 
     preprocessFASTQ(script, filenames[0], trimmedFilenames[0], options)
     alignFASTQ(script, trimmedFilenames[0], options)
@@ -583,8 +569,6 @@ def main(panel_choices: List[str], panel_choice_help: str):
         writeHeader(script, options, filenames)
         writeVersions(script)
         writeEnvironment(script, options)
-
-        updateDictionary(script, options, panel_choices)
 
         alignAndSort(script, options)
         runVariantPipeline(script, options)

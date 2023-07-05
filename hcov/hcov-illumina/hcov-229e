@@ -4,7 +4,7 @@ SAMPLE=$1
 BATCH=$2
 READ1=$3
 READ2=$4
-SEQUENCE_RUNID=$(uuidgen)
+SEQUENCE_RUNID=${SAMPLE}
 
 ORGANISM=hcov-229e
 ASSEMBLY=GCA_000853505.1_ViralProj14913_genomic
@@ -38,7 +38,6 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-illumina/hcov-runner.py \
     --script ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}_runner \
     --temp-dir ${PIPELINE_ROOT}/temp \
     --fastq-dir ${PIPELINE_ROOT}/fastq/${BATCH} \
-    --skip-annotation \
     --aligner bwa \
     --preprocessor trimmomatic \
     --sorter biobambam

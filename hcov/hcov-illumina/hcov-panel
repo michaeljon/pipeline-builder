@@ -5,7 +5,6 @@ BATCH=$2
 READ1=$3
 READ2=$4
 SEQUENCE_RUNID=${SAMPLE}
-#$(uuidgen)
 
 ORGANISM=hcov-panel
 ASSEMBLY=hcov-panel

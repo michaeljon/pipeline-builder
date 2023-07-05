@@ -3,55 +3,6 @@ from io import TextIOWrapper
 from bio_types import *
 
 
-def updateDictionary(script: TextIOWrapper, options: OptionsDict, panel_choices: List[str]):
-    bin = options["bin"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
-    chromosome = options["referenceName"]
-
-    if chromosome == "panel":
-        chromosome = "|".join([chr for chr in panel_choices if chr != "panel"])
-
-    script.write("#\n")
-    script.write("# Build the reference dictionary and interval list\n")
-    script.write("#\n")
-
-    script.write(
-        """
-if [[ ! -f {REFERENCE}/{ASSEMBLY}.dict ]]; then
-    logthis "${{yellow}}Creating sequence dictionary${{reset}}"
-
-    java -jar {BIN}/picard.jar CreateSequenceDictionary \\
-        -R {REFERENCE}/{ASSEMBLY}.fna \\
-        -O {REFERENCE}/{ASSEMBLY}.dict
-
-    logthis "Sequence dictionary completed"
-else
-    logthis "Reference dictionary {REFERENCE}/{ASSEMBLY}.dict ${{green}}already completed${{reset}}"
-fi
-
-if [[ ! -f {REFERENCE}/{ASSEMBLY}_autosomal.interval_list ]]; then
-    # build the interval list, this is only done in the case where we're
-    # processing a partial set of chromosomes. in the typical case this would
-    # be a WGS collection.
-
-    logthis "${{yellow}}Building {REFERENCE}/{ASSEMBLY}.interval_list${{reset}}"
-
-    egrep '({CHROMOSOME})\\s' {REFERENCE}/{ASSEMBLY}.fna.fai |
-        awk '{{print $1"\\t1\\t"$2"\\t+\\t"$1}}' |
-        cat {REFERENCE}/{ASSEMBLY}.dict - >{REFERENCE}/{ASSEMBLY}_autosomal.interval_list
-
-    logthis "Building {REFERENCE}/{ASSEMBLY}_autosomal.interval_list finished"
-else
-    logthis "Interval list {REFERENCE}/{ASSEMBLY}_autosomal.interval_list ${{green}}already completed${{reset}}"
-fi
-
-""".format(
-            REFERENCE=reference, ASSEMBLY=assembly, BIN=bin, CHROMOSOME=chromosome
-        )
-    )
-
-
 def sortWithBiobambam(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
@@ -198,10 +149,13 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
         --output {PIPELINE}/{SAMPLE}.tmp.bcf 2>/dev/null
 
     logthis "Normalizing and filtering"
-    bcftools norm -f {REFERENCE}/{ASSEMBLY}.fna \\
+    bcftools norm \\
+        --atomize \\
+        --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
         {PIPELINE}/{SAMPLE}.tmp.bcf \\
         -Ou \\
         -o {PIPELINE}/{SAMPLE}.norm.bcf
+
     bcftools filter -i "QUAL > 80" --IndelGap 5 \\
         {PIPELINE}/{SAMPLE}.norm.bcf \\
         -Ou \\
@@ -243,10 +197,13 @@ if [[ -x "$(command -v freebayes)" ]]; then
             --ploidy 1 \\
             {PIPELINE}/{SAMPLE}.sorted.bam >{PIPELINE}/{SAMPLE}.freebayes.tmp.vcf
 
-        bcftools norm -f {REFERENCE}/{ASSEMBLY}.fna \\
+        bcftools norm \\
+            --atomize \\
+            --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
             -o {PIPELINE}/{SAMPLE}.freebayes.norm.bcf \\
             -Ou \\
             {PIPELINE}/{SAMPLE}.freebayes.tmp.vcf
+
         bcftools filter -i "QUAL > 10" \\
             -o {PIPELINE}/{SAMPLE}.freebayes.filtered.bcf \\
             -Ou \\
@@ -391,9 +348,6 @@ fi
 
 def runVariantPipeline(script: TextIOWrapper, options: OptionsDict):
     script.write("\n")
-    script.write("#\n")
-    script.write("# Running pipeline\n")
-    script.write("#\n")
 
     callVariants(script, options)
     annotate(script, options)
