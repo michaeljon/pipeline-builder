@@ -315,7 +315,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict, reference):
         )
 
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}.{ORGANISM}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then java -jar {BIN}/picard.jar CollectGcBiasMetrics --VERBOSITY ERROR -R {REFERENCE_ASSEMBLY} -I {SORTED} -O {STATS}/{SAMPLE}.{ORGANISM}.gc_bias_metrics.txt -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf -S {STATS}/{SAMPLE}.{ORGANISM}.gc_bias_summary.txt; fi' \\\n""".format(
+            """'if [[ ! -f {STATS}/{SAMPLE}.{ORGANISM}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then java -jar {BIN}/picard.jar CollectGcBiasMetrics --VERBOSITY ERROR -R {REFERENCE_ASSEMBLY} -I {SORTED} -O {STATS}/{SAMPLE}.{ORGANISM}.gc_bias_metrics.txt -CHART {STATS}/{SAMPLE}.{ORGANISM}.gc_bias_metrics.pdf -S {STATS}/{SAMPLE}.{ORGANISM}.gc_bias_summary.txt; fi' \\\n""".format(
                 REFERENCE_ASSEMBLY=referenceAssembly,
                 PIPELINE=pipeline,
                 SAMPLE=sample,
@@ -479,7 +479,9 @@ def doFastQc(script: TextIOWrapper, options: OptionsDict, filenames):
     if len(filenames) == 2:
         script.write(
             """
-if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then fastqc --svg --threads 2 --outdir {STATS} --noextract {R1} {R2}; fi'
+if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.html || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R2.trimmed_fastqc.html ]]; then 
+    fastqc --svg --threads 2 --outdir {STATS} --noextract {R1} {R2}
+fi
 """.format(
                 SAMPLE=options["sample"],
                 STATS=options["stats"],
@@ -490,7 +492,9 @@ if [[ ! -f {STATS}/{SAMPLE}_R1.trimmed_fastqc.zip || ! -f {STATS}/{SAMPLE}_R1.tr
     else:
         script.write(
             """
-if [[ ! -f {STATS}/{SAMPLE}.fastqc.zip ]]; then fastqc --svg --threads 1 --outdir {STATS} --noextract {FILENAME}; fi'
+if [[ ! -f {STATS}/{SAMPLE}.fastqc.zip ]]; then
+    fastqc --svg --threads 1 --outdir {STATS} --noextract {FILENAME}
+fi
 """.format(
                 SAMPLE=options["sample"],
                 STATS=options["stats"],
