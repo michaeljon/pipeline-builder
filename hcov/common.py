@@ -2,7 +2,9 @@ from io import TextIOWrapper
 from argparse import ArgumentParser, Namespace
 from os.path import exists, expandvars
 from datetime import datetime
-from os import cpu_count, system
+from os import cpu_count, system, path
+import sys
+import json
 
 from bio_types import *
 
@@ -225,6 +227,7 @@ def defineArguments(panel_choices: List[str], panel_choice_help: str, defineExtr
         help="Turn off colorized log output",
     )
 
+    # todo: remove --reference-assembly and --reference-name
     parser.add_argument(
         "--reference-assembly",
         required=True,
@@ -243,6 +246,17 @@ def defineArguments(panel_choices: List[str], panel_choice_help: str, defineExtr
         choices=panel_choices,
         help=panel_choice_help,
     )
+
+    # and replace them with this
+    # parser.add_argument(
+    #     "--references",
+    #     nargs="+",
+    #     required=True,
+    #     action="store",
+    #     metavar="REFERENCES",
+    #     dest="references",
+    #     choices=panel_choices,
+    # )
 
     parser.add_argument(
         "--reference-dir",
@@ -386,10 +400,23 @@ def pipelineDriver(
     getFileNames,
     specificPipelineRunner,
 ):
+    # references = {}
+    # with open(path.join(path.dirname(sys.argv[0]), "..", "references.json")) as f:
+    #     references = json.load(f)
+
+    # todo: drop panel_choices for references.keys(), and remove _help
     opts = defineArguments(panel_choices, panel_choice_help, defineExtraArguments)
     options = fixupPathOptions(opts)
     verifyFileNames(options)
     verifyOptions(options)
+
+    # for ref in references.keys():
+    #     reference = references[ref]
+    #     reference["assembly"] = path.join(options["reference"], reference["assembly"])
+
+    #     if exists(reference["assembly"]) == False:
+    #         print("Missing reference FNA at {PATH} for {REF}".format(REF=ref, PATH=reference["assembly"]))
+    #         quit(1)
 
     filenames = getFileNames(options)
 

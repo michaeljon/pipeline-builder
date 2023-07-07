@@ -1,0 +1,41 @@
+{
+  "hcov-229e": {
+    "accession": "AF304460.1",
+    "assembly": "hcov-229e/GCA_000853505.1_ViralProj14913_genomic.fna"
+  },
+
+  "hcov-hku1": {
+    "accession": "AY597011.2",
+    "assembly": "hcov-hku1/GCA_000858765.1_ViralProj15139_genomic.fna"
+  },
+
+  "hcov-nl63": {
+    "accession": "AY567487.2",
+    "assembly": "hcov-nl63/GCA_000853865.1_ViralProj14960_genomic.fna"
+  },
+
+  "hcov-oc43": {
+    "accession": "AY585228.1",
+    "assembly": "hcov-oc43/GCA_003972325.1_ASM397232v1_genomic.fna"
+  },
+
+  "hrv-a": {
+    "accession": "NC_038311.1",
+    "assembly": "hrv-a/GCF_002816835.1_ASM281683v1_genomic.fna"
+  },
+
+  "hrv-b": {
+    "accession": "NC_038312.1",
+    "assembly": "hrv-b/GCF_002816855.1_ASM281685v1_genomic.fna"
+  },
+
+  "hrv-c": {
+    "accession": "NC_038878.1",
+    "assembly": "hrv-c/GCF_002816885.1_ASM281688v1_genomic.fna"
+  },
+
+  "sars-cov-2": {
+    "accession": "MN908947.3",
+    "assembly": "sars-cov-2/GCA_009858895.3_ASM985889v3_genomic.fna"
+  }
+}
