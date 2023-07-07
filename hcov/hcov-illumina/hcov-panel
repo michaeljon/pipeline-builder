@@ -6,7 +6,7 @@ READ1=$3
 READ2=$4
 SEQUENCE_RUNID=${SAMPLE}
 
-ORGANISMS="hcov-oc43 hcov-nl63 hcov-229e hcov-hku1"
+ORGANISMS="hcov-panel"
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
@@ -30,7 +30,8 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-illumina/hcov-runner.py \
     --work-dir ${PIPELINE_ROOT} \
     --references ${ORGANISMS} \
     --aligner bwa \
-    --preprocessor trimmomatic
+    --preprocessor trimmomatic \
+    --run-qc
 
 # run the pipeline
 bash ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}_runner >${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}.log 2>&1

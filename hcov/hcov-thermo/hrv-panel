@@ -4,7 +4,7 @@ SAMPLE=$1
 FASTQ=$2
 CHIP=$3
 
-ORGANISMS="hrv-a hrv-b hrv-c"
+ORGANISMS="hrv-panel"
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
