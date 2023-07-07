@@ -5,17 +5,10 @@ FASTQ=$2
 CHIP=$3
 
 ORGANISM=sars-cov-2
-ASSEMBLY=GCA_009858895.3_ASM985889v3_genomic
-REFNAME=MN908947.3
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
     exit 1
-fi
-
-# download the reference data
-if [[ ! -d ${PIPELINE_ROOT}/reference/sars-cov-2/nextclade-data ]]; then
-    nextclade dataset get --name='sars-cov-2' --output-dir=${PIPELINE_ROOT}/reference/sars-cov-2/nextclade-data
 fi
 
 echo Starting ${SAMPLE} run
@@ -30,9 +23,8 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hcov-runner.py \
     --sample ${SAMPLE} \
     --fastq "${FASTQ}" \
     --work-dir ${PIPELINE_ROOT} \
-    --reference-dir ${PIPELINE_ROOT}/reference/${ORGANISM} \
-    --reference-assembly ${ASSEMBLY} \
-    --reference-name ${REFNAME} \
+    --reference-dir ${PIPELINE_ROOT}/reference \
+    --references ${ORGANISM} \
     --pipeline-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM} \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner \
@@ -43,7 +35,5 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hcov-runner.py \
 
 # run the pipeline
 bash ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner >${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}.log 2>&1
-
-echo Run ${SAMPLE} completed, packaging
 
 echo Finished ${SAMPLE} run in ${SEQUENCE_RUNID}

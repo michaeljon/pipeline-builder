@@ -54,8 +54,7 @@ fi
 def sortWithSamtools(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
+    referenceAssembly = options["_referenceAssembly"]
     threads = options["cores"]
     stats = options["stats"]
     bin = options["bin"]
@@ -83,7 +82,7 @@ if [[ ! -f {SORTED} || ! -f {SORTED}.bai ]]; then
 
     java -Xmx8g -jar {BIN}/picard.jar MarkDuplicates \\
         --TAGGING_POLICY All \\
-        --REFERENCE_SEQUENCE {REFERENCE}/{ASSEMBLY}.fna \\
+        --REFERENCE_SEQUENCE {REFERENCE_ASSEMBLY} \\
         -I {UNMARKED} \\
         -O {PIPELINE}/{SAMPLE}.sorted.bam \\
         -M {STATS}/{SAMPLE}_marked_dup_metrics.txt    
@@ -96,8 +95,7 @@ else
     logthis "{PIPELINE}/{SAMPLE}.sorted.bam, index, and metrics found, ${{green}}skipping${{reset}}"
 fi
     """.format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
+            REFERENCE_ASSEMBLY=referenceAssembly,
             SAMPLE=sample,
             THREADS=threads,
             UNMARKED=unmarked,
@@ -171,8 +169,7 @@ exit
 def callVariants(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
+    referenceAssembly = options["_referenceAssembly"]
     bin = options["bin"]
 
     script.write(
@@ -183,14 +180,14 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
 
     # calling variants using freebays
     freebayes \\
-        --fasta-reference {REFERENCE}/{ASSEMBLY}.fna \\
+        --fasta-reference {REFERENCE_ASSEMBLY} \\
         --ploidy 1 \\
         {PIPELINE}/{SAMPLE}.sorted.bam >{PIPELINE}/{SAMPLE}.tmp.vcf
 
     logthis "Normalizing called variants"
     bcftools norm \\
         --atomize \\
-        --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
+        --fasta-ref {REFERENCE_ASSEMBLY} \\
         -o {PIPELINE}/{SAMPLE}.norm.bcf \\
         -Ou \\
         {PIPELINE}/{SAMPLE}.tmp.vcf
@@ -206,7 +203,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.unannotated.vcf.gz ]]; then
 
     bcftools consensus \\
         --sample {SAMPLE} \\
-        --fasta-ref {REFERENCE}/{ASSEMBLY}.fna \\
+        --fasta-ref {REFERENCE_ASSEMBLY} \\
         -o {PIPELINE}/{SAMPLE}.consensus.fa \\
         {PIPELINE}/{SAMPLE}.filtered.bcf
 
@@ -231,108 +228,9 @@ else
 fi
 """.format(
             BIN=bin,
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
+            REFERENCE_ASSEMBLY=referenceAssembly,
             PIPELINE=pipeline,
             SAMPLE=sample,
-        )
-    )
-
-
-def annotate(script: TextIOWrapper, options: OptionsDict):
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    bin = options["bin"]
-
-    referenceName = options["referenceName"]
-
-    # we only run this for sars-cov-2 right now
-    if options["__canAnnotateVariants"] == False:
-        print(
-            "Reference '"
-            + referenceName
-            + "' was requested. Variant annotation is only possible for SARS-CoV-2 right now."
-        )
-        return
-
-    script.write(
-        """
-# annotate
-if [[ ! -f {PIPELINE}/{SAMPLE}.nirvana.json.gz || ! -f {PIPELINE}/{SAMPLE}.nirvana.json.gz.jsi ]]; then
-    logthis "Starting nirvana annotation"
-
-    dotnet {BIN}/nirvana/Nirvana.dll \\
-        -c {BIN}/nirvana/Data/Cache/SARS-CoV-2/SARS-CoV-2 \\
-        -sd {BIN}/nirvana/Data/SupplementaryAnnotation/SARS-CoV-2 \\
-        --enable-dq \\
-        -r {BIN}/nirvana/Data/References/SARS-CoV-2.ASM985889v3.dat \\
-        -i {PIPELINE}/{SAMPLE}.unannotated.vcf.gz \\
-        -o {SAMPLE}.nirvana
-
-    mv {SAMPLE}.nirvana.json.gz {PIPELINE}
-    mv {SAMPLE}.nirvana.json.gz.jsi {PIPELINE}
-
-    logthis "Completed nirvana annotation"
-else
-    logthis "nirvana annotations already completed, ${{green}}already completed${{reset}}"
-fi
-
-if [[ ! -f {PIPELINE}/{SAMPLE}.annotated.vcf.gz ]]; then
-    logthis "Starting snpeff annotation"
-
-    java -jar {BIN}/snpEff/snpEff.jar ann \\
-        -htmlStats {PIPELINE}/{SAMPLE}.snpeff.html \\
-        -noLog \\
-        -verbose \\
-        {REFERENCE_NAME} {PIPELINE}/{SAMPLE}.unannotated.vcf.gz | \\
-    bgzip >{PIPELINE}/{SAMPLE}.annotated.vcf.gz
-
-    tabix --force -p vcf {PIPELINE}/{SAMPLE}.annotated.vcf.gz
-
-    logthis "Completed snpeff annotation"
-else
-    logthis "snpeff annotations already completed, ${{green}}already completed${{reset}}"
-fi
-""".format(
-            SAMPLE=sample, BIN=bin, PIPELINE=pipeline, REFERENCE_NAME=referenceName
-        )
-    )
-
-
-def assignClade(script: TextIOWrapper, options: OptionsDict):
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    reference = options["reference"]
-    referenceName = options["referenceName"]
-
-    # we only run this for sars-cov-2 right now
-    if options["__canAssignClades"] == False:
-        print(
-            "Reference '"
-            + referenceName
-            + "' was requested. Clade assignment is only possible for SARS-CoV-2 right now."
-        )
-        return
-
-    script.write(
-        """
-# assign clade
-if [[ ! -f {PIPELINE}/{SAMPLE}.nextclade.tsv ]]; then
-    logthis "Starting nextclade characterization for {SAMPLE}"
-
-    nextclade run \\
-        --input-dataset {REFERENCE}/nextclade-data \\
-        --output-all {PIPELINE}/ \\
-        --output-basename {SAMPLE}.nextclade \\
-        -- \\
-        {PIPELINE}/{SAMPLE}.consensus.fa
-
-    logthis "Clade assignment complete for {SAMPLE}"
-else
-    logthis "Clade assignment already complete for {SAMPLE}, ${{green}}skipping${{reset}}"
-fi
-    """.format(
-            REFERENCE=reference, PIPELINE=pipeline, SAMPLE=sample
         )
     )
 
@@ -341,17 +239,11 @@ def runVariantPipeline(script: TextIOWrapper, options: OptionsDict):
     script.write("\n")
 
     callVariants(script, options)
-    if options["__canAnnotateVariants"] == True:
-        annotate(script, options)
-    if options["__canAssignClades"] == True:
-        assignClade(script, options)
-
     script.write("\n")
 
 
 def doVariantQC(script: TextIOWrapper, options: OptionsDict):
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
+    referenceAssembly = options["_referenceAssembly"]
     pipeline = options["pipeline"]
     sample = options["sample"]
     stats = options["stats"]
@@ -401,9 +293,8 @@ def doVariantQC(script: TextIOWrapper, options: OptionsDict):
     )
 
     checks.append(
-        """'if [[ ! -d {STATS}/{SAMPLE}_bcfstats ]]; then bcftools stats --fasta-ref {REFERENCE}/{ASSEMBLY}.fna {PIPELINE}/{SAMPLE}.unannotated.vcf.gz > {STATS}/{SAMPLE}.chk; fi' \\\n""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
+        """'if [[ ! -d {STATS}/{SAMPLE}_bcfstats ]]; then bcftools stats --fasta-ref {REFERENCE_ASSEMBLY} {PIPELINE}/{SAMPLE}.unannotated.vcf.gz > {STATS}/{SAMPLE}.chk; fi' \\\n""".format(
+            REFERENCE_ASSEMBLY=referenceAssembly,
             PIPELINE=pipeline,
             SAMPLE=sample,
             STATS=stats,
@@ -414,8 +305,7 @@ def doVariantQC(script: TextIOWrapper, options: OptionsDict):
 
 
 def doAlignmentQC(script: TextIOWrapper, filenames, options: OptionsDict):
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
+    referenceAssembly = options["_referenceAssembly"]
     pipeline = options["pipeline"]
     sample = options["sample"]
     stats = options["stats"]
@@ -438,9 +328,8 @@ def doAlignmentQC(script: TextIOWrapper, filenames, options: OptionsDict):
 
     if doPicardQc == True:
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then java -jar {BIN}/picard.jar CollectAlignmentSummaryMetrics --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.alignment_metrics.txt; fi' \\\n""".format(
-                REFERENCE=reference,
-                ASSEMBLY=assembly,
+            """'if [[ ! -f {STATS}/{SAMPLE}.alignment_metrics.txt ]]; then java -jar {BIN}/picard.jar CollectAlignmentSummaryMetrics --VERBOSITY ERROR -R {REFERENCE_ASSEMBLY} -I {SORTED} -O {STATS}/{SAMPLE}.alignment_metrics.txt; fi' \\\n""".format(
+                REFERENCE_ASSEMBLY=referenceAssembly,
                 PIPELINE=pipeline,
                 SAMPLE=sample,
                 STATS=stats,
@@ -451,9 +340,8 @@ def doAlignmentQC(script: TextIOWrapper, filenames, options: OptionsDict):
         )
 
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then java -jar {BIN}/picard.jar CollectGcBiasMetrics --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.gc_bias_metrics.txt -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf -S {STATS}/{SAMPLE}.gc_bias_summary.txt; fi' \\\n""".format(
-                REFERENCE=reference,
-                ASSEMBLY=assembly,
+            """'if [[ ! -f {STATS}/{SAMPLE}.gc_bias_metrics.txt || ! -f {STATS}/{SAMPLE}.gc_bias_metrics.pdf || ! -f {STATS}/{SAMPLE}.gc_bias_summary.txt ]]; then java -jar {BIN}/picard.jar CollectGcBiasMetrics --VERBOSITY ERROR -R {REFERENCE_ASSEMBLY} -I {SORTED} -O {STATS}/{SAMPLE}.gc_bias_metrics.txt -CHART {STATS}/{SAMPLE}.gc_bias_metrics.pdf -S {STATS}/{SAMPLE}.gc_bias_summary.txt; fi' \\\n""".format(
+                REFERENCE_ASSEMBLY=referenceAssembly,
                 PIPELINE=pipeline,
                 SAMPLE=sample,
                 STATS=stats,
@@ -464,9 +352,8 @@ def doAlignmentQC(script: TextIOWrapper, filenames, options: OptionsDict):
         )
 
         checks.append(
-            """'if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then java -jar {BIN}/picard.jar CollectWgsMetrics --VERBOSITY ERROR -R {REFERENCE}/{ASSEMBLY}.fna -I {SORTED} -O {STATS}/{SAMPLE}.wgs_metrics.txt --MINIMUM_BASE_QUALITY 20 --MINIMUM_MAPPING_QUALITY 20 --COVERAGE_CAP 10000 --READ_LENGTH 151 --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list --USE_FAST_ALGORITHM --INCLUDE_BQ_HISTOGRAM; fi' \\\n""".format(
-                REFERENCE=reference,
-                ASSEMBLY=assembly,
+            """'if [[ ! -f {STATS}/{SAMPLE}.wgs_metrics.txt ]]; then java -jar {BIN}/picard.jar CollectWgsMetrics --VERBOSITY ERROR -R {REFERENCE_ASSEMBLY} -I {SORTED} -O {STATS}/{SAMPLE}.wgs_metrics.txt --MINIMUM_BASE_QUALITY 20 --MINIMUM_MAPPING_QUALITY 20 --COVERAGE_CAP 10000 --READ_LENGTH 151 --INTERVALS {REFERENCE}/{ASSEMBLY}_autosomal.interval_list --USE_FAST_ALGORITHM --INCLUDE_BQ_HISTOGRAM; fi' \\\n""".format(
+                REFERENCE_ASSEMBLY=referenceAssembly,
                 PIPELINE=pipeline,
                 SAMPLE=sample,
                 STATS=stats,
@@ -477,9 +364,8 @@ def doAlignmentQC(script: TextIOWrapper, filenames, options: OptionsDict):
         )
 
     checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then samtools stats -@ 8 -r {REFERENCE}/{ASSEMBLY}.fna {SORTED} >{STATS}/{SAMPLE}.samstats; fi' \\\n""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
+        """'if [[ ! -f {STATS}/{SAMPLE}.samstats ]]; then samtools stats -@ 8 -r {REFERENCE_ASSEMBLY} {SORTED} >{STATS}/{SAMPLE}.samstats; fi' \\\n""".format(
+            REFERENCE_ASSEMBLY=referenceAssembly,
             SAMPLE=sample,
             STATS=stats,
             SORTED=sorted,
@@ -495,9 +381,8 @@ def doAlignmentQC(script: TextIOWrapper, filenames, options: OptionsDict):
     )
 
     checks.append(
-        """'if [[ ! -f {STATS}/{SAMPLE}.samtools.coverage ]]; then samtools coverage -d 0 --reference {REFERENCE}/{ASSEMBLY}.fna {SORTED} >{STATS}/{SAMPLE}.samtools.coverage; fi' \\\n""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
+        """'if [[ ! -f {STATS}/{SAMPLE}.samtools.coverage ]]; then samtools coverage -d 0 --reference {REFERENCE_ASSEMBLY} {SORTED} >{STATS}/{SAMPLE}.samtools.coverage; fi' \\\n""".format(
+            REFERENCE_ASSEMBLY=referenceAssembly,
             SAMPLE=sample,
             STATS=stats,
             SORTED=sorted,
@@ -506,8 +391,7 @@ def doAlignmentQC(script: TextIOWrapper, filenames, options: OptionsDict):
 
     checks.append(
         """'if [[ ! -f {STATS}/{SAMPLE}.bedtools.coverage ]]; then samtools view -bq 30 -F 1284 {SORTED} | bedtools genomecov -d -ibam stdin | awk "\\$2 % 100 == 0 {{print \\$1,\\$2,\\$3}}" | sed "s/AF304460.1/hcov_229e/;s/AY597011.2/hcov_hku1/;s/AY567487.2/hcov_nl63/;s/AY585228.1/hcov_oc43/;s/MN908947.3/sars_cov_2/;s/NC_038311.1/hrv_a/;s/NC_038312.1/hrv_b/;s/NC_038878.1/hrv_c/" >{STATS}/{SAMPLE}.bedtools.coverage; fi' \\\n""".format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
+            REFERENCE_ASSEMBLY=referenceAssembly,
             SAMPLE=sample,
             STATS=stats,
             SORTED=sorted,
@@ -630,13 +514,9 @@ logthis "Starting QC processes"
             )
         )
 
-    if options["doMultiQc"] == True:
-        runMultiQC(script, options)
-
 
 def generateDepth(script: TextIOWrapper, options: OptionsDict):
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
+    referenceAssembly = options["_referenceAssembly"]
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -648,15 +528,14 @@ def generateDepth(script: TextIOWrapper, options: OptionsDict):
 if [[ ! -f {PIPELINE}/{SAMPLE}.depth.gz ]]; then
     logthis "${{yellow}}Calculating depth by position${{reset}}"
 
-    samtools depth -@ 8 -aa -a -J --reference {REFERENCE}/{ASSEMBLY}.fna {PIPELINE}/{SAMPLE}.sorted.bam | gzip >{PIPELINE}/{SAMPLE}.depth.gz
+    samtools depth -@ 8 -aa -a -J --reference {REFERENCE_ASSEMBLY} {PIPELINE}/{SAMPLE}.sorted.bam | gzip >{PIPELINE}/{SAMPLE}.depth.gz
 
     logthis "${{yellow}}Depth calculation complete${{reset}}"
 else
     logthis "Depth calculation already complete, ${{green}}skipping${{reset}}"
 fi
     """.format(
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
+            REFERENCE_ASSEMBLY=referenceAssembly,
             SAMPLE=sample,
             PIPELINE=pipeline,
         )
@@ -667,16 +546,25 @@ def commonPipeline(
     script: TextIOWrapper,
     options: OptionsDict,
     filenames,
-    preprocessAndAlign,
+    references,
+    preprocess,
+    align,
 ):
-    preprocessAndAlign(script, options)
-    sortAndExtractUnmapped(script, options)
-    runVariantPipeline(script, options)
+    preprocess(script, options)
 
-    # we'll wait here to make sure all the background stuff is done before we
-    # run multiqc and cleanup
-    script.write('logthis "${green}Done with front-end processing${reset}"\n')
+    for requestReference in options["references"]:
+        reference = references[requestReference]
 
-    if options["runQc"] == True:
-        doQualityControl(script, options, filenames)
-        script.write('logthis "${green}Done with back-end processing${reset}"\n')
+        options["_referenceFriendlyName"] = reference
+        options["_referenceAccession"] = reference["accession"]
+        options["_referenceAssembly"] = reference["assembly"]
+
+        align(script, options)
+        sortAndExtractUnmapped(script, options)
+        runVariantPipeline(script, options)
+
+        if options["runQc"] == True:
+            doQualityControl(script, options, filenames)
+
+    if options["runQc"] == True and options["doMultiQc"] == True:
+        runMultiQC(script, options)

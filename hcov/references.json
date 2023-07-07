@@ -37,5 +37,15 @@
   "sars-cov-2": {
     "accession": "MN908947.3",
     "assembly": "sars-cov-2/GCA_009858895.3_ASM985889v3_genomic.fna"
+  },
+
+  "hcov-panel": {
+    "accession": "hcov-panel",
+    "assembly": "hcov-panel/hcov-panel.fna"
+  },
+
+  "hrv-panel": {
+    "accession": "hrv-panel",
+    "assembly": "hrv-panel/hrv-panel.fna"
   }
 }

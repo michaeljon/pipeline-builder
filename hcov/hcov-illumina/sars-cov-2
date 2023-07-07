@@ -7,17 +7,10 @@ READ2=$4
 SEQUENCE_RUNID=$(uuidgen)
 
 ORGANISM=sars-cov-2
-ASSEMBLY=GCA_009858895.3_ASM985889v3_genomic
-REFNAME=MN908947.3
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
     exit 1
-fi
-
-# download the reference data
-if [[ ! -d ${PIPELINE_ROOT}/reference/sars-cov-2/nextclade-data ]]; then
-    nextclade dataset get --name='sars-cov-2' --output-dir=${PIPELINE_ROOT}/reference/sars-cov-2/nextclade-data
 fi
 
 echo Starting ${BATCH}/${SAMPLE} run
@@ -35,9 +28,8 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-illumina/hcov-runner.py \
     --r1 ${READ1} \
     --r2 ${READ2} \
     --work-dir ${PIPELINE_ROOT} \
-    --reference-dir ${PIPELINE_ROOT}/reference/${ORGANISM} \
-    --reference-assembly ${ASSEMBLY} \
-    --reference-name ${REFNAME} \
+    --reference-dir ${PIPELINE_ROOT}/reference \
+    --references ${ORGANISM} \
     --pipeline-dir ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID} \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID} \
     --script ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}_runner \

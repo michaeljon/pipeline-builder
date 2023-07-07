@@ -115,8 +115,7 @@ def runBwaAligner(
     options: OptionsDict,
 ):
     aligner = options["aligner"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
+    referenceAssembly = options["_referenceAssembly"]
     sample = options["sample"]
     pipeline = options["pipeline"]
     threads = options["cores"]
@@ -138,7 +137,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
         -v 1 \\
         -S \\
         -P \\
-        {REFERENCE}/{ASSEMBLY}.fna \\
+        {REFERENCE_ASSEMBLY} \\
         {R1} | 
     samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.aligned.bam
 
@@ -150,8 +149,7 @@ fi
 """.format(
             ALIGNER=aligner,
             R1=r1,
-            ASSEMBLY=assembly,
-            REFERENCE=reference,
+            REFERENCE_ASSEMBLY=referenceAssembly,
             SAMPLE=sample,
             THREADS=threads,
             PIPELINE=pipeline,
@@ -160,7 +158,7 @@ fi
     )
 
 
-def preprocessAndAlign(script: TextIOWrapper, options: OptionsDict):
+def preprocess(script: TextIOWrapper, options: OptionsDict):
     filenames = getFileNames(options)
     trimmedFilenames = getTrimmedFileNames(options)
 
@@ -170,6 +168,10 @@ def preprocessAndAlign(script: TextIOWrapper, options: OptionsDict):
         trimmedFilenames[0],
         options,
     )
+
+
+def align(script: TextIOWrapper, options: OptionsDict):
+    trimmedFilenames = getTrimmedFileNames(options)
     runBwaAligner(script, trimmedFilenames[0], options)
 
 
@@ -203,12 +205,17 @@ def defineExtraArguments(parser: ArgumentParser):
     )
 
 
-def main(panel_choices: List[str], panel_choice_help: str):
+def main():
     pipelineDriver(
-        panel_choices,
-        panel_choice_help,
         defineExtraArguments,
         verifyFileNames,
         getFileNames,
-        lambda s, o, f: commonPipeline(s, o, f, preprocessAndAlign),
+        lambda script, options, filenames, references: commonPipeline(
+            script,
+            options,
+            filenames,
+            references,
+            preprocess,
+            align,
+        ),
     )

@@ -70,13 +70,9 @@ def runFastpPreprocessor(
     o2: str,
     options: OptionsDict,
 ):
-    reference = options["reference"]
     sample = options["sample"]
-    pipeline = options["pipeline"]
     adapters = options["adapters"]
-    threads = options["cores"]
     stats = options["stats"]
-    bin = options["bin"]
     readLimit = int(options["read-limit"])
 
     #
@@ -112,13 +108,9 @@ fi
             R2=r2,
             O1=o1,
             O2=o2,
-            REFERENCE=reference,
             ADAPTERS="--adapter_fasta " + adapters if adapters != "" else "--detect_adapter_for_pe",
             SAMPLE=sample,
-            THREADS=threads,
-            PIPELINE=pipeline,
             STATS=stats,
-            BIN=bin,
             LIMITREADS="--reads_to_process " + str(readLimit) if readLimit > 0 else "",
         )
     )
@@ -211,8 +203,7 @@ def runBwaAligner(
     options: OptionsDict,
 ):
     aligner = options["aligner"]
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
+    referenceAssembly = options["_referenceAssembly"]
     sample = options["sample"]
     pipeline = options["pipeline"]
     threads = options["cores"]
@@ -232,7 +223,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
         -Y \\
         -M \\
         -v 1 \\
-        {REFERENCE}/{ASSEMBLY}.fna \\
+        {REFERENCE_ASSEMBLY} \\
         {R1} \\
         {R2} | 
     samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.aligned.bam
@@ -246,8 +237,7 @@ fi
             ALIGNER=aligner,
             R1=r1,
             R2=r2,
-            ASSEMBLY=assembly,
-            REFERENCE=reference,
+            REFERENCE_ASSEMBLY=referenceAssembly,
             SAMPLE=sample,
             THREADS=threads,
             PIPELINE=pipeline,
@@ -256,7 +246,7 @@ fi
     )
 
 
-def preprocessAndAlign(script: TextIOWrapper, options: OptionsDict):
+def preprocess(script: TextIOWrapper, options: OptionsDict):
     filenames = getFileNames(options)
     trimmedFilenames = getTrimmedFileNames(options)
 
@@ -268,6 +258,11 @@ def preprocessAndAlign(script: TextIOWrapper, options: OptionsDict):
         trimmedFilenames[1],
         options,
     )
+
+
+def align(script: TextIOWrapper, options: OptionsDict):
+    trimmedFilenames = getTrimmedFileNames(options)
+
     runBwaAligner(script, trimmedFilenames[0], trimmedFilenames[1], options)
 
 
@@ -314,12 +309,17 @@ def defineExtraArguments(parser: ArgumentParser):
     )
 
 
-def main(panel_choices: List[str], panel_choice_help: str):
+def main():
     pipelineDriver(
-        panel_choices,
-        panel_choice_help,
         defineExtraArguments,
         verifyFileNames,
         getFileNames,
-        lambda s, o, f: commonPipeline(s, o, f, preprocessAndAlign),
+        lambda script, options, filenames, references: commonPipeline(
+            script,
+            options,
+            filenames,
+            references,
+            preprocess,
+            align,
+        ),
     )

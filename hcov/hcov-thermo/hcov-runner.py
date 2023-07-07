@@ -9,24 +9,5 @@ sys.path.append(parent)
 
 from single_end import *
 
-panel_choices = [
-    "MN908947.3",
-    "AF304460.1",
-    "AY597011.2",
-    "AY567487.2",
-    "AY585228.1",
-    "panel",
-]
-
-panel_choice_help = (
-    "'Chromosome' name from reference assembly "
-    + "(MN908947.3, sars-cov-2), "
-    + "(AF304460.1, hcov-229e), "
-    + "(AY597011.2, hcov-hku1), "
-    + "(AY567487.2, hcov-nl63), "
-    + "(AY585228.1, hcov-oc43), "
-    + "(panel, combined panel of all organisms)"
-)
-
 if __name__ == "__main__":
-    main(panel_choices, panel_choice_help)
+    main()

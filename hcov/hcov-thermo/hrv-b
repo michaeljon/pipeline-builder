@@ -5,8 +5,6 @@ FASTQ=$2
 CHIP=$3
 
 ORGANISM=hrv-b
-ASSEMBLY=GCF_002816855.1_ASM281685v1_genomic
-REFNAME=NC_038312.1
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
@@ -19,15 +17,14 @@ echo Starting ${SAMPLE} run
 mkdir -p ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}
 
 # build the pipeline
-python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hrv-runner.py \
+python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hcov-runner.py \
     --no-color \
     --cores 8 \
     --sample ${SAMPLE} \
     --fastq "${FASTQ}" \
     --work-dir ${PIPELINE_ROOT} \
-    --reference-dir ${PIPELINE_ROOT}/reference/${ORGANISM} \
-    --reference-assembly ${ASSEMBLY} \
-    --reference-name ${REFNAME} \
+    --reference-dir ${PIPELINE_ROOT}/reference \
+    --references ${ORGANISM} \
     --pipeline-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM} \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner \
@@ -39,7 +36,5 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hrv-runner.py \
 
 # run the pipeline
 bash ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner >${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}.log 2>&1
-
-echo Run ${SAMPLE} completed, packaging
 
 echo Finished ${SAMPLE} run in ${SEQUENCE_RUNID}

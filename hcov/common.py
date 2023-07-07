@@ -109,7 +109,7 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
     return options
 
 
-def defineArguments(panel_choices: List[str], panel_choice_help: str, defineExtraArguments) -> Namespace:
+def defineArguments(references: List[str], defineExtraArguments) -> Namespace:
     parser = ArgumentParser()
     parser.set_defaults(doQC=False, cleanIntermediateFiles=True)
 
@@ -227,37 +227,17 @@ def defineArguments(panel_choices: List[str], panel_choice_help: str, defineExtr
         help="Turn off colorized log output",
     )
 
-    # todo: remove --reference-assembly and --reference-name
     parser.add_argument(
-        "--reference-assembly",
+        "--references",
+        nargs="+",
         required=True,
         action="store",
-        metavar="REFERENCE_ASSEMBLY",
-        dest="referenceAssembly",
-        help="Base name of the reference assembly",
+        metavar="REFERENCES",
+        dest="references",
+        choices=references,
     )
 
-    parser.add_argument(
-        "--reference-name",
-        required=True,
-        action="store",
-        metavar="REFERENCE_NAME",
-        dest="referenceName",
-        choices=panel_choices,
-        help=panel_choice_help,
-    )
-
-    # and replace them with this
-    # parser.add_argument(
-    #     "--references",
-    #     nargs="+",
-    #     required=True,
-    #     action="store",
-    #     metavar="REFERENCES",
-    #     dest="references",
-    #     choices=panel_choices,
-    # )
-
+    # then this becomes the root of the reference dir
     parser.add_argument(
         "--reference-dir",
         action="store",
@@ -265,6 +245,7 @@ def defineArguments(panel_choices: List[str], panel_choice_help: str, defineExtr
         dest="reference",
         help="Location of the reference genome files",
     )
+
     parser.add_argument(
         "--pipeline-dir",
         action="store",
@@ -369,12 +350,6 @@ def verifyOptions(options: OptionsDict):
         print("Unable to find your --stats-dir directory at {PATH}".format(PATH=options["stats"]))
         quit(1)
 
-    ## this is a bit of a hack, but necessary since the tools and databases
-    ## to do clade assignment and variant annotation don't exist right now
-    referenceName = options["referenceName"]
-    options["__canAssignClades"] = referenceName == "MN908947.3"
-    options["__canAnnotateVariants"] = referenceName == "MN908947.3"
-
 
 def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: List[str]):
     script.write("#\n")
@@ -393,30 +368,27 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: List[str
 
 
 def pipelineDriver(
-    panel_choices: List[str],
-    panel_choice_help: str,
     defineExtraArguments,
     verifyFileNames,
     getFileNames,
     specificPipelineRunner,
 ):
-    # references = {}
-    # with open(path.join(path.dirname(sys.argv[0]), "..", "references.json")) as f:
-    #     references = json.load(f)
+    references = {}
+    with open(path.join(path.dirname(sys.argv[0]), "..", "references.json")) as f:
+        references = json.load(f)
 
-    # todo: drop panel_choices for references.keys(), and remove _help
-    opts = defineArguments(panel_choices, panel_choice_help, defineExtraArguments)
+    opts = defineArguments(references.keys(), defineExtraArguments)
     options = fixupPathOptions(opts)
     verifyFileNames(options)
     verifyOptions(options)
 
-    # for ref in references.keys():
-    #     reference = references[ref]
-    #     reference["assembly"] = path.join(options["reference"], reference["assembly"])
+    for ref in references.keys():
+        reference = references[ref]
+        reference["assembly"] = path.join(options["reference"], reference["assembly"])
 
-    #     if exists(reference["assembly"]) == False:
-    #         print("Missing reference FNA at {PATH} for {REF}".format(REF=ref, PATH=reference["assembly"]))
-    #         quit(1)
+        if exists(reference["assembly"]) == False:
+            print("Missing reference FNA at {PATH} for {REF}".format(REF=ref, PATH=reference["assembly"]))
+            quit(1)
 
     filenames = getFileNames(options)
 
@@ -429,6 +401,6 @@ def pipelineDriver(
         writeVersions(script)
         writeEnvironment(script, options)
 
-        specificPipelineRunner(script, options, filenames)
+        specificPipelineRunner(script, options, filenames, references)
 
     system("chmod +x " + options["script"])

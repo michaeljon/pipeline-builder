@@ -1,10 +1,40 @@
 #!/usr/bin/env bash
 
-export PIPELINE_ROOT=${HOME}
+SAMPLE=$1
+FASTQ=$2
+CHIP=$3
 
-~/pipeline-builder/hcov/hcov-229e $1
-~/pipeline-builder/hcov/hcov-emc $1
-~/pipeline-builder/hcov/hcov-hku1 $1
-~/pipeline-builder/hcov/hcov-nl63 $1
-~/pipeline-builder/hcov/hcov-oc43 $1
-~/pipeline-builder/hcov/sars-cov-2 $1
+ORGANISMS="hcov-oc43 hcov-nl63 hcov-229e hcov-hku1"
+
+if [[ -z ${PIPELINE_ROOT} ]]; then
+    echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
+    exit 1
+fi
+
+echo Starting ${SAMPLE} run
+
+# give us a place to work
+mkdir -p ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}
+
+# build the pipeline
+python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hcov-runner.py \
+    --no-color \
+    --cores 8 \
+    --sample ${SAMPLE} \
+    --fastq "${FASTQ}" \
+    --work-dir ${PIPELINE_ROOT} \
+    --reference-dir ${PIPELINE_ROOT}/reference \
+    --references ${ORGANISMS} \
+    --pipeline-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM} \
+    --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM} \
+    --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner \
+    --temp-dir ${PIPELINE_ROOT}/tmp \
+    --skip-annotation \
+    --aligner bwa \
+    --preprocessor cutadapt \
+    --sorter biobambam
+
+# run the pipeline
+bash ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner >${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}.log 2>&1
+
+echo Finished ${SAMPLE} run in ${SEQUENCE_RUNID}

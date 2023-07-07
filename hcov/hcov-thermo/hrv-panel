@@ -6,7 +6,6 @@ CHIP=$3
 
 ORGANISM=hrv-panel
 ASSEMBLY=hrv-panel
-REFNAME=panel
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
@@ -21,7 +20,7 @@ set -e
 mkdir -p ${PIPELINE_ROOT}/pipeline/${SAMPLE}
 
 # build the pipeline
-python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hrv-runner.py \
+python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hcov-runner.py \
     --no-color \
     --cores 8 \
     --sample ${SAMPLE} \
