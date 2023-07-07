@@ -113,9 +113,10 @@ def runBwaAligner(
     script: TextIOWrapper,
     r1: str,
     options: OptionsDict,
+    reference,
 ):
     aligner = options["aligner"]
-    referenceAssembly = options["_referenceAssembly"]
+    referenceAssembly = reference["assembly"]
     sample = options["sample"]
     pipeline = options["pipeline"]
     threads = options["cores"]
@@ -126,7 +127,7 @@ def runBwaAligner(
 #
 # align the input files
 #
-if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
+if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam ]]; then
     logthis "${{yellow}}Running aligner${{reset}}"
 
     {ALIGNER} mem \\
@@ -139,17 +140,18 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
         -P \\
         {REFERENCE_ASSEMBLY} \\
         {R1} | 
-    samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.aligned.bam
+    samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam
 
     logthis "${{yellow}}Alignment completed${{reset}}"
 else
-    logthis "{PIPELINE}/{SAMPLE}.aligned.bam, aligned temp file found, ${{green}}skipping${{reset}}"
+    logthis "{PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam, aligned temp file found, ${{green}}skipping${{reset}}"
 fi
 
 """.format(
             ALIGNER=aligner,
             R1=r1,
             REFERENCE_ASSEMBLY=referenceAssembly,
+            ORGANISM=reference["common"],
             SAMPLE=sample,
             THREADS=threads,
             PIPELINE=pipeline,
@@ -170,9 +172,9 @@ def preprocess(script: TextIOWrapper, options: OptionsDict):
     )
 
 
-def align(script: TextIOWrapper, options: OptionsDict):
+def align(script: TextIOWrapper, options: OptionsDict, reference):
     trimmedFilenames = getTrimmedFileNames(options)
-    runBwaAligner(script, trimmedFilenames[0], options)
+    runBwaAligner(script, trimmedFilenames[0], options, reference)
 
 
 def verifyFileNames(options: OptionsDict):

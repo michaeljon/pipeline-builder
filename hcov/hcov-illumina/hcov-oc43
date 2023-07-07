@@ -35,8 +35,7 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-illumina/hcov-runner.py \
     --script ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}_runner \
     --temp-dir ${PIPELINE_ROOT}/temp \
     --aligner bwa \
-    --preprocessor trimmomatic \
-    --sorter biobambam
+    --preprocessor trimmomatic
 
 # run the pipeline
 bash ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}_runner >${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}.log 2>&1

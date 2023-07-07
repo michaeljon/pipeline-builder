@@ -203,15 +203,6 @@ def defineArguments(references: List[str], defineExtraArguments) -> Namespace:
     )
 
     parser.add_argument(
-        "--sorter",
-        action="store",
-        dest="sorter",
-        default="biobambam",
-        choices=["biobambam", "samtools"],
-        help="Use 'biobambam' or 'samtools' as the sorter.",
-    )
-
-    parser.add_argument(
         "--skip-annotation",
         action="store_true",
         dest="skipAnnotation",
@@ -384,8 +375,12 @@ def pipelineDriver(
 
     for ref in references.keys():
         reference = references[ref]
-        reference["assembly"] = path.join(options["reference"], reference["assembly"])
 
+        # stuff the key into the object so we have it
+        reference["common"] = ref
+
+        # and make sure we have a path to the file
+        reference["assembly"] = path.join(options["reference"], reference["assembly"])
         if exists(reference["assembly"]) == False:
             print("Missing reference FNA at {PATH} for {REF}".format(REF=ref, PATH=reference["assembly"]))
             quit(1)

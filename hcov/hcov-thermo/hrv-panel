@@ -32,8 +32,7 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hcov-runner.py \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner \
     --temp-dir ${PIPELINE_ROOT}/tmp \
     --aligner bwa \
-    --preprocessor cutadapt \
-    --sorter biobambam
+    --preprocessor cutadapt
 
 # run the pipeline
 bash ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner >${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
