@@ -37,7 +37,6 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-illumina/hrv-runner.py \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID} \
     --script ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}_runner \
     --temp-dir ${PIPELINE_ROOT}/temp \
-    --fastq-dir ${PIPELINE_ROOT}/fastq/${BATCH} \
     --aligner bwa \
     --preprocessor trimmomatic \
     --sorter biobambam

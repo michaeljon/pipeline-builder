@@ -1,57 +1,24 @@
 from io import TextIOWrapper
 from argparse import ArgumentParser, Namespace
 from os.path import exists, expandvars
-from os import cpu_count, system
+from os import cpu_count
 
 from bio_types import *
 from bio_methods import *
 from common import pipelineDriver
 
-fallback_warning_shown = False
-
 
 def getFileNames(options: OptionsDict) -> FastqSet:
-    global fallback_warning_shown
-
-    sample = options["sample"]
-    fastq_dir = options["fastq_dir"]
-
-    filenames = [
+    fastqs = [
         options["r1"],
         options["r2"],
     ]
 
-    if exists(expandvars(filenames[0])) == True and exists(expandvars(filenames[1])) == True:
-        return filenames
+    if exists(expandvars(fastqs[0])) == True and exists(expandvars(fastqs[1])) == True:
+        return fastqs
 
-    # assume we have the _001 pattern first
-    filenames = [
-        "{FASTQ_DIR}/{SAMPLE}_R1_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
-        "{FASTQ_DIR}/{SAMPLE}_R2_001.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
-    ]
-
-    if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
-        if fallback_warning_shown == False:
-            print("Falling back to shortened fastq file names")
-            fallback_warning_shown = True
-
-        # if that didn't work, try for the redacted names
-        filenames = [
-            "{FASTQ_DIR}/{SAMPLE}_R1.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
-            "{FASTQ_DIR}/{SAMPLE}_R2.fastq.gz".format(FASTQ_DIR=fastq_dir, SAMPLE=sample),
-        ]
-
-        if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
-            print(
-                "Unable to locate the R1 or R2 files at {R1} and {R2}".format(
-                    R1=filenames[0],
-                    R2=filenames[1],
-                )
-            )
-            print("Check your --sample and --fastq-dir parameters")
-            quit(1)
-
-    return filenames
+    print("Check your --r1 and --r2 parameters, files were not found")
+    quit(1)
 
 
 def getTrimmedFileNames(options: OptionsDict) -> FastqSet:
@@ -214,64 +181,6 @@ fi
     )
 
 
-def runTrimGalore(
-    script: TextIOWrapper,
-    r1: str,
-    r2: str,
-    o1: str,
-    o2: str,
-    options: OptionsDict,
-):
-    bin = options["bin"]
-    sample = options["sample"]
-    threads = options["cores"]
-    pipeline = options["pipeline"]
-    stats = options["stats"]
-
-    #
-    # trim_galore is limited to 8 threads, so we use them
-    #
-
-    script.write(
-        """
-#
-# run the trim galore preprocessor
-#
-if [[ ! -f {O1} || ! -f {O2} ]]; then
-    logthis "${{yellow}}Running trim galore preprocessor${{reset}}"
-
-    trim_galore \\
-        --cores 8 \\
-        --paired \\
-        --clip_R2 10 \\
-        --basename {SAMPLE} \\
-        --output_dir {PIPELINE} \\
-        -a NNNNNNNNNNAGATCGGAAGAGCACACGTCTGAACTCCAGTCAC \\
-        -a2 AGATCGGAAGAGCGTCGTGTAGGGAAAGA \\
-        {R1} \\
-        {R2} 2> {STATS}/{SAMPLE}_trim_out.log
-
-    mv {PIPELINE}/{SAMPLE}_val_1.fq.gz {O1}
-    mv {PIPELINE}/{SAMPLE}_val_2.fq.gz {O2}
-
-    logthis "${{yellow}}trim galore preprocessor completed${{reset}}"
-else
-    logthis "Preprocessor already run, ${{green}}skipping${{reset}}"
-fi
-""".format(
-            R1=r1,
-            R2=r2,
-            O1=o1,
-            O2=o2,
-            BIN=bin,
-            THREADS=threads,
-            STATS=stats,
-            SAMPLE=sample,
-            PIPELINE=pipeline,
-        )
-    )
-
-
 def preprocessFASTQ(
     script: TextIOWrapper,
     r1: str,
@@ -288,8 +197,6 @@ def preprocessFASTQ(
         runFastpPreprocessor(script, r1, r2, o1, o2, options)
     elif preprocessor == "trimmomatic":
         runTrimmomaticPreprocessor(script, r1, r2, o1, o2, options)
-    elif preprocessor == "trimgalore":
-        runTrimGalore(script, r1, r2, o1, o2, options)
     else:
         print("Unexpected value {PREPROCESSOR} given for the --preprocessor option".format(PREPROCESSOR=preprocessor))
         quit(1)
@@ -299,8 +206,8 @@ def preprocessFASTQ(
 
 def runBwaAligner(
     script: TextIOWrapper,
-    o1: str,
-    o2: str,
+    r1: str,
+    r2: str,
     options: OptionsDict,
 ):
     aligner = options["aligner"]
@@ -326,8 +233,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
         -M \\
         -v 1 \\
         {REFERENCE}/{ASSEMBLY}.fna \\
-        {O1} \\
-        {O2} | 
+        {R1} \\
+        {R2} | 
     samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.aligned.bam
 
     logthis "${{yellow}}Alignment completed${{reset}}"
@@ -337,8 +244,8 @@ fi
 
 """.format(
             ALIGNER=aligner,
-            O1=o1,
-            O2=o2,
+            R1=r1,
+            R2=r2,
             ASSEMBLY=assembly,
             REFERENCE=reference,
             SAMPLE=sample,
@@ -364,18 +271,21 @@ def preprocessAndAlign(script: TextIOWrapper, options: OptionsDict):
     runBwaAligner(script, trimmedFilenames[0], trimmedFilenames[1], options)
 
 
-def defineArguments(panel_choices: List[str], panel_choice_help: str) -> Namespace:
-    parser = ArgumentParser()
-    parser.set_defaults(doQC=False, cleanIntermediateFiles=True)
-    parser.add_argument(
-        "--sample",
-        required=True,
-        action="store",
-        metavar="SAMPLE",
-        dest="sample",
-        help="short name of sample, e.g. DPZw_k file must be in <WORKING>/pipeline/<sample>_R[12].fastq.gz",
-    )
+def verifyFileNames(options: OptionsDict):
+    fastqs = getFileNames(options)
 
+    if exists(expandvars(fastqs[0])) == False or exists(expandvars(fastqs[1])) == False:
+        print(
+            "Unable to locate the R1 or R2 files at {R1} and {R2}".format(
+                R1=fastqs[0],
+                R2=fastqs[1],
+            )
+        )
+        print("Check your --r1 and --r2 parameters")
+        quit(1)
+
+
+def defineExtraArguments(parser: ArgumentParser):
     parser.add_argument(
         "--r1",
         required=True,
@@ -395,243 +305,20 @@ def defineArguments(panel_choices: List[str], panel_choice_help: str) -> Namespa
     )
 
     parser.add_argument(
-        "--work-dir",
-        required=True,
-        action="store",
-        metavar="WORKING_DIR",
-        dest="working",
-        help="Working directory, e.g. base for $WORKING/pipeline, $WORKING/stats",
-    )
-
-    parser.add_argument(
-        "--run-qc",
-        action="store_true",
-        dest="runQc",
-        default=False,
-        help="Enable running any / all QC processes",
-    )
-    parser.add_argument(
-        "--skip-multi-qc",
-        action="store_false",
-        dest="doMultiQc",
-        default=True,
-        help="Skip running multiqc QC process on input and output files",
-    )
-    parser.add_argument(
-        "--skip-variant-qc",
-        action="store_false",
-        dest="doVariantQc",
-        default=True,
-        help="Skip running variant QC process on input and output files",
-    )
-    parser.add_argument(
-        "--skip-alignment-qc",
-        action="store_false",
-        dest="doAlignmentQc",
-        default=True,
-        help="Skip alignment QC process on input and output files",
-    )
-    parser.add_argument(
-        "--skip-picard-qc",
-        action="store_false",
-        dest="doPicardQc",
-        default=True,
-        help="Skip any picard QC process on input and output files",
-    )
-    parser.add_argument(
-        "--skip-fastqc",
-        action="store_true",
-        dest="skipFastQc",
-        default=False,
-        help="Skip running FASTQC statistics",
-    )
-
-    parser.add_argument(
         "--preprocessor",
         action="store",
         dest="preprocessor",
         default="none",
-        choices=["trimmomatic", "fastp", "trimgalore", "none"],
+        choices=["trimmomatic", "fastp", "none"],
         help="Optionally run a FASTQ preprocessor",
     )
-
-    parser.add_argument(
-        "--unmapped",
-        action="store_true",
-        dest="processUnmapped",
-        default=False,
-        help="Extract unmapped reads into secondary _R1 and _R2 FASTQ files",
-    )
-
-    parser.add_argument(
-        "--align-only",
-        action="store_true",
-        dest="alignOnly",
-        default=False,
-        help="Only run alignment and sorting processes",
-    )
-
-    parser.add_argument(
-        "--aligner",
-        action="store",
-        dest="aligner",
-        default="bwa",
-        choices=["bwa", "bwa-mem2"],
-        help="Use 'bwa' or 'bwa-mem2' as the aligner.",
-    )
-
-    parser.add_argument(
-        "--sorter",
-        action="store",
-        dest="sorter",
-        default="biobambam",
-        choices=["biobambam", "samtools"],
-        help="Use 'biobambam' or 'samtools' as the sorter.",
-    )
-
-    parser.add_argument(
-        "--skip-annotation",
-        action="store_true",
-        dest="skipAnnotation",
-        default=False,
-        help="Skip all VCF annotation processes",
-    )
-
-    parser.add_argument(
-        "--no-color",
-        action="store_true",
-        dest="noColor",
-        default=False,
-        help="Turn off colorized log output",
-    )
-
-    parser.add_argument(
-        "--reference-assembly",
-        required=True,
-        action="store",
-        metavar="REFERENCE_ASSEMBLY",
-        dest="referenceAssembly",
-        help="Base name of the reference assembly",
-    )
-
-    parser.add_argument(
-        "--reference-name",
-        required=True,
-        action="store",
-        metavar="REFERENCE_NAME",
-        dest="referenceName",
-        choices=panel_choices,
-        help=panel_choice_help,
-    )
-
-    parser.add_argument(
-        "--reference-dir",
-        action="store",
-        metavar="REFERENCE_DIR",
-        dest="reference",
-        help="Location of the reference genome files",
-    )
-    parser.add_argument(
-        "--pipeline-dir",
-        action="store",
-        metavar="PIPELINE_DIR",
-        dest="pipeline",
-        help="Output directory for processing",
-    )
-    parser.add_argument(
-        "--fastq-dir",
-        action="store",
-        metavar="FASTQ_DIR",
-        dest="fastq_dir",
-        help="Location of R1 and R2 files",
-    )
-    parser.add_argument(
-        "--temp-dir",
-        action="store",
-        metavar="TEMP_DIR",
-        dest="temp",
-        help="Temporary storage for alignment",
-    )
-    parser.add_argument(
-        "--stats-dir",
-        action="store",
-        metavar="STATS_DIR",
-        dest="stats",
-        help="Destination for statistics and QC files",
-    )
-    parser.add_argument(
-        "--bin-dir",
-        action="store",
-        metavar="BIN_DIR",
-        dest="bin",
-        help="Install location of all tooling",
-    )
-    parser.add_argument(
-        "--lib-dir",
-        action="store",
-        metavar="LIB_DIR",
-        dest="lib",
-        help="Install location of all libraries",
-    )
-
-    parser.add_argument(
-        "--adapter-fasta",
-        action="store",
-        metavar="ADAPTER_FASTA",
-        dest="adapters",
-        default="",
-        help="Optional FASTA file containing list of adapters to pass to fastp",
-    )
-
-    parser.add_argument(
-        "--script",
-        action="store",
-        metavar="SHELL_SCRIPT",
-        dest="script",
-        default="pipeline-runner",
-        help="Filename of bash shell to create",
-    )
-
-    parser.add_argument(
-        "--cores",
-        action="store",
-        dest="cores",
-        metavar="CPU_COUNT",
-        default=cpu_count(),
-        help="Specify the number of available CPU",
-    )
-
-    parser.add_argument(
-        "--read-limit",
-        action="store",
-        dest="read-limit",
-        metavar="READ_LIMIT",
-        default=0,
-        help="Limit the number of reads that fastp processes, for debugging",
-    )
-
-    return parser.parse_args()
-
-
-def verifyFileNames(options: OptionsDict):
-    filenames = getFileNames(options)
-
-    if exists(expandvars(filenames[0])) == False or exists(expandvars(filenames[1])) == False:
-        print(
-            "Unable to locate the R1 or R2 files at {R1} and {R2}".format(
-                R1=filenames[0],
-                R2=filenames[1],
-            )
-        )
-        print("Check your --sample and --work-dir parameters")
-        quit(1)
 
 
 def main(panel_choices: List[str], panel_choice_help: str):
     pipelineDriver(
         panel_choices,
         panel_choice_help,
-        defineArguments,
+        defineExtraArguments,
         verifyFileNames,
         getFileNames,
         lambda s, o, f: commonPipeline(s, o, f, preprocessAndAlign),

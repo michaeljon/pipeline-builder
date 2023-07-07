@@ -32,7 +32,6 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hcov-runner.py \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner \
     --temp-dir ${PIPELINE_ROOT}/tmp \
-    --fastq-dir ${PIPELINE_ROOT}/fastq/${CHIP} \
     --skip-annotation \
     --aligner bwa \
     --preprocessor cutadapt \

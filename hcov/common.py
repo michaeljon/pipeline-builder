@@ -1,5 +1,5 @@
 from io import TextIOWrapper
-from argparse import Namespace
+from argparse import ArgumentParser, Namespace
 from os.path import exists, expandvars
 from datetime import datetime
 from os import cpu_count, system
@@ -83,8 +83,6 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
         options["reference"] = "{WORKING}/reference".format(WORKING=options["working"])
     if options["pipeline"] == None:
         options["pipeline"] = "{WORKING}/pipeline".format(WORKING=options["working"])
-    if options["fastq_dir"] == None:
-        options["fastq_dir"] = "{WORKING}/fastq".format(WORKING=options["working"])
     if options["stats"] == None:
         options["stats"] = "{WORKING}/stats".format(WORKING=options["working"])
     if options["temp"] == None:
@@ -107,6 +105,225 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
         options[opt] = expandvars(options[opt])
 
     return options
+
+
+def defineArguments(panel_choices: List[str], panel_choice_help: str, defineExtraArguments) -> Namespace:
+    parser = ArgumentParser()
+    parser.set_defaults(doQC=False, cleanIntermediateFiles=True)
+
+    parser.add_argument(
+        "--sample",
+        required=True,
+        action="store",
+        metavar="SAMPLE",
+        dest="sample",
+        help="Short name of sample, all files will use this as an alias",
+    )
+
+    if defineExtraArguments != None:
+        defineExtraArguments(parser)
+
+    parser.add_argument(
+        "--work-dir",
+        required=True,
+        action="store",
+        metavar="WORKING_DIR",
+        dest="working",
+        help="Working directory, e.g. base for $WORKING/pipeline, $WORKING/stats",
+    )
+
+    parser.add_argument(
+        "--run-qc",
+        action="store_true",
+        dest="runQc",
+        default=False,
+        help="Enable running any / all QC processes",
+    )
+    parser.add_argument(
+        "--skip-multi-qc",
+        action="store_false",
+        dest="doMultiQc",
+        default=True,
+        help="Skip running multiqc QC process on input and output files",
+    )
+    parser.add_argument(
+        "--skip-variant-qc",
+        action="store_false",
+        dest="doVariantQc",
+        default=True,
+        help="Skip running variant QC process on input and output files",
+    )
+    parser.add_argument(
+        "--skip-alignment-qc",
+        action="store_false",
+        dest="doAlignmentQc",
+        default=True,
+        help="Skip alignment QC process on input and output files",
+    )
+    parser.add_argument(
+        "--skip-picard-qc",
+        action="store_false",
+        dest="doPicardQc",
+        default=True,
+        help="Skip any picard QC process on input and output files",
+    )
+    parser.add_argument(
+        "--skip-fastqc",
+        action="store_true",
+        dest="skipFastQc",
+        default=False,
+        help="Skip running FASTQC statistics",
+    )
+
+    parser.add_argument(
+        "--unmapped",
+        action="store_true",
+        dest="processUnmapped",
+        default=False,
+        help="Extract unmapped reads into secondary _R1 and _R2 FASTQ files",
+    )
+
+    parser.add_argument(
+        "--align-only",
+        action="store_true",
+        dest="alignOnly",
+        default=False,
+        help="Only run alignment and sorting processes",
+    )
+
+    parser.add_argument(
+        "--aligner",
+        action="store",
+        dest="aligner",
+        default="bwa",
+        choices=["bwa", "bwa-mem2"],
+        help="Use 'bwa' or 'bwa-mem2' as the aligner.",
+    )
+
+    parser.add_argument(
+        "--sorter",
+        action="store",
+        dest="sorter",
+        default="biobambam",
+        choices=["biobambam", "samtools"],
+        help="Use 'biobambam' or 'samtools' as the sorter.",
+    )
+
+    parser.add_argument(
+        "--skip-annotation",
+        action="store_true",
+        dest="skipAnnotation",
+        default=False,
+        help="Skip all VCF annotation processes",
+    )
+
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        dest="noColor",
+        default=False,
+        help="Turn off colorized log output",
+    )
+
+    parser.add_argument(
+        "--reference-assembly",
+        required=True,
+        action="store",
+        metavar="REFERENCE_ASSEMBLY",
+        dest="referenceAssembly",
+        help="Base name of the reference assembly",
+    )
+
+    parser.add_argument(
+        "--reference-name",
+        required=True,
+        action="store",
+        metavar="REFERENCE_NAME",
+        dest="referenceName",
+        choices=panel_choices,
+        help=panel_choice_help,
+    )
+
+    parser.add_argument(
+        "--reference-dir",
+        action="store",
+        metavar="REFERENCE_DIR",
+        dest="reference",
+        help="Location of the reference genome files",
+    )
+    parser.add_argument(
+        "--pipeline-dir",
+        action="store",
+        metavar="PIPELINE_DIR",
+        dest="pipeline",
+        help="Output directory for processing",
+    )
+    parser.add_argument(
+        "--temp-dir",
+        action="store",
+        metavar="TEMP_DIR",
+        dest="temp",
+        help="Temporary storage for alignment",
+    )
+    parser.add_argument(
+        "--stats-dir",
+        action="store",
+        metavar="STATS_DIR",
+        dest="stats",
+        help="Destination for statistics and QC files",
+    )
+    parser.add_argument(
+        "--bin-dir",
+        action="store",
+        metavar="BIN_DIR",
+        dest="bin",
+        help="Install location of all tooling",
+    )
+    parser.add_argument(
+        "--lib-dir",
+        action="store",
+        metavar="LIB_DIR",
+        dest="lib",
+        help="Install location of all libraries",
+    )
+
+    parser.add_argument(
+        "--adapter-fasta",
+        action="store",
+        metavar="ADAPTER_FASTA",
+        dest="adapters",
+        default="",
+        help="Optional FASTA file containing list of adapters to pass to fastp",
+    )
+
+    parser.add_argument(
+        "--script",
+        action="store",
+        metavar="SHELL_SCRIPT",
+        dest="script",
+        default="pipeline-runner",
+        help="Filename of bash shell to create",
+    )
+
+    parser.add_argument(
+        "--cores",
+        action="store",
+        dest="cores",
+        metavar="CPU_COUNT",
+        default=cpu_count(),
+        help="Specify the number of available CPU",
+    )
+
+    parser.add_argument(
+        "--read-limit",
+        action="store",
+        dest="read-limit",
+        metavar="READ_LIMIT",
+        default=0,
+        help="Limit the number of reads that fastp processes, for debugging",
+    )
+
+    return parser.parse_args()
 
 
 def verifyOptions(options: OptionsDict):
@@ -164,12 +381,12 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: List[str
 def pipelineDriver(
     panel_choices: List[str],
     panel_choice_help: str,
-    defineArguments,
+    defineExtraArguments,
     verifyFileNames,
     getFileNames,
     specificPipelineRunner,
 ):
-    opts = defineArguments(panel_choices, panel_choice_help)
+    opts = defineArguments(panel_choices, panel_choice_help, defineExtraArguments)
     options = fixupPathOptions(opts)
     verifyFileNames(options)
     verifyOptions(options)
