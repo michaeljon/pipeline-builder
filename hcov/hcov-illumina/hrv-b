@@ -20,21 +20,18 @@ set -e
 # give us a place to work
 mkdir -p ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}
 
+# give us a place to work
+rm -rf ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}
+mkdir -p ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}
+
 # build the pipeline
 python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-illumina/hcov-runner.py \
     --no-color \
-    --cores 12 \
     --sample ${SAMPLE} \
     --r1 ${READ1} \
     --r2 ${READ2} \
     --work-dir ${PIPELINE_ROOT} \
-    --reference-dir ${PIPELINE_ROOT}/reference \
     --references ${ORGANISM} \
-    --pipeline-dir ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID} \
-    --stats-dir ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID} \
-    --script ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}_runner \
-    --temp-dir ${PIPELINE_ROOT}/temp \
-    --skip-annotation \
     --aligner bwa \
     --preprocessor trimmomatic
 
