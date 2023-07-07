@@ -50,6 +50,7 @@ def defineArguments():
         metavar="READ_LENGTH",
         dest="readLength",
         default=151,
+        type=int,
     )
 
     parser.add_argument(
@@ -287,7 +288,7 @@ def print_reads(sample_name, reads, read_count, direction):
 
         f.write(
             bytes(
-                read["information"] + "_" + str(r + 1) + " " + str(direction) + "N:0:1\n",
+                read["information"] + "_" + str(r + 1) + " " + str(direction) + ":N:0:1\n",
                 "ascii",
             )
         )
@@ -363,7 +364,7 @@ if __name__ == "__main__":
 
     options = defineArguments()
 
-    target_read_length = options["readLength"]
+    target_read_length = int(options["readLength"])
 
     # load and create the sample's genome
     genome = make_genome(
@@ -417,7 +418,7 @@ if __name__ == "__main__":
     apply_operation_queues(genome, target_read_length)
 
     if options["printReads"]:
-        make_and_print_reads(options["readCount"], options["sample"], genome, options["sequences"])
+        make_and_print_reads(int(options["readCount"]), options["sample"], genome, options["sequences"])
 
     if options["writeFasta"]:
         write_genome_files(genome, options["sequences"])

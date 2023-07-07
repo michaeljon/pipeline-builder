@@ -34,4 +34,7 @@ def complement(read):
 
 
 def quality(read):
-    return "".join(["I" for _ in range(len(read))])
+    # this is a phred33 score of 30, it's the highest non-overlapping and
+    # unambigious score possible, see
+    # https://people.duke.edu/~ccc14/duke-hts-2018/bioinformatics/quality_scores.html
+    return "".join(["?" for _ in range(len(read))])
