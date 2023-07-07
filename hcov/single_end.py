@@ -444,10 +444,6 @@ def verifyFileNames(options: OptionsDict):
     quit(1)
 
 
-def runSingleEndPipeline(script: TextIOWrapper, options: OptionsDict, filenames):
-    commonPipeline(script, options, filenames, preprocessAndAlign)
-
-
 def main(panel_choices: List[str], panel_choice_help: str):
     pipelineDriver(
         panel_choices,
@@ -455,5 +451,5 @@ def main(panel_choices: List[str], panel_choice_help: str):
         defineArguments,
         verifyFileNames,
         getFileNames,
-        runSingleEndPipeline,
+        lambda s, o, f: commonPipeline(s, o, f, preprocessAndAlign),
     )
