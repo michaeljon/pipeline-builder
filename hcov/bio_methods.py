@@ -140,7 +140,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.unannotated.vcf.gz ]]; then
         {PIPELINE}/{SAMPLE}.{ORGANISM}.tmp.vcf
 
     logthis "Filtering called variants"
-    bcftools filter -i "QUAL > 10" \\
+    bcftools filter -i "QUAL > 1500" \\
         -o {PIPELINE}/{SAMPLE}.{ORGANISM}.filtered.bcf \\
         -Ou \\
         {PIPELINE}/{SAMPLE}.{ORGANISM}.norm.bcf
