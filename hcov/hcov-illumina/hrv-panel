@@ -6,8 +6,7 @@ READ1=$3
 READ2=$4
 SEQUENCE_RUNID=$(uuidgen)
 
-ORGANISM=hrv-panel
-ASSEMBLY=hrv-panel
+ORGANISMS="hrv-a hrv-b hrv-c"
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"

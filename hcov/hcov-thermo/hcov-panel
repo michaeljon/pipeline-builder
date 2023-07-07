@@ -4,8 +4,7 @@ SAMPLE=$1
 FASTQ=$2
 CHIP=$3
 
-ORGANISM=hcov-panel
-ASSEMBLY=hcov-panel
+ORGANISMS="hcov-oc43 hcov-nl63 hcov-229e hcov-hku1"
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
@@ -25,7 +24,7 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hcov-runner.py \
     --fastq "${FASTQ}" \
     --work-dir ${PIPELINE_ROOT} \
     --reference-dir ${PIPELINE_ROOT}/reference \
-    --references ${ORGANISM} \
+    --references ${ORGANISMS} \
     --pipeline-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE} \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner \

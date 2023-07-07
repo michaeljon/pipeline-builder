@@ -4,8 +4,7 @@ SAMPLE=$1
 FASTQ=$2
 CHIP=$3
 
-ORGANISM=hrv-panel
-ASSEMBLY=hrv-panel
+ORGANISMS="hrv-a hrv-b hrv-c"
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
@@ -26,9 +25,8 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hcov-runner.py \
     --sample ${SAMPLE} \
     --fastq "${FASTQ}" \
     --work-dir ${PIPELINE_ROOT} \
-    --reference-dir ${PIPELINE_ROOT}/reference/${ORGANISM} \
-    --reference-assembly ${ASSEMBLY} \
-    --reference-name ${REFNAME} \
+    --reference-dir ${PIPELINE_ROOT}/reference \
+    --references ${ORGANISMS} \
     --pipeline-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE} \
     --stats-dir ${PIPELINE_ROOT}/pipeline/${SAMPLE} \
     --script ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner \
