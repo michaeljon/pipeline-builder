@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+SAMPLE=$1
+FASTQ=$2
+CHIP=$3
+
+ORGANISMS="hrv-a hrv-b hrv-c"
+
+if [[ -z ${PIPELINE_ROOT} ]]; then
+    echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
+    exit 1
+fi
+
+echo Starting ${SAMPLE} run
+
+set -e
+
+# give us a place to work
+rm -rf ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}
+mkdir -p ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}
+
+# build the pipeline
+python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hcov-runner.py \
+    --no-color \
+    --sample ${SAMPLE} \
+    --fastq ${FASTQ} \
+    --work-dir ${PIPELINE_ROOT} \
+    --references ${ORGANISMS} \
+    --aligner bwa \
+    --preprocessor cutadapt
+
+# run the pipeline
+bash ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}_runner >${PIPELINE_ROOT}/pipeline/${SAMPLE}/${SAMPLE}.log 2>&1
+
+echo Finished ${SAMPLE} run in ${SEQUENCE_RUNID}

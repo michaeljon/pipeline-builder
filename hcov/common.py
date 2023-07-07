@@ -122,7 +122,7 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
     return options
 
 
-def defineArguments(references: List[str], defineExtraArguments) -> Namespace:
+def defineArguments(defineExtraArguments) -> Namespace:
     parser = ArgumentParser()
 
     parser.add_argument(
@@ -231,13 +231,21 @@ def defineArguments(references: List[str], defineExtraArguments) -> Namespace:
     )
 
     parser.add_argument(
+        "--reference-rules",
+        action="store",
+        metavar="REFERENCE_RULES",
+        dest="referenceRules",
+        help="Full path to the references.json file holding accessing and assembly rules",
+        default=path.join(path.dirname(sys.argv[0]), "..", "references.json"),
+    )
+
+    parser.add_argument(
         "--references",
         nargs="+",
         required=True,
         action="store",
         metavar="REFERENCES",
         dest="references",
-        choices=references,
     )
 
     # then this becomes the root of the reference dir
@@ -373,14 +381,14 @@ def pipelineDriver(
     getFileNames,
     specificPipelineRunner,
 ):
-    references = {}
-    with open(path.join(path.dirname(sys.argv[0]), "..", "references.json")) as f:
-        references = json.load(f)
-
-    opts = defineArguments(references.keys(), defineExtraArguments)
+    opts = defineArguments(defineExtraArguments)
     options = fixupPathOptions(opts)
     verifyFileNames(options)
     verifyOptions(options)
+
+    references = {}
+    with open(options["referenceRules"]) as f:
+        references = json.load(f)
 
     for ref in references.keys():
         reference = references[ref]
