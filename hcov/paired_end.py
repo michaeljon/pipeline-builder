@@ -645,7 +645,8 @@ def main(panel_choices: List[str], panel_choice_help: str):
         writeVersions(script)
         writeEnvironment(script, options)
 
-        alignAndSort(script, options)
+        preprocessAndAlign(script, options)
+        sortAndExtractUnmapped(script, options)
         runVariantPipeline(script, options)
 
         # we'll wait here to make sure all the background stuff is done before we

@@ -147,7 +147,7 @@ fi
     )
 
 
-def alignAndSort(script: TextIOWrapper, options: OptionsDict):
+def sortAndExtractUnmapped(script: TextIOWrapper, options: OptionsDict):
     processUnmapped = options["processUnmapped"]
     alignOnly = options["alignOnly"]
 
