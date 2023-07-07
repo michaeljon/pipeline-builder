@@ -661,3 +661,22 @@ fi
             PIPELINE=pipeline,
         )
     )
+
+
+def commonPipeline(
+    script: TextIOWrapper,
+    options: OptionsDict,
+    filenames,
+    preprocessAndAlign,
+):
+    preprocessAndAlign(script, options)
+    sortAndExtractUnmapped(script, options)
+    runVariantPipeline(script, options)
+
+    # we'll wait here to make sure all the background stuff is done before we
+    # run multiqc and cleanup
+    script.write('logthis "${green}Done with front-end processing${reset}"\n')
+
+    if options["runQc"] == True:
+        doQualityControl(script, options, filenames)
+        script.write('logthis "${green}Done with back-end processing${reset}"\n')

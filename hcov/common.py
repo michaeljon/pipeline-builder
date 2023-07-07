@@ -2,6 +2,7 @@ from io import TextIOWrapper
 from argparse import Namespace
 from os.path import exists, expandvars
 from datetime import datetime
+from os import cpu_count, system
 
 from bio_types import *
 
@@ -158,3 +159,32 @@ def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: List[str
     for i, f in enumerate(filenames):
         script.write("#   R{R} = {F}\n".format(F=f, R=i))
     script.write("#\n")
+
+
+def pipelineDriver(
+    panel_choices: List[str],
+    panel_choice_help: str,
+    defineArguments,
+    verifyFileNames,
+    getFileNames,
+    specificPipelineRunner,
+):
+    opts = defineArguments(panel_choices, panel_choice_help)
+    options = fixupPathOptions(opts)
+    verifyFileNames(options)
+    verifyOptions(options)
+
+    filenames = getFileNames(options)
+
+    with open(options["script"], "w+") as script:
+        script.truncate(0)
+
+        script.write("#!/usr/bin/env bash\n")
+
+        writeHeader(script, options, filenames)
+        writeVersions(script)
+        writeEnvironment(script, options)
+
+        specificPipelineRunner(script, options, filenames)
+
+    system("chmod +x " + options["script"])

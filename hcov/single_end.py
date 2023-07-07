@@ -4,8 +4,8 @@ from os.path import exists, expandvars
 from os import cpu_count, system
 
 from bio_types import *
-from common import *
 from bio_methods import *
+from common import pipelineDriver
 
 fallback_warning_shown = False
 
@@ -444,33 +444,16 @@ def verifyFileNames(options: OptionsDict):
     quit(1)
 
 
+def runSingleEndPipeline(script: TextIOWrapper, options: OptionsDict, filenames):
+    commonPipeline(script, options, filenames, preprocessAndAlign)
+
+
 def main(panel_choices: List[str], panel_choice_help: str):
-    opts = defineArguments(panel_choices, panel_choice_help)
-    options = fixupPathOptions(opts)
-    verifyFileNames(options)
-    verifyOptions(options)
-
-    filenames = getFileNames(options)
-
-    with open(options["script"], "w+") as script:
-        script.truncate(0)
-
-        script.write("#!/usr/bin/env bash\n")
-
-        writeHeader(script, options, filenames)
-        writeVersions(script)
-        writeEnvironment(script, options)
-
-        preprocessAndAlign(script, options)
-        sortAndExtractUnmapped(script, options)
-        runVariantPipeline(script, options)
-
-        # we'll wait here to make sure all the background stuff is done before we
-        # run multiqc and cleanup
-        script.write('logthis "${green}Done with front-end processing${reset}"\n')
-
-        if options["runQc"] == True:
-            doQualityControl(script, options, filenames)
-            script.write('logthis "${green}Done with back-end processing${reset}"\n')
-
-    system("chmod +x " + options["script"])
+    pipelineDriver(
+        panel_choices,
+        panel_choice_help,
+        defineArguments,
+        verifyFileNames,
+        getFileNames,
+        runSingleEndPipeline,
+    )
