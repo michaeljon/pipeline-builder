@@ -2,7 +2,7 @@ from io import TextIOWrapper
 from argparse import ArgumentParser, Namespace
 from os.path import exists, expandvars
 from datetime import datetime
-from os import cpu_count, system, path
+from os import cpu_count, system, path, mkdir
 import sys
 import json
 
@@ -75,24 +75,37 @@ export PATH={WORKING}/bin/FastQC:{WORKING}/bin:$PATH\n""".format(
 def fixupPathOptions(opts: Namespace) -> OptionsDict:
     options = vars(opts)
 
+    if options["sample"] == None:
+        print("--sample is a required option")
+        quit(1)
+
     if options["working"] == None:
         options["working"] = "$HOME"
+
     if options["bin"] == None:
         options["bin"] = "{WORKING}/bin".format(WORKING=options["working"])
     if options["lib"] == None:
         options["lib"] = "{WORKING}/lib".format(WORKING=options["working"])
     if options["reference"] == None:
         options["reference"] = "{WORKING}/reference".format(WORKING=options["working"])
-    if options["pipeline"] == None:
-        options["pipeline"] = "{WORKING}/pipeline".format(WORKING=options["working"])
-    if options["stats"] == None:
-        options["stats"] = "{WORKING}/stats".format(WORKING=options["working"])
     if options["temp"] == None:
         options["temp"] = "{WORKING}/temp".format(WORKING=options["working"])
 
-    if options["sample"] == None:
-        print("--sample is a required option")
-        quit(1)
+    if options["pipeline"] == None:
+        options["pipeline"] = "{WORKING}/pipeline/{SAMPLE}".format(
+            WORKING=options["working"],
+            SAMPLE=options["sample"],
+        )
+    if options["stats"] == None:
+        options["stats"] = "{WORKING}".format(
+            WORKING=options["pipeline"],
+        )
+
+    if options["script"] == None:
+        options["script"] = "{OUTPUT}/{SAMPLE}_runner".format(
+            OUTPUT=options["pipeline"],
+            SAMPLE=options["sample"],
+        )
 
     for opt in [
         "working",
@@ -111,7 +124,6 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
 
 def defineArguments(references: List[str], defineExtraArguments) -> Namespace:
     parser = ArgumentParser()
-    parser.set_defaults(doQC=False, cleanIntermediateFiles=True)
 
     parser.add_argument(
         "--sample",
@@ -287,7 +299,6 @@ def defineArguments(references: List[str], defineExtraArguments) -> Namespace:
         action="store",
         metavar="SHELL_SCRIPT",
         dest="script",
-        default="pipeline-runner",
         help="Filename of bash shell to create",
     )
 
@@ -334,12 +345,10 @@ def verifyOptions(options: OptionsDict):
         quit(1)
 
     if exists(options["pipeline"]) == False:
-        print("Unable to find your --pipeline-dir directory at {PATH}".format(PATH=options["pipeline"]))
-        quit(1)
+        mkdir(options["pipeline"])
 
     if exists(options["stats"]) == False:
-        print("Unable to find your --stats-dir directory at {PATH}".format(PATH=options["stats"]))
-        quit(1)
+        mkdir(options["stats"])
 
 
 def writeHeader(script: TextIOWrapper, options: OptionsDict, filenames: List[str]):
