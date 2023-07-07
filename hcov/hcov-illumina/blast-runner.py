@@ -18,7 +18,9 @@ panel_choices = [
     "NC_038311.1",
     "NC_038312.1",
     "NC_038878.1",
-    "panel",
+    "NC_001612.1",
+    "NC_001472.1",
+    "NC_001430.1",
 ]
 
 panel_choice_help = (
@@ -31,7 +33,9 @@ panel_choice_help = (
     + "(NC_038311.1, hrv-a), "
     + "(NC_038312.1, hrv-b), "
     + "(NC_038878.1, hrv-c), "
-    + "(panel, combined panel of all organisms)"
+    + "(NC_001612.1, hev-a), "
+    + "(NC_001472.1, hev-b), "
+    + "(NC_001430.1, hev-d), "
 )
 
 

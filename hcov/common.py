@@ -83,11 +83,11 @@ def fixupPathOptions(opts: Namespace) -> OptionsDict:
     if options["pipeline"] == None:
         options["pipeline"] = "{WORKING}/pipeline".format(WORKING=options["working"])
     if options["fastq_dir"] == None:
-        options["fastq_dir"] = "{WORKING}/pipeline".format(WORKING=options["working"])
+        options["fastq_dir"] = "{WORKING}/fastq".format(WORKING=options["working"])
     if options["stats"] == None:
         options["stats"] = "{WORKING}/stats".format(WORKING=options["working"])
     if options["temp"] == None:
-        options["temp"] = "{WORKING}/pipeline".format(WORKING=options["working"])
+        options["temp"] = "{WORKING}/temp".format(WORKING=options["working"])
 
     if options["sample"] == None:
         print("--sample is a required option")

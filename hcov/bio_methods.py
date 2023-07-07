@@ -118,6 +118,56 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict):
         sortWithSamtools(script, options)
 
 
+def extractUmappedReads(script: TextIOWrapper, options: OptionsDict):
+    pipeline = options["pipeline"]
+    sample = options["sample"]
+
+    script.write(
+        """
+#
+# extract unmapped reads
+#
+if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped.fastq ]]; then
+    logthis "${{yellow}}Extracting unmapped reads${{reset}}"
+
+    samtools fastq -N -f 4 \\
+        -0 {PIPELINE}/{SAMPLE}_unmapped_other.fastq \\
+        -s {PIPELINE}/{SAMPLE}_unmapped_singleton.fastq \\
+        -1 {PIPELINE}/{SAMPLE}_unmapped.fastq \\
+        {PIPELINE}/{SAMPLE}.aligned.bam
+
+    logthis "${{yellow}}Unmapped read extraction completed${{reset}}"
+else
+    logthis "Unmapped reads extracted to initial FASTQ, ${{green}}skipping${{reset}}"
+fi
+    """.format(
+            SAMPLE=sample,
+            PIPELINE=pipeline,
+        )
+    )
+
+
+def alignAndSort(script: TextIOWrapper, options: OptionsDict):
+    processUnmapped = options["processUnmapped"]
+    alignOnly = options["alignOnly"]
+
+    sortAlignedAndMappedData(script, options)
+    generateDepth(script, options)
+
+    if processUnmapped == True:
+        extractUmappedReads(script, options)
+
+    if alignOnly == True:
+        script.write(
+            """
+
+# align-only flag set
+logthis "align-only set, exiting pipeline early"
+exit
+"""
+        )
+
+
 def callVariants(script: TextIOWrapper, options: OptionsDict):
     sample = options["sample"]
     pipeline = options["pipeline"]
@@ -291,7 +341,10 @@ def runVariantPipeline(script: TextIOWrapper, options: OptionsDict):
     script.write("\n")
 
     callVariants(script, options)
-    annotate(script, options)
+    if options["__canAnnotateVariants"] == True:
+        annotate(script, options)
+    if options["__canAssignClades"] == True:
+        assignClade(script, options)
 
     script.write("\n")
 

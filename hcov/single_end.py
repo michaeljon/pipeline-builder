@@ -175,126 +175,17 @@ fi
     )
 
 
-def runHisatAligner(
-    script: TextIOWrapper,
-    r1: str,
-    options: OptionsDict,
-):
-    reference = options["reference"]
-    assembly = options["referenceAssembly"]
-    sample = options["sample"]
-    pipeline = options["pipeline"]
-    threads = options["cores"]
-    bin = options["bin"]
-
-    script.write(
-        """
-#
-# align the input files
-#
-if [[ ! -f {PIPELINE}/{SAMPLE}.aligned.bam ]]; then
-    logthis "${{yellow}}Running aligner${{reset}}"
-
-    hisat2 \\
-            -x {REFERENCE}/{ASSEMBLY} \\
-            -1 {R1} \\
-            --rg-id "ID:{SAMPLE}" \\
-            --rg "PL:IONTORRENT" \\
-            --rg "PU:unspecified" \\
-            --rg "LB:{SAMPLE}" \\
-            --rg "SM:{SAMPLE}" \\
-            --no-spliced-alignment \\
-            --no-unal \\
-            --threads {THREADS} | 
-    samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.aligned.bam
-
-    logthis "${{yellow}}Alignment completed${{reset}}"
-else
-    logthis "{PIPELINE}/{SAMPLE}.aligned.bam, aligned temp file found, ${{green}}skipping${{reset}}"
-fi
-""".format(
-            R1=r1,
-            REFERENCE=reference,
-            ASSEMBLY=assembly,
-            SAMPLE=sample,
-            THREADS=threads,
-            PIPELINE=pipeline,
-            BIN=bin,
-        )
-    )
-
-
-def alignFASTQ(
-    script: TextIOWrapper,
-    r1: str,
-    options: OptionsDict,
-):
-    aligner = options["aligner"]
-
-    if aligner == "bwa" or aligner == "bwa-mem2":
-        runBwaAligner(script, r1, options)
-    elif aligner == "hisat2":
-        runHisatAligner(script, r1, options)
-    else:
-        print("Unexpected value {ALIGNER} given for the --aligner option".format(ALIGNER=aligner))
-        quit(1)
-
-    pass
-
-
-def extractUmappedReads(script: TextIOWrapper, options: OptionsDict):
-    pipeline = options["pipeline"]
-    sample = options["sample"]
-
-    script.write(
-        """
-#
-# extract unmapped reads
-#
-if [[ ! -f {PIPELINE}/{SAMPLE}_unmapped_R1.fastq ]]; then
-    logthis "${{yellow}}Extracting unmapped reads${{reset}}"
-
-    samtools fastq -N -f 4 \\
-        -0 {PIPELINE}/{SAMPLE}_unmapped_other.fastq \\
-        -s {PIPELINE}/{SAMPLE}_unmapped_singleton.fastq \\
-        -1 {PIPELINE}/{SAMPLE}_unmapped.fastq \\
-        {PIPELINE}/{SAMPLE}.aligned.bam
-
-    logthis "${{yellow}}Unmapped read extraction completed${{reset}}"
-else
-    logthis "Unmapped reads extracted to initial FASTQ, ${{green}}skipping${{reset}}"
-fi
-    """.format(
-            SAMPLE=sample,
-            PIPELINE=pipeline,
-        )
-    )
-
-
-def alignAndSort(script: TextIOWrapper, options: OptionsDict):
-    processUnmapped = options["processUnmapped"]
-    alignOnly = options["alignOnly"]
-
+def preprocessAndAlign(script: TextIOWrapper, options: OptionsDict):
     filenames = getFileNames(options)
     trimmedFilenames = getTrimmedFileNames(options)
 
-    preprocessFASTQ(script, filenames[0], trimmedFilenames[0], options)
-    alignFASTQ(script, trimmedFilenames[0], options)
-    sortAlignedAndMappedData(script, options)
-    generateDepth(script, options)
-
-    if processUnmapped == True:
-        extractUmappedReads(script, options)
-
-    if alignOnly == True:
-        script.write(
-            """
-
-# align-only flag set
-logthis "align-only set, exiting pipeline early"
-exit
-"""
-        )
+    preprocessFASTQ(
+        script,
+        filenames[0],
+        trimmedFilenames[0],
+        options,
+    )
+    runBwaAligner(script, trimmedFilenames[0], options)
 
 
 def defineArguments(panel_choices: List[str], panel_choice_help: str) -> Namespace:
@@ -400,8 +291,8 @@ def defineArguments(panel_choices: List[str], panel_choice_help: str) -> Namespa
         action="store",
         dest="aligner",
         default="bwa",
-        choices=["bwa", "bwa-mem2", "hisat2"],
-        help="Use 'bwa', 'bwa-mem2', or 'hisat2' as the aligner.",
+        choices=["bwa", "bwa-mem2"],
+        help="Use 'bwa' or 'bwa-mem2' as the aligner.",
     )
 
     parser.add_argument(
@@ -570,9 +461,9 @@ def main(panel_choices: List[str], panel_choice_help: str):
         writeVersions(script)
         writeEnvironment(script, options)
 
+        preprocessAndAlign(script, options)
         alignAndSort(script, options)
         runVariantPipeline(script, options)
-        assignClade(script, options)
 
         # we'll wait here to make sure all the background stuff is done before we
         # run multiqc and cleanup
