@@ -416,10 +416,12 @@ def doQualityControl(script: TextIOWrapper, options: OptionsDict, reference):
     sample = options["sample"]
     stats = options["stats"]
 
-    plot_vcfstats = """plot-vcfstats --prefix {STATS}/{SAMPLE}.{ORGANISM}_bcfstats {STATS}/{SAMPLE}.chk""".format(
-        SAMPLE=sample,
-        STATS=stats,
-        ORGANISM=reference["common"],
+    plot_vcfstats = (
+        """plot-vcfstats --prefix {STATS}/{SAMPLE}.{ORGANISM}_bcfstats {STATS}/{SAMPLE}.{ORGANISM}.chk""".format(
+            SAMPLE=sample,
+            STATS=stats,
+            ORGANISM=reference["common"],
+        )
     )
 
     # this doesn't have a test, it's fast enough that we can afford to run it
