@@ -504,7 +504,6 @@ fi
 
 
 def generateDepth(script: TextIOWrapper, options: OptionsDict, reference):
-    referenceAssembly = reference["common"]
     pipeline = options["pipeline"]
     sample = options["sample"]
 
@@ -516,14 +515,13 @@ def generateDepth(script: TextIOWrapper, options: OptionsDict, reference):
 if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.depth.gz ]]; then
     logthis "${{yellow}}Calculating depth by position${{reset}}"
 
-    samtools depth -@ 8 -aa -a -J --reference {REFERENCE_ASSEMBLY} {PIPELINE}/{SAMPLE}.{ORGANISM}.sorted.bam | gzip >{PIPELINE}/{SAMPLE}.{ORGANISM}.depth.gz
+    samtools depth -@ 8 -aa -a -J {PIPELINE}/{SAMPLE}.{ORGANISM}.sorted.bam | gzip >{PIPELINE}/{SAMPLE}.{ORGANISM}.depth.gz
 
     logthis "${{yellow}}Depth calculation complete${{reset}}"
 else
     logthis "Depth calculation already complete, ${{green}}skipping${{reset}}"
 fi
     """.format(
-            REFERENCE_ASSEMBLY=referenceAssembly,
             SAMPLE=sample,
             PIPELINE=pipeline,
             ORGANISM=reference["common"],
