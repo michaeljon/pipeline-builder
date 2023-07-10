@@ -15,7 +15,6 @@ import genome_operations
 
 def defineArguments():
     parser = ArgumentParser()
-    parser.set_defaults(doQC=False, cleanIntermediateFiles=True)
 
     parser.add_argument(
         "--sample",
