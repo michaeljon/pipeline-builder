@@ -47,9 +47,8 @@ with gzip.open(depth_file, "rt") as f:
             elements = line.split("\t")
 
             if organism == "*" or organism == sequence_organisms[elements[0]]:
-                pos = int(elements[1])
-
                 target = feature_data[sequence_organisms[elements[0]]]
+                pos = int(elements[1])
                 depth = int(elements[2])
 
                 target["region_data"][pos - 1] = depth
@@ -65,11 +64,11 @@ to_process = [k for k in feature_data if organism == "*" or organism == k]
 for ok in to_process:
     region_data = feature_data[ok]["region_data"]
     with open(dest + "/" + sample + "_" + ok + "__all" + ".tsv", "w") as f:
+        target = feature_data[ok]
+        genes = target["genes"]
+
         f.write("sample\torganism\tgene\tposition\tdepth\n")
         for position in range(len(region_data)):
-            target = feature_data[ok]
-            genes = target["genes"]
-
             gene_name = "<*>"
             for g in genes:
                 gene = genes[g]

@@ -59,7 +59,7 @@ def defineArguments() -> Namespace:
         help="Full path to file holding coverage data for sample",
     )
     parser.add_argument(
-        "-f",
+        "-r",
         "--region-file",
         required=True,
         action="store",
@@ -67,6 +67,16 @@ def defineArguments() -> Namespace:
         dest="regionFile",
         default="hcov-regions.json",
         help="Full path to hcov-regions.json",
+    )
+    parser.add_argument(
+        "-f",
+        "--organism",
+        required=True,
+        action="store",
+        metavar="ORGANISM",
+        dest="organism",
+        default="*",
+        help="Name of target organism, or '*' to process all",
     )
     parser.add_argument(
         "-o",
@@ -167,7 +177,6 @@ def calculateGaps(coverageData: CoverageData, featureData, minDepth: int) -> Gap
                     depths.append(coverageData[org][locus])
 
                     locus += 1
-
 
                 gaps[org].append(
                     {
@@ -291,7 +300,7 @@ def writeRow(writer: csv.DictWriter, sample, gap, overlay, type):
     )
 
 
-def writeOutput(overlays: OverlayList, coverageFile: str, featureData: Any, sample: str):
+def writeOutput(overlays: OverlayList, organism: str, coverageFile: str, featureData: Any, sample: str):
     with open(coverageFile, "w") as f:
         writer = csv.DictWriter(
             f,
@@ -323,7 +332,8 @@ def writeOutput(overlays: OverlayList, coverageFile: str, featureData: Any, samp
         )
         writer.writeheader()
 
-        for org in featureData.keys():
+        to_process = [k for k in featureData if organism == "*" or organism == k]
+        for org in to_process:
             uniqueOverlayKeys = set()
             uniqueOverlays = list()
 
@@ -359,7 +369,7 @@ def main():
     overlays = overlay(gapData, featureData)
 
     # write the output
-    writeOutput(overlays, options["outputFile"], featureData, options["sample"])
+    writeOutput(overlays, options["organism"], options["outputFile"], featureData, options["sample"])
 
 
 if __name__ == "__main__":
