@@ -222,8 +222,6 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam ]]; then
     {ALIGNER} mem \\
         -R "@RG\\tID:{SAMPLE}\\tPL:{INSTRUMENT}\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
         -t {THREADS} \\
-        -Y \\
-        -M \\
         -v 1 \\
         {REFERENCE_ASSEMBLY} \\
         {R1} \\

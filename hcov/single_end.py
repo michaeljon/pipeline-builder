@@ -134,11 +134,10 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam ]]; then
     {ALIGNER} mem \\
         -R "@RG\\tID:{SAMPLE}\\tPL:{INSTRUMENT}\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
         -t {THREADS} \\
-        -Y \\
-        -M \\
         -v 1 \\
         -S \\
         -P \\
+        -a \\
         {REFERENCE_ASSEMBLY} \\
         {R1} | 
     samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam
