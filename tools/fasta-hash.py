@@ -17,11 +17,11 @@ known_references = {
 }
 
 reference_to_path = {
-    "105c82802b67521950854a851fc6eefd": "/home/michaeljon/pipeline/reference/sars-cov-2/GCA_009858895.3_ASM985889v3_genomic.fna",
-    "2cd494e3006b363034acb3988a135b4b": "/home/michaeljon/pipeline/reference/hcov-229e/GCA_000853505.1_ViralProj14913_genomic.fna",
-    "44be42f112c97e6a84d690636e28b13f": "/home/michaeljon/pipeline/reference/hcov-nl63/GCA_000853865.1_ViralProj14960_genomic.fna",
-    "9cf54db346dedfb6b43dfd68b4c7bc51": "/home/michaeljon/pipeline/reference/hcov-hku1/GCA_000858765.1_ViralProj15139_genomic.fna",
-    "f34f1e552c7a5e94ac72c509b93ac2c4": "/home/michaeljon/pipeline/reference/hcov-oc43/GCA_003972325.1_ASM397232v1_genomic.fna",
+    "105c82802b67521950854a851fc6eefd": "/Users/michaeljon/pipeline/reference/sars-cov-2/GCA_009858895.3_ASM985889v3_genomic.fna",
+    "2cd494e3006b363034acb3988a135b4b": "/Users/michaeljon/pipeline/reference/hcov-229e/GCA_000853505.1_ViralProj14913_genomic.fna",
+    "44be42f112c97e6a84d690636e28b13f": "/Users/michaeljon/pipeline/reference/hcov-nl63/GCA_000853865.1_ViralProj14960_genomic.fna",
+    "9cf54db346dedfb6b43dfd68b4c7bc51": "/Users/michaeljon/pipeline/reference/hcov-hku1/GCA_000858765.1_ViralProj15139_genomic.fna",
+    "f34f1e552c7a5e94ac72c509b93ac2c4": "/Users/michaeljon/pipeline/reference/hcov-oc43/GCA_003972325.1_ASM397232v1_genomic.fna",
 }
 
 supported_references = {
@@ -138,10 +138,7 @@ for fa in range(2, len(sys.argv)):
     ops = editops(target_fasta["fasta"], fasta["fasta"])
     dist = len(ops)
 
-    sample = re.sub("-(hcov|sars)-.*fa", "", os.path.basename(sys.argv[fa]))
-
-    if "freebayes" in os.path.basename(sys.argv[fa]):
-        sample += "-freebayes"
+    sample = re.sub(".(hcov|sars)-[a-z0-9]+.consensus.fa", "", os.path.basename(sys.argv[fa]))
 
     org, acc = reference_to_organism_accession[sys.argv[1]]
 
