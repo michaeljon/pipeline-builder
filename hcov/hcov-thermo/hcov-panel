@@ -3,6 +3,7 @@
 SAMPLE=$1
 FASTQ=$2
 CHIP=$3
+SEQUENCE_RUNID=${SAMPLE}
 
 ORGANISMS="hcov-panel"
 

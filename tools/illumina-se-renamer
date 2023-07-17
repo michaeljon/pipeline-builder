@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+BATCH=$1
+SAMPLE_LIST=$2
+
+/bin/ls -1 ${PIPELINE_ROOT}/fastq/${BATCH} |
+    awk -vBATCH=${BATCH} -vPATH=$(realpath ${PIPELINE_ROOT}/fastq/${BATCH}) '
+        BEGIN { 
+            printf "deid\tsample\tl1\tl2\tl3\tl4\n" \
+        } 
+        
+        /_L001_/ { 
+            L1 = $1
+            L2 = $1
+            L3 = $1
+            L4 = $1
+
+            sub(/_L001_/, "_L001_", L1);
+            sub(/_L001_/, "_L002_", L2);
+            sub(/_L001_/, "_L003_", L3);
+            sub(/_L001_/, "_L004_", L4);
+
+            L1 = PATH "/" L1
+            L2 = PATH "/" L2
+            L3 = PATH "/" L3
+            L4 = PATH "/" L4
+
+            split($0, s, /_/); 
+            "uuidgen" | getline uuid; close("uuidgen")
+            printf "%s\t%s\t%s\t%s\t%s\t%s\n", uuid, s[1], L1, L2, L3, L4
+        }' >${SAMPLE_LIST}
