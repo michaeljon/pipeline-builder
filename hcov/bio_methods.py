@@ -55,6 +55,8 @@ fi
         )
     )
 
+    return sorted
+
 
 def extractUmappedReads(script: TextIOWrapper, options: OptionsDict, reference):
     pipeline = options["pipeline"]
@@ -96,7 +98,7 @@ def sortAndExtractUnmapped(script: TextIOWrapper, options: OptionsDict, referenc
     processUnmapped = options["processUnmapped"]
     alignOnly = options["alignOnly"]
 
-    sortAlignedAndMappedData(script, options, reference)
+    sortedBamFile = sortAlignedAndMappedData(script, options, reference)
     generateDepth(script, options, reference)
 
     if processUnmapped == True:
@@ -111,6 +113,7 @@ logthis "align-only set, exiting pipeline early"
 exit
 """
         )
+    return sortedBamFile
 
 
 def callVariants(script: TextIOWrapper, options: OptionsDict, reference):
@@ -185,11 +188,27 @@ fi
     )
 
 
-def runVariantPipeline(script: TextIOWrapper, options: OptionsDict, reference):
+def runVariantPipeline(script: TextIOWrapper, options: OptionsDict, reference, sortedBamFile):
     script.write("\n")
 
+    # Only call variants if the coverage is relatively high
+    script.write(
+        """
+ORGANISM_COVERAGE=$(samtools coverage -d 0 --reference {REFERENCE_ASSEMBLY} {SORTED} | tail +2 | cut -f6)
+if (( $(echo "${{ORGANISM_COVERAGE}} >= 95.0" | bc -l) )); then
+""".format(
+        REFERENCE_ASSEMBLY=reference["assembly"],
+        SORTED=sortedBamFile,
+    )
+)
     callVariants(script, options, reference)
-    script.write("\n")
+
+    script.write(
+        """
+else
+    logthis "${{yellow}}Skipping variant calling due to low coverage of ${{ORGANISM_COVERAGE}}%${{reset}}"
+fi
+    """.format())
 
 
 def doVariantQC(script: TextIOWrapper, options: OptionsDict, reference):
@@ -546,9 +565,12 @@ def commonPipeline(
     for requestReference in options["references"]:
         reference = references[requestReference]
 
+        script.write("CURRENT_REFERENCE='{}'".format(reference["accession"]))
+
         align(script, options, reference)
-        sortAndExtractUnmapped(script, options, reference)
-        runVariantPipeline(script, options, reference)
+        sortedBamFile = sortAndExtractUnmapped(script, options, reference)
+
+        runVariantPipeline(script, options, reference, sortedBamFile)
 
         if options["runQc"] == True:
             doQualityControl(script, options, reference)

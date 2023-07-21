@@ -42,9 +42,10 @@ reset=$(tput sgr0)
     script.write("#\n")
     script.write(
         """
+CURRENT_REFERENCE='*';
 function logthis() {{
   NOW=$(date "+%Y-%m-%d %H:%M:%S")
-  echo -e "[${{NOW}}] ${{1}}"
+  echo -e "[${{NOW}}] (${{CURRENT_REFERENCE}}) ${{1}}"
 }}
 
 # deal with really large fastq files
