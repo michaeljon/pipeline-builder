@@ -45,7 +45,7 @@ reset=$(tput sgr0)
 CURRENT_REFERENCE='*';
 function logthis() {{
   NOW=$(date "+%Y-%m-%d %H:%M:%S")
-  echo -e "[${{NOW}}] (${{CURRENT_REFERENCE}}) ${{1}}"
+  echo -e "[${{NOW}} - {SAMPLE} - ${{CURRENT_REFERENCE}}] ${{1}}"
 }}
 
 # deal with really large fastq files
@@ -67,7 +67,8 @@ export BCFTOOLS_PLUGINS={WORKING}/libexec/bcftools
 
 # handy path
 export PATH={WORKING}/bin/FastQC:{WORKING}/bin:$PATH\n""".format(
-            WORKING=options["working"]
+            SAMPLE=options["sample"],
+            WORKING=options["working"],
         )
     )
     script.write("\n")
