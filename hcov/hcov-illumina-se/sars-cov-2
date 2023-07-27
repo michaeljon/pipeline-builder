@@ -1,34 +1,37 @@
 #!/usr/bin/env bash
 
 SAMPLE=$1
-FASTQ=$2
-CHIP=$3
+BATCH=$2
+LANE1=$3
+LANE2=$4
+LANE3=$5
+LANE4=$6
+
 SEQUENCE_RUNID=${SAMPLE}
 
-ORGANISM=hrv-b
+ORGANISM=sars-cov-2
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
     exit 1
 fi
 
-echo Starting ${SAMPLE} run
+echo Starting ${BATCH}/${SAMPLE} run
 
 # give us a place to work
 rm -rf ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}
 mkdir -p ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}
 
 # build the pipeline
-python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hcov-runner.py \
+python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-illumina-se/hcov-runner.py \
     --no-color \
     --sample ${SAMPLE} \
-    --fastq ${FASTQ} \
+    --fastqs ${LANE1} ${LANE2} ${LANE3} ${LANE4} \
     --work-dir ${PIPELINE_ROOT} \
     --references ${ORGANISM} \
-    --aligner bwa \
-    --preprocessor cutadapt
+    --aligner bwa
 
 # run the pipeline
-bash ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SAMPLE}_runner >${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SAMPLE}.log 2>&1
+bash ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}_runner >${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SEQUENCE_RUNID}.log 2>&1
 
 echo Finished ${SAMPLE} run in ${SEQUENCE_RUNID}

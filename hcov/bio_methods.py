@@ -129,6 +129,8 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.unannotated.vcf.gz ]]; then
     freebayes \\
         --fasta-reference {REFERENCE_ASSEMBLY} \\
         --ploidy 1 \\
+        --max-complex-gap 18 \\
+        --use-duplicate-reads \\
         {PIPELINE}/{SAMPLE}.{ORGANISM}.sorted.bam >{PIPELINE}/{SAMPLE}.{ORGANISM}.tmp.vcf
 
     logthis "Normalizing called variants"
@@ -140,7 +142,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.unannotated.vcf.gz ]]; then
         {PIPELINE}/{SAMPLE}.{ORGANISM}.tmp.vcf
 
     logthis "Filtering called variants"
-    bcftools filter -i "QUAL > 1500" \\
+    bcftools filter -i "QUAL>100 & INFO/DP>=10 " \\
         -o {PIPELINE}/{SAMPLE}.{ORGANISM}.filtered.bcf \\
         -Ou \\
         {PIPELINE}/{SAMPLE}.{ORGANISM}.norm.bcf
@@ -532,12 +534,14 @@ fi
 def commonPipeline(
     script: TextIOWrapper,
     options: OptionsDict,
+    instrument: str,
     filenames,
     references,
     preprocess,
     align,
 ):
     preprocess(script, options)
+    options["_instrument"] = instrument
 
     for requestReference in options["references"]:
         reference = references[requestReference]

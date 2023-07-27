@@ -121,6 +121,7 @@ def runBwaAligner(
     pipeline = options["pipeline"]
     threads = options["cores"]
     bin = options["bin"]
+    instrument = options["_instrument"]
 
     script.write(
         """
@@ -131,13 +132,12 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam ]]; then
     logthis "${{yellow}}Running aligner${{reset}}"
 
     {ALIGNER} mem \\
-        -R "@RG\\tID:{SAMPLE}\\tPL:IONTORRENT\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
+        -R "@RG\\tID:{SAMPLE}\\tPL:{INSTRUMENT}\\tPU:unspecified\\tLB:{SAMPLE}\\tSM:{SAMPLE}" \\
         -t {THREADS} \\
-        -Y \\
-        -M \\
         -v 1 \\
         -S \\
         -P \\
+        -a \\
         {REFERENCE_ASSEMBLY} \\
         {R1} | 
     samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam
@@ -150,6 +150,7 @@ fi
 """.format(
             ALIGNER=aligner,
             R1=r1,
+            INSTRUMENT=instrument,
             REFERENCE_ASSEMBLY=referenceAssembly,
             ORGANISM=reference["common"],
             SAMPLE=sample,
@@ -215,6 +216,7 @@ def main():
         lambda script, options, filenames, references: commonPipeline(
             script,
             options,
+            "IonTorrent",
             filenames,
             references,
             preprocess,

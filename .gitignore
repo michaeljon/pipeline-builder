@@ -32,6 +32,10 @@ hcov/hcov-thermo/samples
 hcov/hcov-thermo/logs/
 hcov/hcov-thermo/jobs/
 
+hcov/hcov-illumina-se/samples
+hcov/hcov-illumina-se/logs/
+hcov/hcov-illumina-se/jobs/
+
 human/samples
 
 rna-pipeline/working*

@@ -3,6 +3,7 @@
 SAMPLE=$1
 FASTQ=$2
 CHIP=$3
+SEQUENCE_RUNID=${SAMPLE}
 
 ORGANISM=hcov-229e
 
@@ -28,6 +29,6 @@ python ${PIPELINE_ROOT}/pipeline-builder/hcov/hcov-thermo/hcov-runner.py \
     --preprocessor cutadapt
 
 # run the pipeline
-bash ${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}_runner >${PIPELINE_ROOT}/pipeline/${SAMPLE}/${ORGANISM}/${SAMPLE}.log 2>&1
+bash ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SAMPLE}_runner >${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}/${SAMPLE}.log 2>&1
 
 echo Finished ${SAMPLE} run in ${SEQUENCE_RUNID}
