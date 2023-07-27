@@ -125,7 +125,7 @@ if (!is.na(median_depth) && median_depth >= min_median_depth) {
     position <- if (g %% 2 == 0) {
       as.integer(max_depth * 0.95)
     } else {
-      as.integer(0)
+      as.integer(1)
     }
 
     positions <- append(
@@ -152,10 +152,9 @@ if (!is.na(median_depth) && median_depth >= min_median_depth) {
   suppressWarnings(
     print(
       ggplot(data = df, mapping = aes(x = position, y = depth)) +
-        # ylim(0, NA) +
-        scale_y_continuous(trans = "log10", limits = c(1, 1e5)) +
-        xlab("Position in organism") +
-        ylab("Depth (log10)") +
+        scale_y_continuous(
+          trans = "log10", limits = c(1, as.integer(max_depth))
+        ) +
         geom_line(color = "darkgray") +
         geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs")) +
         geom_vline(
@@ -172,6 +171,8 @@ if (!is.na(median_depth) && median_depth >= min_median_depth) {
         ) +
         theme_hc(base_size = 16) +
         labs(
+          y = expression(atop("Depth", atop(italic("(log 10)")))),
+          x = expression(atop("Position in organism")),
           title = sprintf("Sample: %s", sample),
           subtitle = sprintf("Organism: %s", organism),
           caption = paste(
@@ -184,6 +185,7 @@ if (!is.na(median_depth) && median_depth >= min_median_depth) {
           "text",
           x = partitions,
           y = positions,
+          color = "#FF7777",
           label = labels,
           angle = 45,
           size = 3
@@ -214,14 +216,17 @@ for (g in 1:nrow(gene_list)) {
       pull(depth) %>%
       min(na.rm = FALSE)
 
+    max_depth <- df %>%
+      pull(depth) %>%
+      max(na.rm = FALSE)
+
     if (!is.na(median_depth) && median_depth >= min_median_depth) {
       suppressWarnings(
         print(
           ggplot(data = df, mapping = aes(x = position, y = depth)) +
-            # ylim(0, NA) +
-            scale_y_continuous(trans = "log10", limits = c(1, 1e5)) +
-            xlab("Base relative to full genome") +
-            ylab("Depth (log10)") +
+            scale_y_continuous(
+              trans = "log10", limits = c(1, as.integer(max_depth))
+            ) +
             geom_line(color = "darkgray") +
             geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs")) +
             geom_hline(
@@ -232,6 +237,8 @@ for (g in 1:nrow(gene_list)) {
             ) +
             theme_hc(base_size = 16) +
             labs(
+              y = expression(atop("Depth", atop(italic("(log 10)")))),
+              x = expression(atop("Base relative to full genome")),
               title = sprintf("Feature: %s", gene$gene),
               subtitle = sprintf("Organism: %s", organism),
               caption = paste(
