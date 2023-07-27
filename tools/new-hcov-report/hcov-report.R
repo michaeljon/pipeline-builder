@@ -43,7 +43,24 @@ output <- paste0(outpath, "/", sample, "-", organism, ".pdf")
 min_median_depth <- 0
 min_coverage <- 95
 
-regions <- read_csv("./hcov-regions.csv", show_col_types = FALSE)
+getCurrentFileLocation <- function() {
+  this_file <- commandArgs() %>%
+    tibble::enframe(name = NULL) %>%
+    tidyr::separate(
+      col = value, into = c("key", "value"), sep = "=", fill = "right"
+    ) %>%
+    dplyr::filter(key == "--file") %>%
+    dplyr::pull(value)
+  if (length(this_file) == 0) {
+    this_file <- rstudioapi::getSourceEditorContext()$path
+  }
+  return(dirname(this_file))
+}
+
+regions <- read_csv(
+  paste0(getCurrentFileLocation(), "/hcov-regions.csv"),
+  show_col_types = FALSE
+)
 
 gene_list <- regions[regions$organism == organism, c("gene", "start", "stop")]
 organism_data <- read_tsv(input, col_names = TRUE, show_col_types = FALSE)
@@ -135,9 +152,10 @@ if (!is.na(median_depth) && median_depth >= min_median_depth) {
   suppressWarnings(
     print(
       ggplot(data = df, mapping = aes(x = position, y = depth)) +
-        ylim(0, NA) +
+        # ylim(0, NA) +
+        scale_y_continuous(trans = "log10", limits = c(1, 1e5)) +
         xlab("Position in organism") +
-        ylab("Depth") +
+        ylab("Depth (log10)") +
         geom_line(color = "darkgray") +
         geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs")) +
         geom_vline(
@@ -152,12 +170,6 @@ if (!is.na(median_depth) && median_depth >= min_median_depth) {
           linetype = "solid",
           linewidth = 1.0
         ) +
-        geom_hline(
-          yintercept = mean_depth,
-          color = "darkgreen",
-          linetype = "solid",
-          linewidth = 1.0
-        ) +
         theme_hc(base_size = 16) +
         labs(
           title = sprintf("Sample: %s", sample),
@@ -165,7 +177,6 @@ if (!is.na(median_depth) && median_depth >= min_median_depth) {
           caption = paste(
             "Min. depth: ", min_depth, "\n",
             "Median: ", as.integer(median_depth), "\n",
-            "Mean: ", as.integer(mean_depth), "\n",
             sep = ""
           )
         ) +
@@ -207,20 +218,15 @@ for (g in 1:nrow(gene_list)) {
       suppressWarnings(
         print(
           ggplot(data = df, mapping = aes(x = position, y = depth)) +
-            ylim(0, NA) +
+            # ylim(0, NA) +
+            scale_y_continuous(trans = "log10", limits = c(1, 1e5)) +
             xlab("Base relative to full genome") +
-            ylab("Depth") +
+            ylab("Depth (log10)") +
             geom_line(color = "darkgray") +
             geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs")) +
             geom_hline(
               yintercept = median_depth,
               color = "darkblue",
-              linetype = "solid",
-              linewidth = 1.0
-            ) +
-            geom_hline(
-              yintercept = mean_depth,
-              color = "darkgreen",
               linetype = "solid",
               linewidth = 1.0
             ) +
@@ -231,7 +237,6 @@ for (g in 1:nrow(gene_list)) {
               caption = paste(
                 "Min. depth: ", min_depth, "\n",
                 "Median: ", as.integer(median_depth), "\n",
-                "Mean: ", as.integer(mean_depth), "\n",
                 "Width: ", (gene$stop - gene$start + 1),
                 sep = ""
               )
