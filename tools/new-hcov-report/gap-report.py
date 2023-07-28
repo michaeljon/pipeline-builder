@@ -120,7 +120,7 @@ def verifyOptions(options: OptionsDict):
             quit(1)
 
 
-def loadFeatureData(regionFile: str):
+def loadFeatureData(regionFile: str, organism: str):
     feature_data = {}
 
     with open(regionFile) as f:
@@ -130,10 +130,13 @@ def loadFeatureData(regionFile: str):
         organism_to_sequence[k] = feature_data[k]["sequence"]
         sequence_to_organism[feature_data[k]["sequence"]] = k
 
+    if organism != "*":
+        feature_data = {organism: feature_data[organism]}
+
     return feature_data
 
 
-def loadCoverageData(coverageFile: str, featureData) -> CoverageData:
+def loadCoverageData(coverageFile: str, organism: str, featureData) -> CoverageData:
     coverageData = {}
 
     for org in featureData.keys():
@@ -144,44 +147,88 @@ def loadCoverageData(coverageFile: str, featureData) -> CoverageData:
         coverageData[org] = [0 for _ in range(start, stop + 1000)]
 
     with gzip.open(coverageFile, "rt") as f:
-        while line := f.readline().rstrip():
-            if line.startswith("#") == False:
-                elements = line.split("\t")
+        depthReader = csv.DictReader(f, ["accession", "position", "depth"], delimiter="\t")
 
-                organism = sequence_to_organism[elements[0]]
-                position = int(elements[1])
-                depth = int(elements[2])
+        for row in depthReader:
+            org = sequence_to_organism[row["accession"]]
+            position = int(row["position"])
+            depth = int(row["depth"])
 
-                coverageData[organism][position] = depth
+            coverageData[org][position] = depth
 
     return coverageData
 
 
-def calculateGaps(coverageData: CoverageData, featureData, minDepth: int) -> GapList:
+def calculateGaps(coverageData: CoverageData, sample, organism_data, minDepth: int) -> GapList:
     gaps = {}
 
-    for org in featureData.keys():
-        gaps[org] = []
+    for organism in organism_data.keys():
+        gaps[organism] = []
 
-        lociCount = len(coverageData[org])
-        locus = 1
+        for gene, feature in organism_data[organism]["genes"].items():
 
-        while locus < lociCount:
-            if coverageData[org][locus] < minDepth:
-                start = locus
-                deltas = []
-                depths = []
+            locus = int(feature["start"])
+            locusEnd = int(feature["stop"])
 
-                while locus < lociCount and coverageData[org][locus] < minDepth:
-                    deltas.append(minDepth - coverageData[org][locus])
-                    depths.append(coverageData[org][locus])
+            start = -1
+            deltas = []
+            depths = []
 
+            while locus <= locusEnd:
+                if coverageData[organism][locus] < minDepth:
+                    start = locus
+
+                    while locus <= locusEnd and coverageData[organism][locus] < minDepth:
+                        deltas.append(minDepth - coverageData[organism][locus])
+                        depths.append(coverageData[organism][locus])
+
+                        locus += 1
+
+                    quantileDepth = quantiles(depths, n=4, method="inclusive") if len(depths) > 2 else [0, 0, 0]
+                    quantileDelta = quantiles(deltas, n=4, method="inclusive") if len(deltas) > 2 else [0, 0, 0]
+
+                    gaps[organism].append(
+                        {
+                            "sample": sample,
+                            "organism": organism,
+                            "gene": gene,
+                            "gapStart": start,
+                            "gapEnd": locus - 1,
+                            "averageDepth": round(mean(depths), 2),
+                            "medianDepth": median(depths),
+                            "minDepth": min(depths),
+                            "maxDepth": max(depths),
+                            "stdevDepth": round(pstdev(depths), 2) if len(depths) > 2 else 0,
+                            "firstQuartileDepth": quantileDepth[0],
+                            "thirdQuartileDepth": quantileDepth[2],
+                            "averageDelta": round(mean(deltas), 2),
+                            "medianDelta": median(deltas),
+                            "minDelta": min(deltas),
+                            "maxDelta": max(deltas),
+                            "stdevDelta": round(pstdev(deltas), 2) if len(deltas) > 2 else 0,
+                            "firstQuartileDelta": quantileDelta[0],
+                            "thirdQuartileDelta": quantileDelta[2],
+                            "geneStart": int(feature["start"]),
+                            "geneEnd": int(feature["stop"]),
+                        }
+                    )
+
+                    deltas = []
+                    depths = []
+                else:
                     locus += 1
 
-                gaps[org].append(
+            if len(deltas) > 0 or len(depths) > 0:
+                # append the last one
+                quantileDepth = quantiles(depths, n=4, method="inclusive") if len(depths) > 2 else [0, 0, 0]
+                quantileDelta = quantiles(deltas, n=4, method="inclusive") if len(deltas) > 2 else [0, 0, 0]
+
+                gaps[organism].append(
                     {
-                        "start": start,
-                        "end": locus - 1,
+                        "organism": organism,
+                        "gene": gene,
+                        "gapStart": start,
+                        "gapEnd": locus - 1,
                         "averageDepth": round(mean(depths), 2),
                         "medianDepth": median(depths),
                         "minDepth": min(depths),
@@ -194,113 +241,44 @@ def calculateGaps(coverageData: CoverageData, featureData, minDepth: int) -> Gap
                         "maxDelta": max(deltas),
                         "stdevDelta": round(pstdev(deltas), 2) if len(deltas) > 2 else 0,
                         "quantileDelta": quantiles(deltas, n=4, method="inclusive") if len(deltas) > 2 else [0, 0, 0],
+                        "geneStart": int(feature["start"]),
+                        "geneEnd": int(feature["stop"]),
                     }
                 )
-            else:
-                locus += 1
 
     return gaps
 
 
-def gatherOverlays(overlays):
-    return [
-        {
-            "gene": overlay["gene"],
-            "type": overlay["type"],
-            "geneStart": overlay["start"],
-            "geneEnd": overlay["end"],
-        }
-        for overlay in overlays
-    ]
+# def writeRow(writer: csv.DictWriter, sample, gap, overlay, type):
+#     writer.writerow(
+#         {
+#             "sample": sample,
+#             "organism": gap["organism"],
+#             "gapStart": gap["gapStart"],
+#             "gapEnd": gap["gapEnd"],
+#             "gapSize": gap["gapSize"],
+#             "averageDepth": gap["averageDepth"],
+#             "medianDepth": gap["medianDepth"],
+#             "minDepth": gap["minDepth"],
+#             "maxDepth": gap["maxDepth"],
+#             "stdevDepth": gap["stdevDepth"],
+#             "firstQuartileDepth": gap["quantileDepth"][0],
+#             "thirdQuartileDepth": gap["quantileDepth"][2],
+#             "averageDelta": gap["averageDelta"],
+#             "medianDelta": gap["medianDelta"],
+#             "minDelta": gap["minDelta"],
+#             "maxDelta": gap["maxDelta"],
+#             "stdevDelta": gap["stdevDelta"],
+#             "firstQuartileDelta": gap["quantileDelta"][0],
+#             "thirdQuartileDelta": gap["quantileDelta"][2],
+#             "gene": overlay["gene"],
+#             "geneStart": overlay["geneStart"],
+#             "geneEnd": overlay["geneEnd"],
+#         }
+#     )
 
 
-def overlay(gapData: GapList, featureData: Any) -> OverlayList:
-    overlays = {}
-
-    for org in featureData.keys():
-        overlays[org] = []
-
-        partial = (
-            lambda gap, feature: gap["start"] >= feature["start"]
-            and gap["start"] <= feature["end"]
-            and gap["end"] > feature["end"]
-        )
-        complete = lambda gap, feature: (gap["start"] >= feature["start"] and gap["start"] <= feature["end"]) and (
-            gap["end"] >= feature["start"] and gap["end"] <= feature["end"]
-        )
-
-        for gap in gapData[org]:
-            features = [
-                {
-                    "start": featureData[org]["genes"][f]["start"],
-                    "end": featureData[org]["genes"][f]["stop"],
-                    "gene": f,
-                    "type": "gene",
-                }
-                for f in featureData[org]["genes"].keys()
-            ]
-
-            partialOverlays = list(filter(lambda feature: partial(gap, feature), features))
-            completeOverlays = list(filter(lambda feature: complete(gap, feature), features))
-
-            if len(partialOverlays) > 0 or len(completeOverlays) > 0:
-                overlays[org].append(
-                    {
-                        "organism": org,
-                        "gapStart": gap["start"],
-                        "gapEnd": gap["end"],
-                        "gapSize": gap["end"] - gap["start"] + 1,
-                        "averageDepth": gap["averageDepth"],
-                        "medianDepth": gap["medianDepth"],
-                        "minDepth": gap["minDepth"],
-                        "maxDepth": gap["maxDepth"],
-                        "stdevDepth": gap["stdevDepth"],
-                        "quantileDepth": gap["quantileDepth"],
-                        "averageDelta": gap["averageDelta"],
-                        "medianDelta": gap["medianDelta"],
-                        "minDelta": gap["minDelta"],
-                        "maxDelta": gap["maxDelta"],
-                        "stdevDelta": gap["stdevDelta"],
-                        "quantileDelta": gap["quantileDelta"],
-                        "partialOverlays": gatherOverlays(partialOverlays),
-                        "completeOverlays": gatherOverlays(completeOverlays),
-                    }
-                )
-
-    return overlays
-
-
-def writeRow(writer: csv.DictWriter, sample, gap, overlay, type):
-    writer.writerow(
-        {
-            "sample": sample,
-            "organism": gap["organism"],
-            "gapStart": gap["gapStart"],
-            "gapEnd": gap["gapEnd"],
-            "gapSize": gap["gapSize"],
-            "averageDepth": gap["averageDepth"],
-            "medianDepth": gap["medianDepth"],
-            "minDepth": gap["minDepth"],
-            "maxDepth": gap["maxDepth"],
-            "stdevDepth": gap["stdevDepth"],
-            "firstQuartileDepth": gap["quantileDepth"][0],
-            "thirdQuartileDepth": gap["quantileDepth"][2],
-            "averageDelta": gap["averageDelta"],
-            "medianDelta": gap["medianDelta"],
-            "minDelta": gap["minDelta"],
-            "maxDelta": gap["maxDelta"],
-            "stdevDelta": gap["stdevDelta"],
-            "firstQuartileDelta": gap["quantileDelta"][0],
-            "thirdQuartileDelta": gap["quantileDelta"][2],
-            "geneStart": overlay["geneStart"],
-            "geneEnd": overlay["geneEnd"],
-            "gene": overlay["gene"],
-            "overlapType": type,
-        }
-    )
-
-
-def writeOutput(overlays: OverlayList, organism: str, coverageFile: str, featureData: Any, sample: str):
+def writeOutput(gap_data: GapList, organism: str, coverageFile: str, organism_data: Any):
     with open(coverageFile, "w") as f:
         writer = csv.DictWriter(
             f,
@@ -327,29 +305,12 @@ def writeOutput(overlays: OverlayList, organism: str, coverageFile: str, feature
                 "geneStart",
                 "geneEnd",
                 "gene",
-                "overlapType",
             ],
         )
         writer.writeheader()
 
-        to_process = [k for k in featureData if organism == "*" or organism == k]
-        for org in to_process:
-            uniqueOverlayKeys = set()
-            uniqueOverlays = list()
-
-            for overlay in overlays[org]:
-                key = str(overlay["gapStart"]) + "_" + str(overlay["gapEnd"])
-
-                if key not in uniqueOverlayKeys:
-                    uniqueOverlayKeys.add(key)
-                    uniqueOverlays.append(overlay)
-
-            for gap in uniqueOverlays:
-                for overlay in gap["partialOverlays"]:
-                    writeRow(writer, sample, gap, overlay, "partial")
-
-                for overlay in gap["completeOverlays"]:
-                    writeRow(writer, sample, gap, overlay, "complete")
+        for organism in organism_data:
+            writer.writerows(gap_data[organism])
 
 
 def main():
@@ -357,19 +318,16 @@ def main():
     verifyOptions(options)
 
     # load the feature data
-    featureData = loadFeatureData(options["regionFile"])
+    organism_data = loadFeatureData(options["regionFile"], options["organism"])
 
     # load the coverage file
-    coverageData = loadCoverageData(options["coverageFile"], featureData)
+    coverage_data = loadCoverageData(options["coverageFile"], options["organism"], organism_data)
 
     # locate the coverage gaps based on minimum depth
-    gapData = calculateGaps(coverageData, featureData, int(options["minDepth"]))
-
-    # overlay the gaps on the feature data
-    overlays = overlay(gapData, featureData)
+    gap_data = calculateGaps(coverage_data, options["sample"], organism_data, int(options["minDepth"]))
 
     # write the output
-    writeOutput(overlays, options["organism"], options["outputFile"], featureData, options["sample"])
+    writeOutput(gap_data, options["organism"], options["outputFile"], organism_data)
 
 
 if __name__ == "__main__":
