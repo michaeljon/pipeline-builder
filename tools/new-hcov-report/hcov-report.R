@@ -238,7 +238,9 @@ for (g in 1:nrow(gene_list)) {
             theme_hc(base_size = 16) +
             labs(
               y = expression(atop("Depth", atop(italic("(log 10)")))),
-              x = expression(atop("Base relative to full genome")),
+              x = expression(
+                atop("Position", atop(italic("(relative to full genome)")))
+              ),
               title = sprintf("Feature: %s", gene$gene),
               subtitle = sprintf("Organism: %s", organism),
               caption = paste(
