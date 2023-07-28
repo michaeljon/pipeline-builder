@@ -43,7 +43,7 @@ output <- paste0(outpath, "/", sample, "-", organism, ".pdf")
 min_median_depth <- 0
 min_coverage <- 95
 
-getCurrentFileLocation <- function() {
+get_current_file_location <- function() {
   this_file <- commandArgs() %>%
     tibble::enframe(name = NULL) %>%
     tidyr::separate(
@@ -58,7 +58,7 @@ getCurrentFileLocation <- function() {
 }
 
 regions <- read_csv(
-  paste0(getCurrentFileLocation(), "/hcov-regions.csv"),
+  paste0(get_current_file_location(), "/hcov-regions.csv"),
   show_col_types = FALSE
 )
 
