@@ -52,8 +52,6 @@ fi
         )
     )
 
-    return sorted
-
 
 def extractUmappedReads(script: TextIOWrapper, options: OptionsDict, reference):
     pipeline = options["pipeline"]
