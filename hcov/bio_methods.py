@@ -1,4 +1,5 @@
 from io import TextIOWrapper
+from typing import Literal
 
 from bio_types import *
 
@@ -11,12 +12,8 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, refere
     bin = options["bin"]
     temp = options["temp"]
 
-    aligned = "{PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam".format(
-        PIPELINE=options["pipeline"], SAMPLE=options["sample"], ORGANISM=reference["common"]
-    )
-    sorted = "{PIPELINE}/{SAMPLE}.{ORGANISM}.sorted.bam".format(
-        PIPELINE=options["pipeline"], SAMPLE=options["sample"], ORGANISM=reference["common"]
-    )
+    aligned = buildBamFilePath(options, reference, "aligned")
+    sorted = buildBamFilePath(options, reference, "sorted")
 
     script.write(
         """
@@ -60,9 +57,7 @@ def extractUmappedReads(script: TextIOWrapper, options: OptionsDict, reference):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
-    aligned = "{PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam".format(
-        PIPELINE=options["pipeline"], SAMPLE=options["sample"], ORGANISM=reference["common"]
-    )
+    aligned = buildBamFilePath(options, reference, "aligned")
 
     script.write(
         """
@@ -131,7 +126,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.unannotated.vcf.gz ]]; then
         --ploidy 1 \\
         --max-complex-gap 18 \\
         --use-duplicate-reads \\
-        {PIPELINE}/{SAMPLE}.{ORGANISM}.sorted.bam >{PIPELINE}/{SAMPLE}.{ORGANISM}.tmp.vcf
+        {SORTED} >{PIPELINE}/{SAMPLE}.{ORGANISM}.tmp.vcf
 
     logthis "Normalizing called variants"
     bcftools norm \\
@@ -173,13 +168,14 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.unannotated.vcf.gz ]]; then
 
     logthis "${{green}}freebayes variant calling completed${{reset}}"
 else
-    logthis "Variants already called via bcftools for {PIPELINE}/{SAMPLE}.{ORGANISM}.sorted.bam, ${{green}}skipping${{reset}}"
+    logthis "Variants already called via bcftools for {SORTED}, ${{green}}skipping${{reset}}"
 fi
 """.format(
             BIN=bin,
             REFERENCE_ASSEMBLY=referenceAssembly,
             PIPELINE=pipeline,
             SAMPLE=sample,
+            SORTED=buildBamFilePath(options, reference, "sorted"),
             ORGANISM=reference["common"],
         )
     )
@@ -188,8 +184,24 @@ fi
 def runVariantPipeline(script: TextIOWrapper, options: OptionsDict, reference):
     script.write("\n")
 
+    # Only call variants if the coverage is relatively high
+    script.write(
+        """
+ORGANISM_COVERAGE=$(samtools coverage -d 0 --reference {REFERENCE_ASSEMBLY} {SORTED} | tail +2 | cut -f6)
+if (( $(echo "${{ORGANISM_COVERAGE}} >= 95.0" | bc -l) )); then
+""".format(
+        REFERENCE_ASSEMBLY=reference["assembly"],
+        SORTED=buildBamFilePath(options, reference, "sorted"),
+    )
+)
     callVariants(script, options, reference)
-    script.write("\n")
+
+    script.write(
+        """
+else
+    logthis "${{yellow}}Skipping variant calling due to low coverage of ${{ORGANISM_COVERAGE}}%${{reset}}"
+fi
+    """.format())
 
 
 def doVariantQC(script: TextIOWrapper, options: OptionsDict, reference):
@@ -285,11 +297,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict, reference):
     doPicardQc = options["doPicardQc"]
     bin = options["bin"]
 
-    sorted = "{PIPELINE}/{SAMPLE}.{ORGANISM}.sorted.bam".format(
-        PIPELINE=options["pipeline"],
-        SAMPLE=options["sample"],
-        ORGANISM=reference["common"],
-    )
+    sorted = buildBamFilePath(options, reference, "sorted")
 
     checks = []
 
@@ -517,7 +525,7 @@ def generateDepth(script: TextIOWrapper, options: OptionsDict, reference):
 if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.depth.gz ]]; then
     logthis "${{yellow}}Calculating depth by position${{reset}}"
 
-    samtools depth -@ 8 -aa -a -J {PIPELINE}/{SAMPLE}.{ORGANISM}.sorted.bam | gzip >{PIPELINE}/{SAMPLE}.{ORGANISM}.depth.gz
+    samtools depth -@ 8 -aa -a -J {SORTED} | gzip >{PIPELINE}/{SAMPLE}.{ORGANISM}.depth.gz
 
     logthis "${{yellow}}Depth calculation complete${{reset}}"
 else
@@ -527,7 +535,17 @@ fi
             SAMPLE=sample,
             PIPELINE=pipeline,
             ORGANISM=reference["common"],
+            SORTED=buildBamFilePath(options, reference, "sorted"),
         )
+    )
+
+
+def buildBamFilePath(options: OptionsDict, reference, type: Literal["aligned"] | Literal["sorted"]) -> str:
+    return "{PIPELINE}/{SAMPLE}.{ORGANISM}.{TYPE}.bam".format(
+        PIPELINE=options["pipeline"],
+        SAMPLE=options["sample"],
+        ORGANISM=reference["common"],
+        TYPE=type
     )
 
 
@@ -545,6 +563,8 @@ def commonPipeline(
 
     for requestReference in options["references"]:
         reference = references[requestReference]
+
+        script.write("CURRENT_REFERENCE='{}'".format(reference["accession"]))
 
         align(script, options, reference)
         sortAndExtractUnmapped(script, options, reference)
