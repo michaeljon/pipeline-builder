@@ -542,7 +542,6 @@ fi
     )
 
 
-
 def buildBamFilePath(options: OptionsDict, reference, type: Literal["aligned"] | Literal["sorted"]) -> str:
     return "{PIPELINE}/{SAMPLE}.{ORGANISM}.{TYPE}.bam".format(
         PIPELINE=options["pipeline"],
@@ -550,6 +549,7 @@ def buildBamFilePath(options: OptionsDict, reference, type: Literal["aligned"] |
         ORGANISM=reference["common"],
         TYPE=type
     )
+
 
 def commonPipeline(
     script: TextIOWrapper,
@@ -570,7 +570,6 @@ def commonPipeline(
 
         align(script, options, reference)
         sortAndExtractUnmapped(script, options, reference)
-
         runVariantPipeline(script, options, reference)
 
         if options["runQc"] == True:
