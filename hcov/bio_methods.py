@@ -193,7 +193,7 @@ ORGANISM_COVERAGE=$(samtools coverage -d 0 --reference {REFERENCE_ASSEMBLY} {SOR
 if (( $(echo "${{ORGANISM_COVERAGE}} >= 95.0" | bc -l) )); then
 """.format(
         REFERENCE_ASSEMBLY=reference["assembly"],
-        SORTED=buildBamFilePath(options, reference, "aligned"),
+        SORTED=buildBamFilePath(options, reference, "sorted"),
     )
 )
     callVariants(script, options, reference)
