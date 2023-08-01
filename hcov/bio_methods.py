@@ -1,4 +1,5 @@
 from io import TextIOWrapper
+from typing import Literal
 
 from bio_types import *
 
@@ -11,12 +12,8 @@ def sortAlignedAndMappedData(script: TextIOWrapper, options: OptionsDict, refere
     bin = options["bin"]
     temp = options["temp"]
 
-    aligned = "{PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam".format(
-        PIPELINE=options["pipeline"], SAMPLE=options["sample"], ORGANISM=reference["common"]
-    )
-    sorted = "{PIPELINE}/{SAMPLE}.{ORGANISM}.sorted.bam".format(
-        PIPELINE=options["pipeline"], SAMPLE=options["sample"], ORGANISM=reference["common"]
-    )
+    aligned = buildBamFilePath(options, reference, "aligned")
+    sorted = buildBamFilePath(options, reference, "sorted")
 
     script.write(
         """
@@ -62,9 +59,7 @@ def extractUmappedReads(script: TextIOWrapper, options: OptionsDict, reference):
     pipeline = options["pipeline"]
     sample = options["sample"]
 
-    aligned = "{PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam".format(
-        PIPELINE=options["pipeline"], SAMPLE=options["sample"], ORGANISM=reference["common"]
-    )
+    aligned = buildBamFilePath(options, reference, "aligned")
 
     script.write(
         """
@@ -98,7 +93,7 @@ def sortAndExtractUnmapped(script: TextIOWrapper, options: OptionsDict, referenc
     processUnmapped = options["processUnmapped"]
     alignOnly = options["alignOnly"]
 
-    sortedBamFile = sortAlignedAndMappedData(script, options, reference)
+    sortAlignedAndMappedData(script, options, reference)
     generateDepth(script, options, reference)
 
     if processUnmapped == True:
@@ -113,7 +108,6 @@ logthis "align-only set, exiting pipeline early"
 exit
 """
         )
-    return sortedBamFile
 
 
 def callVariants(script: TextIOWrapper, options: OptionsDict, reference):
@@ -134,7 +128,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.unannotated.vcf.gz ]]; then
         --ploidy 1 \\
         --max-complex-gap 18 \\
         --use-duplicate-reads \\
-        {PIPELINE}/{SAMPLE}.{ORGANISM}.sorted.bam >{PIPELINE}/{SAMPLE}.{ORGANISM}.tmp.vcf
+        {SORTED} >{PIPELINE}/{SAMPLE}.{ORGANISM}.tmp.vcf
 
     logthis "Normalizing called variants"
     bcftools norm \\
@@ -176,19 +170,20 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.unannotated.vcf.gz ]]; then
 
     logthis "${{green}}freebayes variant calling completed${{reset}}"
 else
-    logthis "Variants already called via bcftools for {PIPELINE}/{SAMPLE}.{ORGANISM}.sorted.bam, ${{green}}skipping${{reset}}"
+    logthis "Variants already called via bcftools for {SORTED}, ${{green}}skipping${{reset}}"
 fi
 """.format(
             BIN=bin,
             REFERENCE_ASSEMBLY=referenceAssembly,
             PIPELINE=pipeline,
             SAMPLE=sample,
+            SORTED=buildBamFilePath(options, reference, "sorted"),
             ORGANISM=reference["common"],
         )
     )
 
 
-def runVariantPipeline(script: TextIOWrapper, options: OptionsDict, reference, sortedBamFile):
+def runVariantPipeline(script: TextIOWrapper, options: OptionsDict, reference):
     script.write("\n")
 
     # Only call variants if the coverage is relatively high
@@ -198,7 +193,7 @@ ORGANISM_COVERAGE=$(samtools coverage -d 0 --reference {REFERENCE_ASSEMBLY} {SOR
 if (( $(echo "${{ORGANISM_COVERAGE}} >= 95.0" | bc -l) )); then
 """.format(
         REFERENCE_ASSEMBLY=reference["assembly"],
-        SORTED=sortedBamFile,
+        SORTED=buildBamFilePath(options, reference, "aligned"),
     )
 )
     callVariants(script, options, reference)
@@ -304,11 +299,7 @@ def doAlignmentQC(script: TextIOWrapper, options: OptionsDict, reference):
     doPicardQc = options["doPicardQc"]
     bin = options["bin"]
 
-    sorted = "{PIPELINE}/{SAMPLE}.{ORGANISM}.sorted.bam".format(
-        PIPELINE=options["pipeline"],
-        SAMPLE=options["sample"],
-        ORGANISM=reference["common"],
-    )
+    sorted = buildBamFilePath(options, reference, "sorted")
 
     checks = []
 
@@ -536,7 +527,7 @@ def generateDepth(script: TextIOWrapper, options: OptionsDict, reference):
 if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.depth.gz ]]; then
     logthis "${{yellow}}Calculating depth by position${{reset}}"
 
-    samtools depth -@ 8 -aa -a -J {PIPELINE}/{SAMPLE}.{ORGANISM}.sorted.bam | gzip >{PIPELINE}/{SAMPLE}.{ORGANISM}.depth.gz
+    samtools depth -@ 8 -aa -a -J {SORTED} | gzip >{PIPELINE}/{SAMPLE}.{ORGANISM}.depth.gz
 
     logthis "${{yellow}}Depth calculation complete${{reset}}"
 else
@@ -546,9 +537,19 @@ fi
             SAMPLE=sample,
             PIPELINE=pipeline,
             ORGANISM=reference["common"],
+            SORTED=buildBamFilePath(options, reference, "sorted"),
         )
     )
 
+
+
+def buildBamFilePath(options: OptionsDict, reference, type: Literal["aligned"] | Literal["sorted"]) -> str:
+    return "{PIPELINE}/{SAMPLE}.{ORGANISM}.{TYPE}.bam".format(
+        PIPELINE=options["pipeline"],
+        SAMPLE=options["sample"],
+        ORGANISM=reference["common"],
+        TYPE=type
+    )
 
 def commonPipeline(
     script: TextIOWrapper,
@@ -568,9 +569,9 @@ def commonPipeline(
         script.write("CURRENT_REFERENCE='{}'".format(reference["accession"]))
 
         align(script, options, reference)
-        sortedBamFile = sortAndExtractUnmapped(script, options, reference)
+        sortAndExtractUnmapped(script, options, reference)
 
-        runVariantPipeline(script, options, reference, sortedBamFile)
+        runVariantPipeline(script, options, reference)
 
         if options["runQc"] == True:
             doQualityControl(script, options, reference)

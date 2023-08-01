@@ -216,7 +216,7 @@ def runBwaAligner(
 #
 # align the input files
 #
-if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam ]]; then
+if [[ ! -f {ALIGNED} ]]; then
     logthis "${{yellow}}Running aligner${{reset}}"
 
     {ALIGNER} mem \\
@@ -226,11 +226,11 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam ]]; then
         {REFERENCE_ASSEMBLY} \\
         {R1} \\
         {R2} | 
-    samtools view -Sb -@ 4 - >{PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam
+    samtools view -Sb -@ 4 - >{ALIGNED}
 
     logthis "${{yellow}}Alignment completed${{reset}}"
 else
-    logthis "{PIPELINE}/{SAMPLE}.{ORGANISM}.aligned.bam, aligned temp file found, ${{green}}skipping${{reset}}"
+    logthis "{ALIGNED}, aligned temp file found, ${{green}}skipping${{reset}}"
 fi
 
 """.format(
@@ -241,6 +241,7 @@ fi
             REFERENCE_ASSEMBLY=referenceAssembly,
             ORGANISM=reference["common"],
             SAMPLE=sample,
+            ALIGNED=buildBamFilePath(options, reference, "aligned"),
             THREADS=threads,
             PIPELINE=pipeline,
             BIN=bin,
