@@ -16,6 +16,7 @@ organism_names = {
     "AY597011.2": "hcov-hku1",
     "AY567487.2": "hcov-nl63",
     "AY585228.1": "hcov-oc43",
+    "AT391777.1": "hcov-oc43-ay391777",
     "MN908947.3": "sars-cov-2",
 }
 
@@ -121,10 +122,10 @@ if __name__ == "__main__":
     (file_prefix, extensions) = separate_extensions(basename(options["input_file"]))
 
     for organism_id, section_contents in read_fasta_sections(options["input_file"]):
-        file_name = "{PREFIX}-{ORGANISM_NAME}{EXTENSIONS}".format(
+        file_name = "{PREFIX}.{ORGANISM_NAME}.{EXTENSIONS}".format(
             PREFIX=file_prefix,
             ORGANISM_NAME=organism_names[organism_id],
-            EXTENSIONS="".join(extensions),
+            EXTENSIONS=".".join(["consensus", "fa"]),
         )
         output_path = join(options["output_dir"], file_name)
 

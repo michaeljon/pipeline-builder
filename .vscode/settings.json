@@ -5,6 +5,6 @@
     "editor.defaultFormatter": "ms-python.black-formatter"
   },
   "black-formatter.importStrategy": "fromEnvironment",
-  "python.formatting.provider": "black",
+  "python.formatting.provider": "none",
   "sarif-viewer.connectToGithubCodeScanning": "off"
 }

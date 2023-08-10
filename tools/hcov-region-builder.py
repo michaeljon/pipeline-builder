@@ -9,6 +9,7 @@ organisms = {
     "AY597011.2": "hcov-hku1",
     "AY567487.2": "hcov-nl63",
     "AY585228.1": "hcov-oc43",
+    "AY391777.1": "hcov-oc43-ay391777",
     "MN908947.3": "sars-cov-2",
     "NC_038311.1": "hrv-a",
     "NC_038312.1": "hrv-b",

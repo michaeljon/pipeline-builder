@@ -19,6 +19,11 @@
     "assembly": "hcov-oc43/GCA_003972325.1_ASM397232v1_genomic.fna"
   },
 
+  "hcov-oc43-ay391777": {
+    "accession": "AY391777.1",
+    "assembly": "ay391777.1/AY391777-oc43.fna"
+  },
+
   "hrv-a": {
     "accession": "NC_038311.1",
     "assembly": "hrv-a/GCF_002816835.1_ASM281683v1_genomic.fna"

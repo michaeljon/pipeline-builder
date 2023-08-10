@@ -11,27 +11,32 @@ from Levenshtein import distance, editops
 known_references = {
     "105c82802b67521950854a851fc6eefd": "sars-cov-2 (MN908947.3)",
     "2cd494e3006b363034acb3988a135b4b": "hcov-229e (AF304460.1)",
+    "42cdb9c4f65474288bd9a9b125cb8574": "hcov-oc43-ay391777 (AY391777.1)",
     "44be42f112c97e6a84d690636e28b13f": "hcov-nl63 (AY567487.2)",
     "9cf54db346dedfb6b43dfd68b4c7bc51": "hcov-hku1 (AY597011.2)",
     "f34f1e552c7a5e94ac72c509b93ac2c4": "hcov-oc43 (AY585228.1)",
 }
 
 reference_to_path = {
-    "105c82802b67521950854a851fc6eefd": "/home/michaeljon/pipeline/reference/sars-cov-2/GCA_009858895.3_ASM985889v3_genomic.fna",
-    "2cd494e3006b363034acb3988a135b4b": "/home/michaeljon/pipeline/reference/hcov-229e/GCA_000853505.1_ViralProj14913_genomic.fna",
-    "44be42f112c97e6a84d690636e28b13f": "/home/michaeljon/pipeline/reference/hcov-nl63/GCA_000853865.1_ViralProj14960_genomic.fna",
-    "9cf54db346dedfb6b43dfd68b4c7bc51": "/home/michaeljon/pipeline/reference/hcov-hku1/GCA_000858765.1_ViralProj15139_genomic.fna",
-    "f34f1e552c7a5e94ac72c509b93ac2c4": "/home/michaeljon/pipeline/reference/hcov-oc43/GCA_003972325.1_ASM397232v1_genomic.fna",
+    "105c82802b67521950854a851fc6eefd": "/Volumes/Genomics/intel_pipeline/reference/sars-cov-2/GCA_009858895.3_ASM985889v3_genomic.fna",
+    "2cd494e3006b363034acb3988a135b4b": "/Volumes/Genomics/intel_pipeline/reference/hcov-229e/GCA_000853505.1_ViralProj14913_genomic.fna",
+    "42cdb9c4f65474288bd9a9b125cb8574": "/Volumes/Genomics/intel_pipeline/reference/hcov-oc43-ay391777/AY391777-oc43.fna",
+    "44be42f112c97e6a84d690636e28b13f": "/Volumes/Genomics/intel_pipeline/reference/hcov-nl63/GCA_000853865.1_ViralProj14960_genomic.fna",
+    "9cf54db346dedfb6b43dfd68b4c7bc51": "/Volumes/Genomics/intel_pipeline/reference/hcov-hku1/GCA_000858765.1_ViralProj15139_genomic.fna",
+    "f34f1e552c7a5e94ac72c509b93ac2c4": "/Volumes/Genomics/intel_pipeline/reference/hcov-oc43/GCA_003972325.1_ASM397232v1_genomic.fna",
 }
 
 supported_references = {
     "AF304460.1": "2cd494e3006b363034acb3988a135b4b",
+    "AY391777.1": "42cdb9c4f65474288bd9a9b125cb8574",
     "AY567487.2": "44be42f112c97e6a84d690636e28b13f",
     "AY585228.1": "f34f1e552c7a5e94ac72c509b93ac2c4",
     "AY597011.2": "9cf54db346dedfb6b43dfd68b4c7bc51",
     "MN908947.3": "105c82802b67521950854a851fc6eefd",
     "hcov-229e": "2cd494e3006b363034acb3988a135b4b",
     "hcov-229e (AF304460.1)": "2cd494e3006b363034acb3988a135b4b",
+    "hcov-oc43-ay391777": "42cdb9c4f65474288bd9a9b125cb8574",
+    "hcov-oc43-ay391777 (AY391777.1)": "42cdb9c4f65474288bd9a9b125cb8574",
     "hcov-hku1": "9cf54db346dedfb6b43dfd68b4c7bc51",
     "hcov-hku1 (AY597011.2)": "9cf54db346dedfb6b43dfd68b4c7bc51",
     "hcov-nl63": "44be42f112c97e6a84d690636e28b13f",
@@ -44,12 +49,15 @@ supported_references = {
 
 reference_to_organism_accession = {
     "AF304460.1": ["hcov-229e", "AF304460.1"],
+    "AY391777.1": ["hcov-oc43-ay391777", "AY391777.1"],
     "AY567487.2": ["hcov-nl63", "AY567487.2"],
     "AY585228.1": ["hcov-oc43", "AY585228.1"],
     "AY597011.2": ["hcov-hku1", "AY597011.2"],
     "MN908947.3": ["sars-cov-2", "MN908947.3"],
     "hcov-229e": ["hcov-229e", "AF304460.1"],
     "hcov-229e (AF304460.1)": ["hcov-229e", "AF304460.1"],
+    "hcov-oc43-ay391777": ["hcov-oc43-ay391777", "AY391777.1"],
+    "hcov-oc43-ay391777 (AY391777.1)": ["hcov-oc43-ay391777", "AY391777.1"],
     "hcov-hku1": ["hcov-hku1", "AY597011.2"],
     "hcov-hku1 (AY597011.2)": ["hcov-hku1", "AY597011.2"],
     "hcov-nl63": ["hcov-nl63", "AY567487.2"],
@@ -59,7 +67,6 @@ reference_to_organism_accession = {
     "sars-cov-2": ["sars-cov-2", "MN908947.3"],
     "sars-cov-2 (MN908947.3)": ["sars-cov-2", "MN908947.3"],
 }
-
 results = []
 
 

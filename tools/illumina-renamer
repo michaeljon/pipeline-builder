@@ -2,19 +2,23 @@
 
 BATCH=$1
 SAMPLE_LIST=$2
+# SOURCE=${PIPELINE_ROOT}/fastq/${BATCH}
+SOURCE=/Users/michaeljon/src/informatics/pipeline-builder/tools/read-maker
 
-ls -1 ${PIPELINE_ROOT}/fastq/${BATCH} |
-    awk -vBATCH=${BATCH} -vPATH=$(realpath ${PIPELINE_ROOT}/fastq/${BATCH}) '
+ls -1 ${SOURCE} |
+    awk -vBATCH=${BATCH} -vPATH=$(realpath ${SOURCE}) '
         BEGIN { 
             printf "deid\tsample\tr1\tr2\n" \
         } 
         
-        /_R1_/ { 
+        /_R1/ { 
             R1 = $1
             R2 = $1
-            sub(/_R1_/, "_R2_", R2);
+            sub(/_R1/, "_R2", R2);
 
-            split($0, s, /_/); 
+            sample=R1
+            sub(/_R1.fastq.gz/, "", sample);
+
             "uuidgen" | getline uuid; close("uuidgen")
-            printf "%s\t%s_%s_%s\t%s/%s\t%s/%s\n", uuid, s[1], s[2], s[3], PATH, R1, PATH, R2
+            printf "%s\t%s\t%s/%s\t%s/%s\n", uuid, sample, PATH, R1, PATH, R2
         }' >${SAMPLE_LIST}

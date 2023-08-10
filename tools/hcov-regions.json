@@ -220,6 +220,36 @@
     }
   },
 
+  "hcov-oc43-ay391777": {
+    "sequence": "AY391777.1",
+    "name": "hcov-oc43-ay391777",
+    "region": {
+      "start": 1,
+      "stop": 30738
+    },
+    "genes": {
+      "5-prime-utr": {
+        "start": 1,
+        "stop": 210
+      },
+
+      "ORF1ab": { "start": 211, "stop": 21497 },
+      "NS2a": { "start": 21507, "stop": 22343 },
+      "HE": { "start": 22355, "stop": 23629 },
+      "S": { "start": 23644, "stop": 27729 },
+      "NS2": { "start": 27817, "stop": 28146 },
+      "NS3": { "start": 28133, "stop": 28387 },
+      "M": { "start": 28402, "stop": 29094 },
+      "N": { "start": 29104, "stop": 30450 },
+      "N2": { "start": 29441, "stop": 29788 },
+
+      "3-prime-utr": {
+        "start": 29789,
+        "stop": 30738
+      }
+    }
+  },
+
   "sars-cov-2": {
     "sequence": "MN908947.3",
     "name": "sars-cov-2",
