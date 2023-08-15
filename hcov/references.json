@@ -24,6 +24,16 @@
     "assembly": "hcov-oc43-ay391777/hcov-oc43-ay391777.fna"
   },
 
+  "hcov-oc43-on376724": {
+    "accession": "ON376724.1",
+    "assembly": "hcov-oc43-on376724/hcov-oc43-on376724.fna"
+  },
+
+  "hcov-oc43-on376725": {
+    "accession": "ON376725.1",
+    "assembly": "hcov-oc43-on376725/hcov-oc43-on376725.fna"
+  },
+
   "hrv-a": {
     "accession": "NC_038311.1",
     "assembly": "hrv-a/GCF_002816835.1_ASM281683v1_genomic.fna"

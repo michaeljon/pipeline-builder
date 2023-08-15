@@ -17,6 +17,8 @@ organism_names = {
     "AY567487.2": "hcov-nl63",
     "AY585228.1": "hcov-oc43",
     "AT391777.1": "hcov-oc43-ay391777",
+    "ON376724.1": "hcov-oc43-on376724",
+    "ON376275.1": "hcov-oc43-on376725",
     "MN908947.3": "sars-cov-2",
 }
 

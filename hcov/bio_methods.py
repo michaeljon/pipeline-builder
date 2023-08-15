@@ -187,7 +187,7 @@ def runVariantPipeline(script: TextIOWrapper, options: OptionsDict, reference):
     # Only call variants if the coverage is relatively high
     script.write(
         """
-ORGANISM_COVERAGE=$(samtools coverage -d 0 --reference {REFERENCE_ASSEMBLY} {SORTED} | tail +2 | cut -f6)
+ORGANISM_COVERAGE=$(samtools coverage -d 0 --reference {REFERENCE_ASSEMBLY} {SORTED} | tail -n +2 | cut -f6)
 if (( $(echo "${{ORGANISM_COVERAGE}} >= 95.0" | bc -l) )); then
 """.format(
         REFERENCE_ASSEMBLY=reference["assembly"],
