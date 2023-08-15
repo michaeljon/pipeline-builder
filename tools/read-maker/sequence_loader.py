@@ -8,8 +8,10 @@ import copy
 import gzip
 import sys
 import os
+import json
 
 from pe_read_maker import pe_make_read
+from api import find_contig
 import genome_operations
 
 
@@ -40,7 +42,7 @@ def defineArguments():
         action="store",
         metavar="SEQUENCES",
         dest="sequences",
-        default=["AY597011.2", "AY567487.2", "AY585228.1", "AF304460.1"],
+        default=[],
     )
 
     parser.add_argument(
@@ -84,14 +86,16 @@ def defineArguments():
         help="Write FASTA files for target sequences",
     )
 
-    for injectable in ["hku1", "nl63", "oc43", "229e"]:
-        parser.add_argument(
-            "--" + injectable,
-            action="store_true",
-            dest="inject_" + injectable,
-            default=False,
-            help="Inject variants into " + injectable.upper(),
-        )
+    parser.add_argument(
+        "--mutations",
+        nargs="+",
+        required=False,
+        action="store",
+        metavar="MUTATIONS",
+        dest="mutations",
+        help="JSON files containing list of mutations to apply per sequence",
+        default=[],
+    )
 
     return vars(parser.parse_args())
 
@@ -146,94 +150,6 @@ def make_genome(fa, viromes, read_length):
     return [g for g in genome if g["accession"] in viromes]
 
 
-def find_contig(genome, accession):
-    for index in range(len(genome)):
-        contig = genome[index]
-        if contig["accession"] == accession:
-            return contig
-
-    print("Attempt to cause variant in accession " + accession)
-    quit(1)
-
-
-# an operation is
-#   location: contig, position
-#   verb:     replace-one + base
-#             replace-many + [base]
-#             ins + [bases]
-#             del + count
-#             indel / delins + count + [bases]
-
-# an operation list is
-#  order list (descending) by position of operation
-
-
-def queue_transition_variant(genome, accession, position):
-    contig = find_contig(genome, accession)
-    if contig["operations"][position] == None:
-        contig["operations"][position] = []
-
-    contig["operations"][position].append({"verb": "ts", "position": position})
-
-
-def queue_tranversion_variant(genome, accession, position, slot):
-    contig = find_contig(genome, accession)
-    if contig["operations"][position] == None:
-        contig["operations"][position] = []
-
-    contig["operations"][position].append({"verb": "tv", "position": position, "slot": slot})
-
-
-def queue_explicit_snv(genome, accession, position, base):
-    contig = find_contig(genome, accession)
-    if contig["operations"][position] == None:
-        contig["operations"][position] = []
-
-    contig["operations"][position].append({"verb": "snv", "position": position, "base": base})
-
-
-def queue_explicit_mnv(genome, accession, position, bases):
-    contig = find_contig(genome, accession)
-    if contig["operations"][position] == None:
-        contig["operations"][position] = []
-
-    contig["operations"][position].append(
-        {
-            "verb": "mnv",
-            "position": position,
-            "bases": bases,
-        }
-    )
-
-
-def queue_insert(genome, accession, position, bases):
-    contig = find_contig(genome, accession)
-    if contig["operations"][position] == None:
-        contig["operations"][position] = []
-
-    contig["operations"][position].append(
-        {
-            "verb": "ins",
-            "position": position,
-            "bases": bases,
-        }
-    )
-
-
-def queue_delete(genome, accession, position, length):
-    contig = find_contig(genome, accession)
-    if contig["operations"][position] == None:
-        contig["operations"][position] = []
-
-    contig["operations"][position].append(
-        {
-            "verb": "del",
-            "position": position,
-            "length": length,
-        }
-    )
-
-
 def print_operation(contig, operations):
     print("Reporting " + str(len(operations)) + " for contig " + contig["accession"])
     for op in operations:
@@ -279,6 +195,12 @@ def apply_operation_queues(genome, target_read_length):
             apply_operation_queue(contig, operations, target_read_length)
 
 
+def apply_mutations(contig, mutations, target_read_length):
+    operations = list(reversed([op for ndx, op in enumerate(mutations) if op != None]))
+    if len(operations) > 0:
+        apply_operation_queue(contig, operations, target_read_length)
+
+
 def print_reads(sample_name, reads, read_count, direction):
     print("Writing R" + str(direction))
     f = gzip.open(sample_name + "_R" + str(direction) + ".fastq.gz", "wb", compresslevel=6)
@@ -289,11 +211,11 @@ def print_reads(sample_name, reads, read_count, direction):
             bytes(
                 read["information"] + "_" + str(r + 1) + " " + str(direction) + ":N:0:1\n",
                 "ascii",
-            )
+            )  # type: ignore
         )
-        f.write(bytes(read["read"] + "\n", "ascii"))
-        f.write(bytes("+\n", "ascii"))
-        f.write(bytes(read["quality"] + "\n", "ascii"))
+        f.write(bytes(read["read"] + "\n", "ascii"))  # type: ignore
+        f.write(bytes("+\n", "ascii"))  # type: ignore
+        f.write(bytes(read["quality"] + "\n", "ascii"))  # type: ignore
     f.close()
 
 
@@ -332,7 +254,7 @@ def make_and_print_reads(read_count, sample, fa, viromes):
         print("No viromes selected to construct")
         quit(1)
 
-    print("Allocating read array")
+    print("Allocating read array for " + str(sample))
     reads = [{}] * read_count
 
     print("Building reads")
@@ -358,6 +280,11 @@ def make_and_print_reads(read_count, sample, fa, viromes):
         thread.join()
 
 
+def dump_operations(contig, sequence):
+    mutations = {sequence: [x for x in contig["operations"] if x != None]}
+    print(json.dumps(mutations, indent=2))
+
+
 if __name__ == "__main__":
     root_folder = os.path.dirname(sys.argv[0])
 
@@ -372,44 +299,13 @@ if __name__ == "__main__":
         target_read_length,
     )
 
-    # hku1
-    if options["inject_hku1"] == True:
-        # this should look like an MNV
-        queue_tranversion_variant(genome, "AY597011.2", 3995, 0)
-        queue_tranversion_variant(genome, "AY597011.2", 3997, 0)
-        queue_tranversion_variant(genome, "AY597011.2", 3999, 0)
-
-    # nl63
-    if options["inject_nl63"] == True:
-        contig = find_contig(genome, "AY567487.2")
-        # - this should be an SNV every 1500 bases starting at 1500
-        for n in range(1000, contig["length"], 1500):
-            queue_transition_variant(genome, "AY567487.2", n)
-
-    # oc43
-    if options["inject_oc43"] == True:
-        # this will be a delete (starting at 99)
-        queue_delete(genome, "AY585228.1", 100, 10)
-
-        # this will be an indel starting around 4000
-        for n in range(5000, 5010):
-            queue_transition_variant(genome, "AY585228.1", n)
-
-        # this should look like an MNV, but might end up as three SNVs
-        queue_transition_variant(genome, "AY585228.1", 3995)
-        queue_transition_variant(genome, "AY585228.1", 3997)
-        queue_transition_variant(genome, "AY585228.1", 3999)
-
-    # 229e
-    if options["inject_229e"] == True:
-        contig = find_contig(genome, "AF304460.1")
-        # this will be an SNV followed 9 bases later by a 2 base delete
-        for n in range(24500, 24750, 25):
-            queue_transition_variant(genome, "AF304460.1", n)
-            queue_delete(genome, "AF304460.1", n + 10, 2)
-
-        # an insert at 20000
-        queue_insert(genome, "AF304460.1", 20000, list("AAATTTGGGCCC"))
+    if options["mutations"] != None:
+        for mutation_file in options["mutations"]:
+            with open(mutation_file) as f:
+                mutations = json.load(f)
+                for sequence in mutations.keys():
+                    contig = find_contig(genome, sequence)
+                    apply_mutations(contig, mutations[sequence], target_read_length)
 
     if options["printQueue"]:
         print_operation_queues(genome)

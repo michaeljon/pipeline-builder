@@ -38,7 +38,7 @@ def do_explicit_snv(contig, position, base):
             contig["accession"],
             position,
             current_base,
-            transitions[current_base],
+            base,
         )
     )
 

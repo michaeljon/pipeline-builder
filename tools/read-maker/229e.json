@@ -1,0 +1,141 @@
+{
+  "AF304460.1": [
+    [
+      {
+        "verb": "ins",
+        "position": 20000,
+        "bases": ["A", "A", "A", "T", "T", "T", "G", "G", "G", "C", "C", "C"]
+      }
+    ],
+    [
+      {
+        "verb": "ts",
+        "position": 24500
+      }
+    ],
+    [
+      {
+        "verb": "del",
+        "position": 24510,
+        "length": 2
+      }
+    ],
+    [
+      {
+        "verb": "ts",
+        "position": 24525
+      }
+    ],
+    [
+      {
+        "verb": "del",
+        "position": 24535,
+        "length": 2
+      }
+    ],
+    [
+      {
+        "verb": "ts",
+        "position": 24550
+      }
+    ],
+    [
+      {
+        "verb": "del",
+        "position": 24560,
+        "length": 2
+      }
+    ],
+    [
+      {
+        "verb": "ts",
+        "position": 24575
+      }
+    ],
+    [
+      {
+        "verb": "del",
+        "position": 24585,
+        "length": 2
+      }
+    ],
+    [
+      {
+        "verb": "ts",
+        "position": 24600
+      }
+    ],
+    [
+      {
+        "verb": "del",
+        "position": 24610,
+        "length": 2
+      }
+    ],
+    [
+      {
+        "verb": "ts",
+        "position": 24625
+      }
+    ],
+    [
+      {
+        "verb": "del",
+        "position": 24635,
+        "length": 2
+      }
+    ],
+    [
+      {
+        "verb": "ts",
+        "position": 24650
+      }
+    ],
+    [
+      {
+        "verb": "del",
+        "position": 24660,
+        "length": 2
+      }
+    ],
+    [
+      {
+        "verb": "ts",
+        "position": 24675
+      }
+    ],
+    [
+      {
+        "verb": "del",
+        "position": 24685,
+        "length": 2
+      }
+    ],
+    [
+      {
+        "verb": "ts",
+        "position": 24700
+      }
+    ],
+    [
+      {
+        "verb": "del",
+        "position": 24710,
+        "length": 2
+      }
+    ],
+    [
+      {
+        "verb": "ts",
+        "position": 24725
+      }
+    ],
+    [
+      {
+        "verb": "del",
+        "position": 24735,
+        "length": 2
+      }
+    ]
+  ]
+}

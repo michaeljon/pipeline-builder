@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+# p0 base
+./sequence_loader.py \
+    --sample p0_base \
+    --read-count 250000 \
+    --reference ~/pipeline/reference/hcov-oc43-on376724/hcov-oc43-on376724.fna \
+    --sequences ON376724.1
+
+# p9 base
+./sequence_loader.py \
+    --sample p9_base \
+    --read-count 250000 \
+    --reference ~/pipeline/reference/hcov-oc43-on376725/hcov-oc43-on376725.fna \
+    --sequences ON376725.1
+
+# p0 base -> p9
+./sequence_loader.py \
+    --sample p0_base_to_p9 \
+    --read-count 250000 \
+    --reference ~/pipeline/reference/hcov-oc43-on376724/hcov-oc43-on376724.fna \
+    --sequences ON376724.1 \
+    --mutations p0_to_p9.json
+
+# p9 base -> p0
+./sequence_loader.py \
+    --sample p9_base_to_p0 \
+    --read-count 250000 \
+    --reference ~/pipeline/reference/hcov-oc43-on376725/hcov-oc43-on376725.fna \
+    --sequences ON376725.1 \
+    --mutations p9_to_p0.json

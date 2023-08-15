@@ -1,0 +1,109 @@
+{
+  "ON376725.1": [
+    [
+      {
+        "verb": "snv",
+        "position": 1172,
+        "base": "T"
+      }
+    ],
+    [
+      {
+        "verb": "snv",
+        "position": 4104,
+        "base": "G"
+      }
+    ],
+    [
+      {
+        "verb": "snv",
+        "position": 4349,
+        "base": "C"
+      }
+    ],
+    [
+      {
+        "verb": "snv",
+        "position": 11190,
+        "base": "G"
+      }
+    ],
+    [
+      {
+        "verb": "snv",
+        "position": 12311,
+        "base": "C"
+      }
+    ],
+    [
+      {
+        "verb": "snv",
+        "position": 15820,
+        "base": "T"
+      }
+    ],
+    [
+      {
+        "verb": "snv",
+        "position": 24387,
+        "base": "T"
+      }
+    ],
+    [
+      {
+        "verb": "snv",
+        "position": 24414,
+        "base": "A"
+      }
+    ],
+    [
+      {
+        "verb": "snv",
+        "position": 24429,
+        "base": "G"
+      }
+    ],
+    [
+      {
+        "verb": "snv",
+        "position": 24431,
+        "base": "T"
+      }
+    ],
+    [
+      {
+        "verb": "snv",
+        "position": 24820,
+        "base": "C"
+      }
+    ],
+    [
+      {
+        "verb": "snv",
+        "position": 25120,
+        "base": "A"
+      }
+    ],
+    [
+      {
+        "verb": "snv",
+        "position": 25352,
+        "base": "A"
+      }
+    ],
+    [
+      {
+        "verb": "snv",
+        "position": 25637,
+        "base": "C"
+      }
+    ],
+    [
+      {
+        "verb": "snv",
+        "position": 29722,
+        "base": "C"
+      }
+    ]
+  ]
+}
