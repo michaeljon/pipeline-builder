@@ -125,7 +125,7 @@ if [[ ! -f {PIPELINE}/{SAMPLE}.{ORGANISM}.unannotated.vcf.gz ]]; then
         --fasta-reference {REFERENCE_ASSEMBLY} \\
         --ploidy 1 \\
         --max-complex-gap 18 \\
-        --use-duplicate-reads \\
+        --limit-coverage 10000 \\
         {SORTED} >{PIPELINE}/{SAMPLE}.{ORGANISM}.tmp.vcf
 
     logthis "Normalizing called variants"
