@@ -1,6 +1,6 @@
+from colorama import Fore
 import csv
 import gzip
-import io
 import sys
 
 
@@ -18,14 +18,14 @@ def read(vcf):
                             fieldnames,
                             delimiter="\t",)
             for variants in r:
-                result[variants["POS"]] = variants
+                result[int(variants["POS"])] = variants
     else:
         with open(vcf, "rt") as f:
             r = csv.DictReader(filter(lambda row: str(row[0]) != "#", f),  # type: ignore
                             fieldnames,
                             delimiter="\t",)
             for variants in r:
-                result[variants["POS"]] = {
+                result[int(variants["POS"])] = {
                     "CHROM": variants["CHROM"],
                     "POS": variants["POS"],
                     "REF": variants["REF"],
@@ -38,9 +38,14 @@ def is_match(left, right):
     return left["REF"] == right["REF"] and left["ALT"] == right["ALT"]
 
 def get_difference(left, right):
-    return "{}\t{}\t{}\t{}\t\t{}\t{}\t{}\t{}".format(
+    delta = "{}\t{}\t{}\t{}\t\t{}\t{}\t{}\t{}".format(
           left["CHROM"], left["POS"], left["REF"], left["ALT"],
-          right["CHROM"], right["POS"], right["REF"], right["ALT"],0)
+          right["CHROM"], right["POS"], right["REF"], right["ALT"],)
+    
+    if left["POS"] != "" and right["POS"] != "":
+        return Fore.RED + delta + Fore.RESET
+    else:
+        return delta
 
 def compare(left, right):
     dummy = {
@@ -72,6 +77,10 @@ def compare(left, right):
             # right-only variant
             differences[int(pos)] = get_difference({**dummy, "CHROM": left_chrom}, right[pos])
 
+    print("{}\t{}\t{}\t{}\t\t{}\t{}\t{}\t{}".format(
+          "CHROM   ", "POS", "REF", "ALT",
+          "CHROM   ", "POS", "REF", "ALT"))
+    
     for difference in dict(sorted(differences.items())):
         print(differences[difference])
 
