@@ -9,7 +9,7 @@ import gzip
 import sys
 import json
 from typing import Dict, Any, List
-from os.path import exists, expandvars
+from os.path import dirname, exists, expandvars, join, realpath
 
 # This report generates a "gap analysis" for the given sample. It does this by
 # reading through the depth.gz (produced by samtools). For each organism we read
@@ -54,19 +54,22 @@ def defineArguments() -> Namespace:
         "--coverage-file",
         required=True,
         action="store",
-        metavar="COVERAGE-FILE",
+        metavar="COVERAGE_FILE",
         dest="coverageFile",
         help="Full path to file holding coverage data for sample",
     )
+
+    where = dirname(realpath(sys.argv[0]))
+    region_file = join(where, "hcov-regions.json")
+
     parser.add_argument(
         "-r",
         "--region-file",
-        required=True,
         action="store",
-        metavar="REGION-FILE",
+        metavar="REGION_FILE",
         dest="regionFile",
-        default="hcov-regions.json",
-        help="Full path to hcov-regions.json",
+        default=region_file,
+        help="Full path to hcov-regions.json, defaults to " + region_file,
     )
     parser.add_argument(
         "-f",
@@ -83,7 +86,7 @@ def defineArguments() -> Namespace:
         "--output",
         required=True,
         action="store",
-        metavar="OUTPUT-FILE",
+        metavar="OUTPUT_FILE",
         dest="outputFile",
         help="Full path to output file or `-` for stdout",
     )
@@ -96,6 +99,15 @@ def defineArguments() -> Namespace:
         dest="minDepth",
         default=1,
         help="Minimum depth to trigger gap detection",
+    )
+
+    parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        default=False,
+        dest="writeJson",
+        help="Write output as JSON instead of CSV",
     )
 
     return parser.parse_args()
@@ -194,6 +206,7 @@ def calculateGaps(coverageData: CoverageData, sample, organism_data, minDepth: i
                             "gene": gene,
                             "gapStart": start,
                             "gapEnd": locus - 1,
+                            "gapSize": locus - start,
                             "averageDepth": round(mean(depths), 2),
                             "medianDepth": median(depths),
                             "minDepth": min(depths),
@@ -229,6 +242,7 @@ def calculateGaps(coverageData: CoverageData, sample, organism_data, minDepth: i
                         "gene": gene,
                         "gapStart": start,
                         "gapEnd": locus - 1,
+                        "gapSize": locus - start,
                         "averageDepth": round(mean(depths), 2),
                         "medianDepth": median(depths),
                         "minDepth": min(depths),
@@ -249,36 +263,7 @@ def calculateGaps(coverageData: CoverageData, sample, organism_data, minDepth: i
     return gaps
 
 
-# def writeRow(writer: csv.DictWriter, sample, gap, overlay, type):
-#     writer.writerow(
-#         {
-#             "sample": sample,
-#             "organism": gap["organism"],
-#             "gapStart": gap["gapStart"],
-#             "gapEnd": gap["gapEnd"],
-#             "gapSize": gap["gapSize"],
-#             "averageDepth": gap["averageDepth"],
-#             "medianDepth": gap["medianDepth"],
-#             "minDepth": gap["minDepth"],
-#             "maxDepth": gap["maxDepth"],
-#             "stdevDepth": gap["stdevDepth"],
-#             "firstQuartileDepth": gap["quantileDepth"][0],
-#             "thirdQuartileDepth": gap["quantileDepth"][2],
-#             "averageDelta": gap["averageDelta"],
-#             "medianDelta": gap["medianDelta"],
-#             "minDelta": gap["minDelta"],
-#             "maxDelta": gap["maxDelta"],
-#             "stdevDelta": gap["stdevDelta"],
-#             "firstQuartileDelta": gap["quantileDelta"][0],
-#             "thirdQuartileDelta": gap["quantileDelta"][2],
-#             "gene": overlay["gene"],
-#             "geneStart": overlay["geneStart"],
-#             "geneEnd": overlay["geneEnd"],
-#         }
-#     )
-
-
-def writeOutput(gap_data: GapList, organism: str, coverageFile: str, organism_data: Any):
+def writeCsvOutput(gap_data: GapList, organism: str, coverageFile: str, organism_data: Any):
     with open(coverageFile, "w") as f:
         writer = csv.DictWriter(
             f,
@@ -313,6 +298,23 @@ def writeOutput(gap_data: GapList, organism: str, coverageFile: str, organism_da
             writer.writerows(gap_data[organism])
 
 
+def writeJsonOutput(gap_data: GapList, organism: str, coverageFile: str, organism_data: Any):
+    gaps = [
+        {
+            "gene": o["gene"],
+            "geneStart": o["geneStart"],
+            "geneEnd": o["geneEnd"],
+            "gapStart": o["gapStart"],
+            "gapEnd": o["gapEnd"],
+            "gapSize": o["gapEnd"] - o["gapStart"] + 1,
+        }
+        for o in gap_data[organism]
+    ]
+
+    with open(coverageFile, "w") as f:
+        json.dump(gaps, f)
+
+
 def main():
     options = fixupPathOptions(defineArguments())
     verifyOptions(options)
@@ -327,7 +329,10 @@ def main():
     gap_data = calculateGaps(coverage_data, options["sample"], organism_data, int(options["minDepth"]))
 
     # write the output
-    writeOutput(gap_data, options["organism"], options["outputFile"], organism_data)
+    if options["writeJson"] == False:
+        writeCsvOutput(gap_data, options["organism"], options["outputFile"], organism_data)
+    else:
+        writeJsonOutput(gap_data, options["organism"], options["outputFile"], organism_data)
 
 
 if __name__ == "__main__":
