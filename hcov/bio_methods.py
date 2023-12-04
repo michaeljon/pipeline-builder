@@ -190,10 +190,17 @@ def runVariantPipeline(script: TextIOWrapper, options: OptionsDict, reference):
 ORGANISM_COVERAGE=$(samtools coverage -d 0 --reference {REFERENCE_ASSEMBLY} {SORTED} | tail -n +2 | cut -f6)
 if (( $(echo "${{ORGANISM_COVERAGE}} >= 95.0" | bc -l) )); then
 """.format(
-        REFERENCE_ASSEMBLY=reference["assembly"],
-        SORTED=buildBamFilePath(options, reference, "sorted"),
+            REFERENCE_ASSEMBLY=reference["assembly"],
+            SORTED=buildBamFilePath(options, reference, "sorted"),
+        )
     )
-)
+
+    script.write(
+        """
+    logthis "${{yellow}}Performing variant calling with coverage of ${{ORGANISM_COVERAGE}}%${{reset}}"
+    """.format()
+    )
+
     callVariants(script, options, reference)
 
     script.write(
@@ -201,7 +208,8 @@ if (( $(echo "${{ORGANISM_COVERAGE}} >= 95.0" | bc -l) )); then
 else
     logthis "${{yellow}}Skipping variant calling due to low coverage of ${{ORGANISM_COVERAGE}}%${{reset}}"
 fi
-    """.format())
+    """.format()
+    )
 
 
 def doVariantQC(script: TextIOWrapper, options: OptionsDict, reference):
@@ -542,10 +550,7 @@ fi
 
 def buildBamFilePath(options: OptionsDict, reference, type: Literal["aligned"] | Literal["sorted"]) -> str:
     return "{PIPELINE}/{SAMPLE}.{ORGANISM}.{TYPE}.bam".format(
-        PIPELINE=options["pipeline"],
-        SAMPLE=options["sample"],
-        ORGANISM=reference["common"],
-        TYPE=type
+        PIPELINE=options["pipeline"], SAMPLE=options["sample"], ORGANISM=reference["common"], TYPE=type
     )
 
 
