@@ -19,34 +19,34 @@
     "assembly": "hcov-oc43/GCA_003972325.1_ASM397232v1_genomic.fna"
   },
 
-  "hcov-oc43-ay391777": {
-    "accession": "AY391777.1",
-    "assembly": "hcov-oc43-ay391777/hcov-oc43-ay391777.fna"
-  },
-
-  "hcov-oc43-on376724": {
-    "accession": "ON376724.1",
-    "assembly": "hcov-oc43-on376724/hcov-oc43-on376724.fna"
-  },
-
-  "hcov-oc43-on376725": {
-    "accession": "ON376725.1",
-    "assembly": "hcov-oc43-on376725/hcov-oc43-on376725.fna"
-  },
-
   "hrv-a": {
-    "accession": "NC_038311.1",
-    "assembly": "hrv-a/GCF_002816835.1_ASM281683v1_genomic.fna"
+    "accession": "NC_001617.1",
+    "assembly": "hrv-a/hrv-a.fna"
   },
 
-  "hrv-b": {
+  "hrv-a1": {
+    "accession": "NC_038311.1",
+    "assembly": "hrv-a1/hrv-a1.fna"
+  },
+
+  "hrv-b14": {
+    "accession": "NC_001490.1",
+    "assembly": "hrv-b14/hrv-b14.fna"
+  },
+
+  "hrv-b3": {
     "accession": "NC_038312.1",
-    "assembly": "hrv-b/GCF_002816855.1_ASM281685v1_genomic.fna"
+    "assembly": "hrv-b3/hrv-b3.fna"
   },
 
   "hrv-c": {
+    "accession": "NC_009996.1",
+    "assembly": "hrv-c/hrv-c.fna"
+  },
+
+  "hrv-nat001": {
     "accession": "NC_038878.1",
-    "assembly": "hrv-c/GCF_002816885.1_ASM281688v1_genomic.fna"
+    "assembly": "hrv-nat001/hrv-nat001.fna"
   },
 
   "sars-cov-2": {

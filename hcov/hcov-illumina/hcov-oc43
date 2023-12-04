@@ -18,7 +18,7 @@ echo Starting ${BATCH}/${SAMPLE} run
 set -e
 
 # give us a place to work
-rm -rf ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}
+# rm -rf ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}
 mkdir -p ${PIPELINE_ROOT}/pipeline/${SEQUENCE_RUNID}
 
 # build the pipeline

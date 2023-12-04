@@ -4,41 +4,50 @@ import sys
 import csv
 import hashlib
 import os
-import re
+from os.path import expandvars
 import pprint
 from Levenshtein import distance, editops
 
 known_references = {
+    "027f4cb7c33de171c14c83c69b90eea6": "hrv-a1 (NC_038311.1)",
     "105c82802b67521950854a851fc6eefd": "sars-cov-2 (MN908947.3)",
-    "17e9ecf80c15d88e0b41bd1ee6f2a2ab": "hcov-oc43-on376724 (ON376724.1)",
+    "1b0da1dbf9374d31d98f26e9edbdfe86": "hrv-b3 (NC_038312.1)",
     "2cd494e3006b363034acb3988a135b4b": "hcov-229e (AF304460.1)",
-    "42cdb9c4f65474288bd9a9b125cb8574": "hcov-oc43-ay391777 (AY391777.1)",
+    "33db59ad4cba6c4be72da7bf64b81444": "hrv-c (NC_009996.1)",
     "44be42f112c97e6a84d690636e28b13f": "hcov-nl63 (AY567487.2)",
+    "4a7cb2305253cf8809bde534ae007c71": "hrv-b14 (NC_001490.1)",
     "9cf54db346dedfb6b43dfd68b4c7bc51": "hcov-hku1 (AY597011.2)",
-    "cf3ab21d74a63732e6d9ae18002b3014": "hcov-oc43-on376725 (ON376725.1)",
+    "b9a2b7c3ce1194ebc9ffadca232f548f": "hrv-a (NC_001617.1)",
+    "c19afdd21d1fd73550ac9ca662076751": "hrv-nat001 (NC_038878.1)",
     "f34f1e552c7a5e94ac72c509b93ac2c4": "hcov-oc43 (AY585228.1)",
 }
 
 reference_to_path = {
-    "105c82802b67521950854a851fc6eefd": "/Volumes/Genomics/intel_pipeline/reference/sars-cov-2/GCA_009858895.3_ASM985889v3_genomic.fna",
-    "17e9ecf80c15d88e0b41bd1ee6f2a2ab": "/Volumes/Genomics/intel_pipeline/reference/hcov-oc43-on376724/hcov-oc43-on376724.fna",
-    "2cd494e3006b363034acb3988a135b4b": "/Volumes/Genomics/intel_pipeline/reference/hcov-229e/GCA_000853505.1_ViralProj14913_genomic.fna",
-    "42cdb9c4f65474288bd9a9b125cb8574": "/Volumes/Genomics/intel_pipeline/reference/hcov-oc43-ay391777/hcov-oc43-ay391777.fna",
-    "44be42f112c97e6a84d690636e28b13f": "/Volumes/Genomics/intel_pipeline/reference/hcov-nl63/GCA_000853865.1_ViralProj14960_genomic.fna",
-    "9cf54db346dedfb6b43dfd68b4c7bc51": "/Volumes/Genomics/intel_pipeline/reference/hcov-hku1/GCA_000858765.1_ViralProj15139_genomic.fna",
-    "cf3ab21d74a63732e6d9ae18002b3014": "/Volumes/Genomics/intel_pipeline/reference/hcov-oc43-on376725/hcov-oc43-on376725.fna",
-    "f34f1e552c7a5e94ac72c509b93ac2c4": "/Volumes/Genomics/intel_pipeline/reference/hcov-oc43/GCA_003972325.1_ASM397232v1_genomic.fna",
+    "027f4cb7c33de171c14c83c69b90eea6": "${PIPELINE_ROOT}/pipeline/reference/hrv-a1/hrv-a1.fna",
+    "105c82802b67521950854a851fc6eefd": "${PIPELINE_ROOT}/pipeline/reference/sars-cov-2/GCA_009858895.3_ASM985889v3_genomic.fna",
+    "1b0da1dbf9374d31d98f26e9edbdfe86": "${PIPELINE_ROOT}/pipeline/reference/hrv-b3/hrv-b3.fna",
+    "2cd494e3006b363034acb3988a135b4b": "${PIPELINE_ROOT}/pipeline/reference/hcov-229e/GCA_000853505.1_ViralProj14913_genomic.fna",
+    "33db59ad4cba6c4be72da7bf64b81444": "${PIPELINE_ROOT}/pipeline/reference/hrv-c/hrv-c.fna",
+    "44be42f112c97e6a84d690636e28b13f": "${PIPELINE_ROOT}/pipeline/reference/hcov-nl63/GCA_000853865.1_ViralProj14960_genomic.fna",
+    "4a7cb2305253cf8809bde534ae007c71": "${PIPELINE_ROOT}/pipeline/reference/hrv-b14/hrv-b14.fna",
+    "9cf54db346dedfb6b43dfd68b4c7bc51": "${PIPELINE_ROOT}/pipeline/reference/hcov-hku1/GCA_000858765.1_ViralProj15139_genomic.fna",
+    "b9a2b7c3ce1194ebc9ffadca232f548f": "${PIPELINE_ROOT}/pipeline/reference/hrv-a/hrv-a.fna",
+    "c19afdd21d1fd73550ac9ca662076751": "${PIPELINE_ROOT}/pipeline/reference/hrv-nat001/hrv-nat001.fna",
+    "f34f1e552c7a5e94ac72c509b93ac2c4": "${PIPELINE_ROOT}/pipeline/reference/hcov-oc43/GCA_003972325.1_ASM397232v1_genomic.fna",
 }
 
 supported_references = {
     "AF304460.1": "2cd494e3006b363034acb3988a135b4b",
-    "AY391777.1": "42cdb9c4f65474288bd9a9b125cb8574",
     "AY567487.2": "44be42f112c97e6a84d690636e28b13f",
     "AY585228.1": "f34f1e552c7a5e94ac72c509b93ac2c4",
     "AY597011.2": "9cf54db346dedfb6b43dfd68b4c7bc51",
     "MN908947.3": "105c82802b67521950854a851fc6eefd",
-    "ON376724.1": "17e9ecf80c15d88e0b41bd1ee6f2a2ab",
-    "ON376725.1": "cf3ab21d74a63732e6d9ae18002b3014",
+    "NC_001490.1": "4a7cb2305253cf8809bde534ae007c71",
+    "NC_001617.1": "b9a2b7c3ce1194ebc9ffadca232f548f",
+    "NC_009996.1": "33db59ad4cba6c4be72da7bf64b81444",
+    "NC_038311.1": "027f4cb7c33de171c14c83c69b90eea6",
+    "NC_038312.1": "1b0da1dbf9374d31d98f26e9edbdfe86",
+    "NC_038878.1": "c19afdd21d1fd73550ac9ca662076751",
     "hcov-229e": "2cd494e3006b363034acb3988a135b4b",
     "hcov-229e (AF304460.1)": "2cd494e3006b363034acb3988a135b4b",
     "hcov-hku1": "9cf54db346dedfb6b43dfd68b4c7bc51",
@@ -47,25 +56,34 @@ supported_references = {
     "hcov-nl63 (AY567487.2)": "44be42f112c97e6a84d690636e28b13f",
     "hcov-oc43": "f34f1e552c7a5e94ac72c509b93ac2c4",
     "hcov-oc43 (AY585228.1)": "f34f1e552c7a5e94ac72c509b93ac2c4",
-    "hcov-oc43-ay391777": "42cdb9c4f65474288bd9a9b125cb8574",
-    "hcov-oc43-ay391777 (AY391777.1)": "42cdb9c4f65474288bd9a9b125cb8574",
-    "hcov-oc43-on376724": "17e9ecf80c15d88e0b41bd1ee6f2a2ab",
-    "hcov-oc43-on376724 (ON376724.1)": "17e9ecf80c15d88e0b41bd1ee6f2a2ab",
-    "hcov-oc43-on376725": "cf3ab21d74a63732e6d9ae18002b3014",
-    "hcov-oc43-on376725 (ON376725.1)": "cf3ab21d74a63732e6d9ae18002b3014",
+    "hrv-a": "b9a2b7c3ce1194ebc9ffadca232f548f",
+    "hrv-a (NC_001617.1)": "b9a2b7c3ce1194ebc9ffadca232f548f",
+    "hrv-a1": "027f4cb7c33de171c14c83c69b90eea6",
+    "hrv-a1 (NC_038311.1)": "027f4cb7c33de171c14c83c69b90eea6",
+    "hrv-b14": "4a7cb2305253cf8809bde534ae007c71",
+    "hrv-b14 (NC_001490.1)": "4a7cb2305253cf8809bde534ae007c71",
+    "hrv-b3": "1b0da1dbf9374d31d98f26e9edbdfe86",
+    "hrv-b3 (NC_038312.1)": "1b0da1dbf9374d31d98f26e9edbdfe86",
+    "hrv-c": "33db59ad4cba6c4be72da7bf64b81444",
+    "hrv-c (NC_009996.1)": "33db59ad4cba6c4be72da7bf64b81444",
+    "hrv-nat001": "c19afdd21d1fd73550ac9ca662076751",
+    "hrv-nat001 (NC_038878.1)": "c19afdd21d1fd73550ac9ca662076751",
     "sars-cov-2": "105c82802b67521950854a851fc6eefd",
     "sars-cov-2 (MN908947.3)": "105c82802b67521950854a851fc6eefd",
 }
 
 reference_to_organism_accession = {
     "AF304460.1": ["hcov-229e", "AF304460.1"],
-    "AY391777.1": ["hcov-oc43-ay391777", "AY391777.1"],
     "AY567487.2": ["hcov-nl63", "AY567487.2"],
     "AY585228.1": ["hcov-oc43", "AY585228.1"],
     "AY597011.2": ["hcov-hku1", "AY597011.2"],
     "MN908947.3": ["sars-cov-2", "MN908947.3"],
-    "ON376724.1": ["hcov-oc43-on376724", "ON376724.1"],
-    "ON376725.1": ["hcov-oc43-on376725", "ON376725.1"],
+    "NC_001490.1": ["hrv-b14", "NC_001490.1"],
+    "NC_001617.1": ["hrv-a", "NC_001617.1"],
+    "NC_009996.1": ["hrv-c", "NC_009996.1"],
+    "NC_038311.1": ["hrv-a1", "NC_038311.1"],
+    "NC_038312.1": ["hrv-b3", "NC_038312.1"],
+    "NC_038878.1": ["hrv-nat001", "NC_038878.1"],
     "hcov-229e": ["hcov-229e", "AF304460.1"],
     "hcov-229e (AF304460.1)": ["hcov-229e", "AF304460.1"],
     "hcov-hku1": ["hcov-hku1", "AY597011.2"],
@@ -74,12 +92,18 @@ reference_to_organism_accession = {
     "hcov-nl63 (AY567487.2)": ["hcov-nl63", "AY567487.2"],
     "hcov-oc43": ["hcov-oc43", "AY585228.1"],
     "hcov-oc43 (AY585228.1)": ["hcov-oc43", "AY585228.1"],
-    "hcov-oc43-ay391777": ["hcov-oc43-ay391777", "AY391777.1"],
-    "hcov-oc43-ay391777 (AY391777.1)": ["hcov-oc43-ay391777", "AY391777.1"],
-    "hcov-oc43-on376724": ["hcov-oc43-on376724", "ON376724.1"],
-    "hcov-oc43-on376724 (ON376724.1)": ["hcov-oc43-on376724", "ON376724.1"],
-    "hcov-oc43-on376725": ["hcov-oc43-on376725", "ON376725.1"],
-    "hcov-oc43-on376725 (ON376725.1)": ["hcov-oc43-on376725", "ON376725.1"],
+    "hrv-a": ["hrv-a", "NC_001617.1"],
+    "hrv-a (NC_001617.1)": ["hrv-a", "NC_001617.1"],
+    "hrv-a1": ["hrv-a1", "NC_038311.1"],
+    "hrv-a1 (NC_038311.1)": ["hrv-a1", "NC_038311.1"],
+    "hrv-b14": ["hrv-b14", "NC_001490.1"],
+    "hrv-b14 (NC_001490.1)": ["hrv-b14", "NC_001490.1"],
+    "hrv-b3": ["hrv-b3", "NC_038312.1"],
+    "hrv-b3 (NC_038312.1)": ["hrv-b3", "NC_038312.1"],
+    "hrv-c": ["hrv-c", "NC_009996.1"],
+    "hrv-c (NC_009996.1)": ["hrv-c", "NC_009996.1"],
+    "hrv-nat001": ["hrv-nat001", "NC_038878.1"],
+    "hrv-nat001 (NC_038878.1)": ["hrv-nat001", "NC_038878.1"],
     "sars-cov-2": ["sars-cov-2", "MN908947.3"],
     "sars-cov-2 (MN908947.3)": ["sars-cov-2", "MN908947.3"],
 }
@@ -99,7 +123,12 @@ def read_fasta(fa):
                 lines.append(line)
 
         fasta = "".join(lines)
-        return {"name": name, "hash": hashlib.md5(fasta.encode("utf-8")).hexdigest(), "fasta": fasta}
+        return {
+            "name": name,
+            "hash": hashlib.md5(fasta.encode("utf-8")).hexdigest(),
+            "fasta": fasta,
+            "length": len(fasta),
+        }
 
 
 def usage():
@@ -113,20 +142,25 @@ def usage():
     exit(1)
 
 
+#
+# ./make-reference.py "replacement" $(find ~/pipeline/reference -name '*.fna' | grep -v panel | grep -iP 'sars|hcov|hrv' | sort)
+#
 if sys.argv[0].endswith("make-reference.py"):
     hash_to_ref = {}
     hash_to_path = {}
     ref_to_hash = {}
     ref_to_org_acc = {}
 
-    for fa in range(1, len(sys.argv)):
+    replacement = sys.argv[1]
+
+    for fa in range(2, len(sys.argv)):
         fasta = read_fasta(sys.argv[fa])
 
         org = os.path.dirname(sys.argv[fa]).split("/")[-1]
         ref = fasta["name"].split(" ")[0]
         key = org + " (" + ref + ")"
 
-        hash_to_path[fasta["hash"]] = os.path.realpath(sys.argv[fa])
+        hash_to_path[fasta["hash"]] = os.path.realpath(sys.argv[fa]).replace(replacement, "${PIPELINE_ROOT}")
         hash_to_ref[fasta["hash"]] = key
 
         ref_to_hash[key] = fasta["hash"]
@@ -137,10 +171,22 @@ if sys.argv[0].endswith("make-reference.py"):
         ref_to_org_acc[org] = [org, ref]
         ref_to_org_acc[ref] = [org, ref]
 
+    print("known_references = ", end="")
     pprint.pprint(hash_to_ref)
+    print("")
+
+    print("reference_to_path = ", end="")
     pprint.pprint(hash_to_path)
+    print("")
+
+    print("supported_references = ", end="")
     pprint.pprint(ref_to_hash)
+    print("")
+
+    print("reference_to_organism_accession = ", end="")
     pprint.pprint(ref_to_org_acc)
+    print("")
+
     exit(0)
 
 
@@ -158,7 +204,7 @@ target_fasta = read_fasta(reference_to_path[target])
 
 
 for fa in range(2, len(sys.argv)):
-    fasta = read_fasta(sys.argv[fa])
+    fasta = read_fasta(expandvars(sys.argv[fa]))
     ops = editops(target_fasta["fasta"], fasta["fasta"])
     dist = len(ops)
 
@@ -169,7 +215,7 @@ for fa in range(2, len(sys.argv)):
     results.append(
         {
             "File": os.path.basename(sys.argv[fa]),
-            "HasCalls": 0 if fasta["hash"] in known_references else 1,
+            "HasCalls": 0 if dist == 0 else 1,
             "Sample": sample,
             "Organism": org,
             "Accession": acc,

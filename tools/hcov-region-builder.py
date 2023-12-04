@@ -5,17 +5,20 @@ import json
 
 feature_data = {}
 organisms = {
+    # HCoV
     "AF304460.1": "hcov-229e",
     "AY597011.2": "hcov-hku1",
     "AY567487.2": "hcov-nl63",
     "AY585228.1": "hcov-oc43",
-    "AY391777.1": "hcov-oc43-ay391777",
-    "ON376724.1": "hcov-oc43-on376724",
-    "ON376275.1": "hcov-oc43-on376725",
+    # SARS-CoV-2
     "MN908947.3": "sars-cov-2",
-    "NC_038311.1": "hrv-a",
-    "NC_038312.1": "hrv-b",
-    "NC_038878.1": "hrv-c",
+    # HRV
+    "NC_001617.1": "hrv-a",
+    "NC_038311.1": "hrv-a1",
+    "NC_001490.1": "hrv-b14",
+    "NC_038312.1": "hrv-b3",
+    "NC_009996.1": "hrv-c",
+    "NC_038878.1": "hrv-nat001",
 }
 
 for i, (k, v) in enumerate(organisms.items()):

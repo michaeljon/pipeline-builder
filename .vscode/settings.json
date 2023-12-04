@@ -2,9 +2,8 @@
   "files.autoSave": "onFocusChange",
   "editor.formatOnSave": true,
   "[python]": {
-    "editor.defaultFormatter": "ms-python.black-formatter"
+    "editor.defaultFormatter": null
   },
   "black-formatter.importStrategy": "fromEnvironment",
-  "python.formatting.provider": "none",
   "sarif-viewer.connectToGithubCodeScanning": "off"
 }

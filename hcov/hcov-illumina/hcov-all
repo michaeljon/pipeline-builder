@@ -6,7 +6,7 @@ READ1=$3
 READ2=$4
 SEQUENCE_RUNID=${SAMPLE}
 
-ORGANISMS="hcov-oc43 hcov-oc43-ay391777 hcov-oc43-on376724 hcov-oc43-on376725 hcov-nl63 hcov-229e hcov-hku1"
+ORGANISMS="hcov-oc43 hcov-nl63 hcov-229e hcov-hku1"
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"

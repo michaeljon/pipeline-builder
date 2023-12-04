@@ -280,7 +280,7 @@
   },
 
   "hrv-a": {
-    "sequence": "NC_038311.1",
+    "sequence": "NC_001617.1",
     "name": "hrv-a",
     "region": {
       "start": 1,
@@ -317,7 +317,82 @@
     }
   },
 
-  "hrv-b": {
+  "hrv-a1": {
+    "sequence": "NC_038311.1",
+    "name": "hrv-a1",
+    "region": {
+      "start": 1,
+      "stop": 7152
+    },
+
+    "genes": {
+      "5-prime-utr": {
+        "start": 1,
+        "stop": 618
+      },
+
+      "HRV89gp1": { "start": 619, "stop": 7113 },
+
+      "VP4": { "start": 619, "stop": 825 },
+      "VP2": { "start": 826, "stop": 1626 },
+      "VP3": { "start": 1627, "stop": 2340 },
+      "VP1": { "start": 2341, "stop": 3234 },
+
+      "P-2A": { "start": 3235, "stop": 3624 },
+      "P-2B": { "start": 3643, "stop": 3927 },
+      "P-2C": { "start": 3928, "stop": 4890 },
+
+      "P-3A": { "start": 4891, "stop": 5118 },
+      "VPg": { "start": 5119, "stop": 5181 },
+      "3C": { "start": 5182, "stop": 5730 },
+
+      "RNA polymerase": { "start": 5731, "stop": 7110 },
+
+      "3-prime-utr": {
+        "start": 7113,
+        "stop": 7152
+      }
+    }
+  },
+
+  "hrv-b14": {
+    "sequence": "NC_001490.1",
+    "name": "hrv-b14",
+    "region": {
+      "start": 1,
+      "stop": 7212
+    },
+
+    "genes": {
+      "5-prime-utr": {
+        "start": 1,
+        "stop": 628
+      },
+
+      "HRVBgp1": { "start": 629, "stop": 7168 },
+
+      "1A (VP4)": { "start": 629, "stop": 835 },
+      "1B (VP2)": { "start": 836, "stop": 1621 },
+      "1C (VP3)": { "start": 1622, "stop": 2329 },
+      "1D (VP1)": { "start": 2330, "stop": 3196 },
+
+      "2A (P-2A)": { "start": 3197, "stop": 3634 },
+      "2B (P-2B)": { "start": 3635, "stop": 3925 },
+      "2C (P-2C)": { "start": 3926, "stop": 4915 },
+
+      "3A (P-3A)": { "start": 4916, "stop": 5170 },
+      "3B (VPg)": { "start": 5171, "stop": 5239 },
+      "pro-3C": { "start": 5240, "stop": 5785 },
+      "3D": { "start": 5786, "stop": 7165 },
+
+      "3-prime-utr": {
+        "start": 7169,
+        "stop": 7212
+      }
+    }
+  },
+
+  "hrv-b3": {
     "sequence": "NC_038312.1",
     "name": "hrv-b",
     "region": {
@@ -355,8 +430,45 @@
   },
 
   "hrv-c": {
-    "sequence": "NC_038878.1",
+    "sequence": "NC_009996.1",
     "name": "hrv-c",
+    "region": {
+      "start": 1,
+      "stop": 7099
+    },
+
+    "genes": {
+      "5-prime-utr": {
+        "start": 1,
+        "stop": 615
+      },
+
+      "HRVC_gp1": { "start": 616, "stop": 7050 },
+
+      "VP4": { "start": 616, "stop": 816 },
+      "VP2": { "start": 817, "stop": 1599 },
+      "VP3": { "start": 1600, "stop": 2304 },
+      "VP1": { "start": 2305, "stop": 3126 },
+
+      "2A": { "start": 3127, "stop": 3552 },
+      "2B": { "start": 3553, "stop": 3849 },
+      "2C": { "start": 3850, "stop": 4827 },
+
+      "3A": { "start": 4828, "stop": 5052 },
+      "3B": { "start": 5053, "stop": 5118 },
+      "3C": { "start": 5119, "stop": 5667 },
+      "3D": { "start": 5668, "stop": 7047 },
+
+      "3-prime-utr": {
+        "start": 7051,
+        "stop": 7099
+      }
+    }
+  },
+
+  "hrv-nat001": {
+    "sequence": "NC_038878.1",
+    "name": "hrv-nat001",
     "region": {
       "start": 1,
       "stop": 7099

@@ -8,8 +8,13 @@ printf "File\tHasCalls\tSample\tOrganism\tAccession\tHash\tDistance\n" >${pathna
 ~/pipeline/pipeline-builder/tools/fasta-hash.py "hcov-229e (AF304460.1)" ${pathname}/${sample}.hcov-229e.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
 ~/pipeline/pipeline-builder/tools/fasta-hash.py "hcov-nl63 (AY567487.2)" ${pathname}/${sample}.hcov-nl63.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
 ~/pipeline/pipeline-builder/tools/fasta-hash.py "hcov-hku1 (AY597011.2)" ${pathname}/${sample}.hcov-hku1.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
-~/pipeline/pipeline-builder/tools/fasta-hash.py "hcov-oc43-ay391777 (AY391777.1)" ${pathname}/${sample}.hcov-oc43-ay391777.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
-~/pipeline/pipeline-builder/tools/fasta-hash.py "hcov-oc43-on376724 (ON376724.1)" ${pathname}/${sample}.hcov-oc43-on376724.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
-~/pipeline/pipeline-builder/tools/fasta-hash.py "hcov-oc43-on376725 (ON376725.1)" ${pathname}/${sample}.hcov-oc43-on376725.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
 ~/pipeline/pipeline-builder/tools/fasta-hash.py "hcov-oc43 (AY585228.1)" ${pathname}/${sample}.hcov-oc43.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
+
 ~/pipeline/pipeline-builder/tools/fasta-hash.py "sars-cov-2 (MN908947.3)" ${pathname}/${sample}.sars-cov-2.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
+
+~/pipeline/pipeline-builder/tools/fasta-hash.py "hrv-a (NC_001617.1)" ${pathname}/${sample}.hrv-a.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
+~/pipeline/pipeline-builder/tools/fasta-hash.py "hrv-a1 (NC_038311.1)" ${pathname}/${sample}.hrv-a1.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
+~/pipeline/pipeline-builder/tools/fasta-hash.py "hrv-b14 (NC_001490.1)" ${pathname}/${sample}.hrv-b14.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
+~/pipeline/pipeline-builder/tools/fasta-hash.py "hrv-b3 (NC_038312.1)" ${pathname}/${sample}.hrv-b3.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
+~/pipeline/pipeline-builder/tools/fasta-hash.py "hrv-c (NC_009996.1)" ${pathname}/${sample}.hrv-c.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
+~/pipeline/pipeline-builder/tools/fasta-hash.py "hrv-nat001 (NC_038878.1)" ${pathname}/${sample}.hrv-nat001.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv

@@ -5,7 +5,7 @@ FASTQ=$2
 CHIP=$3
 SEQUENCE_RUNID=${SAMPLE}
 
-ORGANISMS="hrv-a hrv-b hrv-c"
+ORGANISMS="hrv-a hrv-a1 hrv-b14 hrv-b3 hrv-c hrv-nat001"
 
 if [[ -z ${PIPELINE_ROOT} ]]; then
     echo "Missing PIPELINE_ROOT environment variable, unable to proceed"
