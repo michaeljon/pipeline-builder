@@ -220,94 +220,6 @@
     }
   },
 
-  "hcov-oc43-ay391777": {
-    "sequence": "AY391777.1",
-    "name": "hcov-oc43-ay391777",
-    "region": {
-      "start": 1,
-      "stop": 30738
-    },
-    "genes": {
-      "5-prime-utr": {
-        "start": 1,
-        "stop": 210
-      },
-
-      "ORF1ab": { "start": 211, "stop": 21497 },
-      "NS2a": { "start": 21507, "stop": 22343 },
-      "HE": { "start": 22355, "stop": 23629 },
-      "S": { "start": 23644, "stop": 27729 },
-      "NS2": { "start": 27817, "stop": 28146 },
-      "NS3": { "start": 28133, "stop": 28387 },
-      "M": { "start": 28402, "stop": 29094 },
-      "N": { "start": 29104, "stop": 30450 },
-      "N2": { "start": 29441, "stop": 29788 },
-
-      "3-prime-utr": {
-        "start": 29789,
-        "stop": 30738
-      }
-    }
-  },
-
-  "hcov-oc43-on376724": {
-    "sequence": "ON376724.1",
-    "name": "hcov-oc43-on376724",
-    "region": {
-      "start": 1,
-      "stop": 30746
-    },
-    "genes": {
-      "5-prime-utr": {
-        "start": 1,
-        "stop": 206
-      },
-
-      "HCoVOC43gp1": { "start": 207, "stop": 21493 },
-      "NS2a": { "start": 21503, "stop": 22339 },
-      "HE": { "start": 22351, "stop": 23625 },
-      "S": { "start": 23640, "stop": 27737 },
-      "NS2": { "start": 27825, "stop": 28154 },
-      "NS3": { "start": 28141, "stop": 28395 },
-      "M": { "start": 28410, "stop": 29102 },
-      "N": { "start": 29112, "stop": 30458 },
-
-      "3-prime-utr": {
-        "start": 30459,
-        "stop": 30746
-      }
-    }
-  },
-
-  "hcov-oc43-on376725": {
-    "sequence": "ON376725.1",
-    "name": "hcov-oc43-on376725",
-    "region": {
-      "start": 1,
-      "stop": 30746
-    },
-    "genes": {
-      "5-prime-utr": {
-        "start": 1,
-        "stop": 206
-      },
-
-      "HCoVOC43gp1": { "start": 207, "stop": 21493 },
-      "NS2a": { "start": 21503, "stop": 22339 },
-      "HE": { "start": 22351, "stop": 23625 },
-      "S": { "start": 23640, "stop": 27737 },
-      "NS2": { "start": 27825, "stop": 28154 },
-      "NS3": { "start": 28141, "stop": 28395 },
-      "M": { "start": 28410, "stop": 29102 },
-      "N": { "start": 29112, "stop": 30458 },
-
-      "3-prime-utr": {
-        "start": 30459,
-        "stop": 30746
-      }
-    }
-  },
-
   "sars-cov-2": {
     "sequence": "MN908947.3",
     "name": "sars-cov-2",
@@ -368,12 +280,13 @@
   },
 
   "hrv-a": {
-    "sequence": "NC_001617.1",
+    "sequence": "NC_038311.1",
     "name": "hrv-a",
     "region": {
       "start": 1,
       "stop": 7152
     },
+
     "genes": {
       "5-prime-utr": {
         "start": 1,
@@ -405,7 +318,7 @@
   },
 
   "hrv-b": {
-    "sequence": "NC_001490.1",
+    "sequence": "NC_038312.1",
     "name": "hrv-b",
     "region": {
       "start": 1,
@@ -442,12 +355,13 @@
   },
 
   "hrv-c": {
-    "sequence": "NC_009996.1",
+    "sequence": "NC_038878.1",
     "name": "hrv-c",
     "region": {
       "start": 1,
       "stop": 7099
     },
+
     "genes": {
       "5-prime-utr": {
         "start": 1,
