@@ -44,11 +44,6 @@
     "assembly": "hrv-c/hrv-c.fna"
   },
 
-  "hrv-nat001": {
-    "accession": "NC_038878.1",
-    "assembly": "hrv-nat001/hrv-nat001.fna"
-  },
-
   "sars-cov-2": {
     "accession": "MN908947.3",
     "assembly": "sars-cov-2/GCA_009858895.3_ASM985889v3_genomic.fna"

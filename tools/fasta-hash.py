@@ -18,7 +18,6 @@ known_references = {
     "4a7cb2305253cf8809bde534ae007c71": "hrv-b14 (NC_001490.1)",
     "9cf54db346dedfb6b43dfd68b4c7bc51": "hcov-hku1 (AY597011.2)",
     "b9a2b7c3ce1194ebc9ffadca232f548f": "hrv-a (NC_001617.1)",
-    "c19afdd21d1fd73550ac9ca662076751": "hrv-nat001 (NC_038878.1)",
     "f34f1e552c7a5e94ac72c509b93ac2c4": "hcov-oc43 (AY585228.1)",
 }
 
@@ -32,7 +31,6 @@ reference_to_path = {
     "4a7cb2305253cf8809bde534ae007c71": "${PIPELINE_ROOT}/pipeline/reference/hrv-b14/hrv-b14.fna",
     "9cf54db346dedfb6b43dfd68b4c7bc51": "${PIPELINE_ROOT}/pipeline/reference/hcov-hku1/GCA_000858765.1_ViralProj15139_genomic.fna",
     "b9a2b7c3ce1194ebc9ffadca232f548f": "${PIPELINE_ROOT}/pipeline/reference/hrv-a/hrv-a.fna",
-    "c19afdd21d1fd73550ac9ca662076751": "${PIPELINE_ROOT}/pipeline/reference/hrv-nat001/hrv-nat001.fna",
     "f34f1e552c7a5e94ac72c509b93ac2c4": "${PIPELINE_ROOT}/pipeline/reference/hcov-oc43/GCA_003972325.1_ASM397232v1_genomic.fna",
 }
 
@@ -47,7 +45,6 @@ supported_references = {
     "NC_009996.1": "33db59ad4cba6c4be72da7bf64b81444",
     "NC_038311.1": "027f4cb7c33de171c14c83c69b90eea6",
     "NC_038312.1": "1b0da1dbf9374d31d98f26e9edbdfe86",
-    "NC_038878.1": "c19afdd21d1fd73550ac9ca662076751",
     "hcov-229e": "2cd494e3006b363034acb3988a135b4b",
     "hcov-229e (AF304460.1)": "2cd494e3006b363034acb3988a135b4b",
     "hcov-hku1": "9cf54db346dedfb6b43dfd68b4c7bc51",
@@ -66,8 +63,6 @@ supported_references = {
     "hrv-b3 (NC_038312.1)": "1b0da1dbf9374d31d98f26e9edbdfe86",
     "hrv-c": "33db59ad4cba6c4be72da7bf64b81444",
     "hrv-c (NC_009996.1)": "33db59ad4cba6c4be72da7bf64b81444",
-    "hrv-nat001": "c19afdd21d1fd73550ac9ca662076751",
-    "hrv-nat001 (NC_038878.1)": "c19afdd21d1fd73550ac9ca662076751",
     "sars-cov-2": "105c82802b67521950854a851fc6eefd",
     "sars-cov-2 (MN908947.3)": "105c82802b67521950854a851fc6eefd",
 }
@@ -83,7 +78,6 @@ reference_to_organism_accession = {
     "NC_009996.1": ["hrv-c", "NC_009996.1"],
     "NC_038311.1": ["hrv-a1", "NC_038311.1"],
     "NC_038312.1": ["hrv-b3", "NC_038312.1"],
-    "NC_038878.1": ["hrv-nat001", "NC_038878.1"],
     "hcov-229e": ["hcov-229e", "AF304460.1"],
     "hcov-229e (AF304460.1)": ["hcov-229e", "AF304460.1"],
     "hcov-hku1": ["hcov-hku1", "AY597011.2"],
@@ -102,8 +96,6 @@ reference_to_organism_accession = {
     "hrv-b3 (NC_038312.1)": ["hrv-b3", "NC_038312.1"],
     "hrv-c": ["hrv-c", "NC_009996.1"],
     "hrv-c (NC_009996.1)": ["hrv-c", "NC_009996.1"],
-    "hrv-nat001": ["hrv-nat001", "NC_038878.1"],
-    "hrv-nat001 (NC_038878.1)": ["hrv-nat001", "NC_038878.1"],
     "sars-cov-2": ["sars-cov-2", "MN908947.3"],
     "sars-cov-2 (MN908947.3)": ["sars-cov-2", "MN908947.3"],
 }

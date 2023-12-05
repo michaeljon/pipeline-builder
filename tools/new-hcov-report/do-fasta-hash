@@ -17,4 +17,3 @@ printf "File\tHasCalls\tSample\tOrganism\tAccession\tHash\tDistance\n" >${pathna
 ~/pipeline/pipeline-builder/tools/fasta-hash.py "hrv-b14 (NC_001490.1)" ${pathname}/${sample}.hrv-b14.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
 ~/pipeline/pipeline-builder/tools/fasta-hash.py "hrv-b3 (NC_038312.1)" ${pathname}/${sample}.hrv-b3.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
 ~/pipeline/pipeline-builder/tools/fasta-hash.py "hrv-c (NC_009996.1)" ${pathname}/${sample}.hrv-c.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv
-~/pipeline/pipeline-builder/tools/fasta-hash.py "hrv-nat001 (NC_038878.1)" ${pathname}/${sample}.hrv-nat001.consensus.fa | grep -v HasCalls >>${pathname}/${sample}-consensus-report.tsv

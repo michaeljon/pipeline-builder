@@ -282,6 +282,7 @@
   "hrv-a": {
     "sequence": "NC_001617.1",
     "name": "hrv-a",
+    "ncbi_url": "https://www.ncbi.nlm.nih.gov/nuccore/9627730",
     "region": {
       "start": 1,
       "stop": 7152
@@ -295,20 +296,20 @@
 
       "HRV89gp1": { "start": 619, "stop": 7113 },
 
-      "VP4": { "start": 619, "stop": 825 },
-      "VP2": { "start": 826, "stop": 1626 },
-      "VP3": { "start": 1627, "stop": 2340 },
-      "VP1": { "start": 2341, "stop": 3234 },
+      "capsid protein VP4": { "start": 619, "stop": 825 },
+      "capsid protein VP2": { "start": 826, "stop": 1626 },
+      "capsid protein VP3": { "start": 1627, "stop": 2340 },
+      "capsid protein VP1": { "start": 2341, "stop": 3234 },
 
-      "P-2A": { "start": 3235, "stop": 3624 },
-      "P-2B": { "start": 3643, "stop": 3927 },
-      "P-2C": { "start": 3928, "stop": 4890 },
+      "P-2A polypeptide": { "start": 3235, "stop": 3642 },
+      "P-2B polypeptide": { "start": 3643, "stop": 3927 },
+      "P-2C polypeptide": { "start": 3928, "stop": 4890 },
 
-      "P-3A": { "start": 4891, "stop": 5118 },
-      "VPg": { "start": 5119, "stop": 5181 },
-      "3C": { "start": 5182, "stop": 5730 },
+      "P-3A polypeptide": { "start": 4891, "stop": 5118 },
+      "VPg polypeptide": { "start": 5119, "stop": 5181 },
+      "protease 3C": { "start": 5182, "stop": 5730 },
 
-      "RNA polymerase": { "start": 5731, "stop": 7110 },
+      "RNA-directed RNA polymerase": { "start": 5731, "stop": 7110 },
 
       "3-prime-utr": {
         "start": 7113,
@@ -320,37 +321,38 @@
   "hrv-a1": {
     "sequence": "NC_038311.1",
     "name": "hrv-a1",
+    "ncbi_url": "https://www.ncbi.nlm.nih.gov/nuccore/1464306962",
     "region": {
       "start": 1,
-      "stop": 7152
+      "stop": 7137
     },
 
     "genes": {
       "5-prime-utr": {
         "start": 1,
-        "stop": 618
+        "stop": 626
       },
 
-      "HRV89gp1": { "start": 619, "stop": 7113 },
+      "D1P36_gp1": { "start": 627, "stop": 7100 },
 
-      "VP4": { "start": 619, "stop": 825 },
-      "VP2": { "start": 826, "stop": 1626 },
-      "VP3": { "start": 1627, "stop": 2340 },
-      "VP1": { "start": 2341, "stop": 3234 },
+      "1A": { "start": 627, "stop": 833 },
+      "1B": { "start": 834, "stop": 1622 },
+      "1C": { "start": 1623, "stop": 2336 },
+      "1D": { "start": 2337, "stop": 3197 },
 
-      "P-2A": { "start": 3235, "stop": 3624 },
-      "P-2B": { "start": 3643, "stop": 3927 },
-      "P-2C": { "start": 3928, "stop": 4890 },
+      "2A": { "start": 3198, "stop": 3623 },
+      "2B": { "start": 3624, "stop": 3908 },
+      "2C": { "start": 3909, "stop": 4874 },
 
-      "P-3A": { "start": 4891, "stop": 5118 },
-      "VPg": { "start": 5119, "stop": 5181 },
-      "3C": { "start": 5182, "stop": 5730 },
+      "3A": { "start": 4875, "stop": 5105 },
+      "3B": { "start": 5106, "stop": 5168 },
+      "3C": { "start": 5169, "stop": 5717 },
 
-      "RNA polymerase": { "start": 5731, "stop": 7110 },
+      "3D": { "start": 5718, "stop": 7097 },
 
       "3-prime-utr": {
-        "start": 7113,
-        "stop": 7152
+        "start": 7098,
+        "stop": 7137
       }
     }
   },
@@ -358,6 +360,7 @@
   "hrv-b14": {
     "sequence": "NC_001490.1",
     "name": "hrv-b14",
+    "ncbi_url": "https://www.ncbi.nlm.nih.gov/nuccore/9626735",
     "region": {
       "start": 1,
       "stop": 7212
@@ -395,36 +398,37 @@
   "hrv-b3": {
     "sequence": "NC_038312.1",
     "name": "hrv-b",
+    "ncbi_url": "https://www.ncbi.nlm.nih.gov/nuccore/1464306975",
     "region": {
       "start": 1,
-      "stop": 7212
+      "stop": 7208
     },
 
     "genes": {
       "5-prime-utr": {
         "start": 1,
-        "stop": 628
+        "stop": 626
       },
 
-      "HRVBgp1": { "start": 629, "stop": 7168 },
+      "D1P37_gp1": { "start": 627, "stop": 7163 },
 
-      "1A (VP4)": { "start": 629, "stop": 835 },
-      "1B (VP2)": { "start": 836, "stop": 1621 },
-      "1C (VP3)": { "start": 1622, "stop": 2329 },
-      "1D (VP1)": { "start": 2330, "stop": 3196 },
+      "1A (VP4)": { "start": 627, "stop": 833 },
+      "1B (VP2)": { "start": 834, "stop": 1619 },
+      "1C (VP3)": { "start": 1620, "stop": 2327 },
+      "1D (VP1)": { "start": 2328, "stop": 3197 },
 
-      "2A (P-2A)": { "start": 3197, "stop": 3634 },
-      "2B (P-2B)": { "start": 3635, "stop": 3925 },
-      "2C (P-2C)": { "start": 3926, "stop": 4915 },
+      "2A (P-2A)": { "start": 3198, "stop": 3629 },
+      "2B (P-2B)": { "start": 3630, "stop": 3920 },
+      "2C (P-2C)": { "start": 3921, "stop": 4910 },
 
-      "3A (P-3A)": { "start": 4916, "stop": 5170 },
-      "3B (VPg)": { "start": 5171, "stop": 5239 },
-      "pro-3C": { "start": 5240, "stop": 5785 },
-      "3D": { "start": 5786, "stop": 7165 },
+      "3A (P-3A)": { "start": 4911, "stop": 5165 },
+      "3B (VPg)": { "start": 5166, "stop": 5234 },
+      "3C (P3-C)": { "start": 5235, "stop": 5780 },
+      "3D (polymerase)": { "start": 5781, "stop": 7160 },
 
       "3-prime-utr": {
-        "start": 7169,
-        "stop": 7212
+        "start": 7161,
+        "stop": 7208
       }
     }
   },
@@ -432,6 +436,7 @@
   "hrv-c": {
     "sequence": "NC_009996.1",
     "name": "hrv-c",
+    "ncbi_url": "https://www.ncbi.nlm.nih.gov/nuccore/160700581",
     "region": {
       "start": 1,
       "stop": 7099
@@ -445,55 +450,18 @@
 
       "HRVC_gp1": { "start": 616, "stop": 7050 },
 
-      "VP4": { "start": 616, "stop": 816 },
-      "VP2": { "start": 817, "stop": 1599 },
-      "VP3": { "start": 1600, "stop": 2304 },
-      "VP1": { "start": 2305, "stop": 3126 },
+      "capsid protein VP4": { "start": 616, "stop": 816 },
+      "capsid protein VP2": { "start": 817, "stop": 1599 },
+      "capsid protein VP3": { "start": 1600, "stop": 2304 },
+      "capsid protein VP1": { "start": 2305, "stop": 3126 },
 
-      "2A": { "start": 3127, "stop": 3552 },
-      "2B": { "start": 3553, "stop": 3849 },
-      "2C": { "start": 3850, "stop": 4827 },
+      "protease 2A": { "start": 3127, "stop": 3552 },
+      "protein 2B": { "start": 3553, "stop": 3849 },
+      "protein 2C": { "start": 3850, "stop": 4827 },
 
-      "3A": { "start": 4828, "stop": 5052 },
+      "protein 3A": { "start": 4828, "stop": 5052 },
       "3B": { "start": 5053, "stop": 5118 },
-      "3C": { "start": 5119, "stop": 5667 },
-      "3D": { "start": 5668, "stop": 7047 },
-
-      "3-prime-utr": {
-        "start": 7051,
-        "stop": 7099
-      }
-    }
-  },
-
-  "hrv-nat001": {
-    "sequence": "NC_038878.1",
-    "name": "hrv-nat001",
-    "region": {
-      "start": 1,
-      "stop": 7099
-    },
-
-    "genes": {
-      "5-prime-utr": {
-        "start": 1,
-        "stop": 615
-      },
-
-      "HRVC_gp1": { "start": 616, "stop": 7050 },
-
-      "VP4": { "start": 616, "stop": 816 },
-      "VP2": { "start": 817, "stop": 1599 },
-      "VP3": { "start": 1600, "stop": 2304 },
-      "VP1": { "start": 2305, "stop": 3126 },
-
-      "2A": { "start": 3127, "stop": 3552 },
-      "2B": { "start": 3553, "stop": 3849 },
-      "2C": { "start": 3850, "stop": 4827 },
-
-      "3A": { "start": 4828, "stop": 5052 },
-      "3B": { "start": 5053, "stop": 5118 },
-      "3C": { "start": 5119, "stop": 5667 },
+      "protease 3C": { "start": 5119, "stop": 5667 },
       "3D": { "start": 5668, "stop": 7047 },
 
       "3-prime-utr": {

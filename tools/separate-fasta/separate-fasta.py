@@ -25,7 +25,6 @@ organism_names = {
     "NC_001490.1": "hrv-b14",
     "NC_038312.1": "hrv-b3",
     "NC_009996.1": "hrv-c",
-    "NC_038878.1": "hrv-nat001",
 }
 
 

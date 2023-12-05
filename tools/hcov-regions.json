@@ -464,42 +464,5 @@
         "stop": 7099
       }
     }
-  },
-
-  "hrv-nat001": {
-    "sequence": "NC_038878.1",
-    "name": "hrv-nat001",
-    "region": {
-      "start": 1,
-      "stop": 7099
-    },
-
-    "genes": {
-      "5-prime-utr": {
-        "start": 1,
-        "stop": 615
-      },
-
-      "HRVC_gp1": { "start": 616, "stop": 7050 },
-
-      "VP4": { "start": 616, "stop": 816 },
-      "VP2": { "start": 817, "stop": 1599 },
-      "VP3": { "start": 1600, "stop": 2304 },
-      "VP1": { "start": 2305, "stop": 3126 },
-
-      "2A": { "start": 3127, "stop": 3552 },
-      "2B": { "start": 3553, "stop": 3849 },
-      "2C": { "start": 3850, "stop": 4827 },
-
-      "3A": { "start": 4828, "stop": 5052 },
-      "3B": { "start": 5053, "stop": 5118 },
-      "3C": { "start": 5119, "stop": 5667 },
-      "3D": { "start": 5668, "stop": 7047 },
-
-      "3-prime-utr": {
-        "start": 7051,
-        "stop": 7099
-      }
-    }
   }
 }
