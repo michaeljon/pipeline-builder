@@ -22,16 +22,16 @@ known_references = {
 }
 
 reference_to_path = {
-    "027f4cb7c33de171c14c83c69b90eea6": "${PIPELINE_ROOT}/pipeline/reference/hrv-a1/hrv-a1.fna",
-    "105c82802b67521950854a851fc6eefd": "${PIPELINE_ROOT}/pipeline/reference/sars-cov-2/GCA_009858895.3_ASM985889v3_genomic.fna",
-    "1b0da1dbf9374d31d98f26e9edbdfe86": "${PIPELINE_ROOT}/pipeline/reference/hrv-b3/hrv-b3.fna",
-    "2cd494e3006b363034acb3988a135b4b": "${PIPELINE_ROOT}/pipeline/reference/hcov-229e/GCA_000853505.1_ViralProj14913_genomic.fna",
-    "33db59ad4cba6c4be72da7bf64b81444": "${PIPELINE_ROOT}/pipeline/reference/hrv-c/hrv-c.fna",
-    "44be42f112c97e6a84d690636e28b13f": "${PIPELINE_ROOT}/pipeline/reference/hcov-nl63/GCA_000853865.1_ViralProj14960_genomic.fna",
-    "4a7cb2305253cf8809bde534ae007c71": "${PIPELINE_ROOT}/pipeline/reference/hrv-b14/hrv-b14.fna",
-    "9cf54db346dedfb6b43dfd68b4c7bc51": "${PIPELINE_ROOT}/pipeline/reference/hcov-hku1/GCA_000858765.1_ViralProj15139_genomic.fna",
-    "b9a2b7c3ce1194ebc9ffadca232f548f": "${PIPELINE_ROOT}/pipeline/reference/hrv-a/hrv-a.fna",
-    "f34f1e552c7a5e94ac72c509b93ac2c4": "${PIPELINE_ROOT}/pipeline/reference/hcov-oc43/GCA_003972325.1_ASM397232v1_genomic.fna",
+    "027f4cb7c33de171c14c83c69b90eea6": "${PIPELINE_ROOT}/reference/hrv-a1/hrv-a1.fna",
+    "105c82802b67521950854a851fc6eefd": "${PIPELINE_ROOT}/reference/sars-cov-2/GCA_009858895.3_ASM985889v3_genomic.fna",
+    "1b0da1dbf9374d31d98f26e9edbdfe86": "${PIPELINE_ROOT}/reference/hrv-b3/hrv-b3.fna",
+    "2cd494e3006b363034acb3988a135b4b": "${PIPELINE_ROOT}/reference/hcov-229e/GCA_000853505.1_ViralProj14913_genomic.fna",
+    "33db59ad4cba6c4be72da7bf64b81444": "${PIPELINE_ROOT}/reference/hrv-c/hrv-c.fna",
+    "44be42f112c97e6a84d690636e28b13f": "${PIPELINE_ROOT}/reference/hcov-nl63/GCA_000853865.1_ViralProj14960_genomic.fna",
+    "4a7cb2305253cf8809bde534ae007c71": "${PIPELINE_ROOT}/reference/hrv-b14/hrv-b14.fna",
+    "9cf54db346dedfb6b43dfd68b4c7bc51": "${PIPELINE_ROOT}/reference/hcov-hku1/GCA_000858765.1_ViralProj15139_genomic.fna",
+    "b9a2b7c3ce1194ebc9ffadca232f548f": "${PIPELINE_ROOT}/reference/hrv-a/hrv-a.fna",
+    "f34f1e552c7a5e94ac72c509b93ac2c4": "${PIPELINE_ROOT}/reference/hcov-oc43/GCA_003972325.1_ASM397232v1_genomic.fna",
 }
 
 supported_references = {
@@ -135,7 +135,7 @@ def usage():
 
 
 #
-# ./make-reference.py "replacement" $(find ~/pipeline/reference -name '*.fna' | grep -v panel | grep -iP 'sars|hcov|hrv' | sort)
+# ./make-reference.py ${PIPELINE_ROOT} $(find ${PIPELINE_ROOT}/reference -name '*.fna' | grep -v panel | grep -iP 'sars|hcov|hrv' | sort)
 #
 if sys.argv[0].endswith("make-reference.py"):
     hash_to_ref = {}
@@ -192,7 +192,7 @@ elif len(sys.argv) < 3:
     usage()
 
 target = supported_references[sys.argv[1]]
-target_fasta = read_fasta(reference_to_path[target])
+target_fasta = read_fasta(expandvars(reference_to_path[target]))
 
 
 for fa in range(2, len(sys.argv)):
