@@ -68,10 +68,8 @@ make
 
 echo "Building vcftools"
 cd ${ROOT_DIR}/src/vcftools
-ZLIB_LIBS="-L${ROOT_DIR}/lib"
-ZLIB_CFLAGS="-I${ROOT_DIR}/include"
-./configure --prefix=${ROOT_DIR} --exec-prefix=${ROOT_DIR} --enable-pca
-make
+./configure --prefix=${ROOT_DIR} --exec-prefix=${ROOT_DIR} --enable-pca ZLIB_CFLAGS="-I${ROOT_DIR}/include" ZLIB_LIBS="-L${ROOT_DIR}/lib"
+make CFLAGS="-D_USE_KNETFILE ${CFLAGS}" LDFLAGS="-lz ${LDFLAGS}"
 make install
 
 echo "Build BWA components"
@@ -96,13 +94,19 @@ done
 cp *.py ${ROOT_DIR}/bin
 
 cd ${ROOT_DIR}/src/star/source
-make CXXFLAGSextra="-I${ROOT_DIR}/include" LDFLAGSextra="-L${ROOT_DIR}/lib" STARforMacStatic
+make CXXFLAGSextra="-I${ROOT_DIR}/include" LDFLAGSextra="-L${ROOT_DIR}/lib" CXX=${CXX} STARforMacStatic
 cp STAR ${ROOT_DIR}/bin
 
 cd ${ROOT_DIR}/src/minimap2
 make
 cp minimap2 ${ROOT_DIR}/bin
 cp minimap2.1 ${ROOT_DIR}/share/man/man1
+
+cd ${ROOT_DIR}/src/salmon
+rm -rf build && mkdir build
+cd build/
+cmake -DCMAKE_INSTALL_PREFIX=${ROOT_DIR} ..
+make
 
 echo "Building BIOBAMBAM and components - this'll take a while"
 cd ${ROOT_DIR}/src/libmaus2
@@ -118,4 +122,4 @@ make install prefix=${ROOT_DIR}
 
 cd ${ROOT_DIR}/src/Nirvana
 dotnet publish --use-current-runtime --self-contained --configuration Release --nologo
-mv bin/Release/net8.0/osx-x64/publish ${ROOT_DIR}/bin/nirvana
+mv bin/Release/net6.0/osx-x64/publish ${ROOT_DIR}/bin/nirvana

@@ -122,7 +122,7 @@ else
 fi
 
 samtools view -bs $sample_frac ${WORKING}/data/${SEQUENCERUNID}.bam >${WORKING}/data/sampled.bam
-${BIN}/qualimap_v2.2.1/qualimap --java-mem-size=32G rnaseq \
+${BIN}/QualiMap/qualimap --java-mem-size=32G rnaseq \
     -p strand-specific-reverse \
     -pe \
     -bam ${WORKING}/data/sampled.bam \
@@ -172,7 +172,7 @@ printf "Tool\tVersion\n" >${WORKING}/stats/versions_mqc.txt
 (printf "featureCounts:\t" && featureCounts -v 2>&1 | grep '^featureCounts' | cut -d ' ' -f 2) >>${WORKING}/stats/versions_mqc.txt
 (printf "R:\t" && R --version | head -n 1 | cut -d ' ' -f 3) >>${WORKING}/stats/versions_mqc.txt
 (printf "preseq:\t" && preseq --version 2>&1 | grep '^Version' | cut -d ' ' -f 2) >>${WORKING}/stats/versions_mqc.txt
-(printf "qualimap:\t" && ${BIN}/qualimap_v2.2.1/qualimap --version 2>&1 | grep '^QualiMap' | cut -d ' ' -f 2) >>${WORKING}/stats/versions_mqc.txt
+(printf "qualimap:\t" && ${BIN}/qualimap_v2.3/qualimap --version 2>&1 | grep '^QualiMap' | cut -d ' ' -f 2) >>${WORKING}/stats/versions_mqc.txt
 (printf "MultiQC:\t" && multiqc --version 2>&1 | grep '^multiqc' | cut -d ' ' -f 3) >>${WORKING}/stats/versions_mqc.txt
 
 # push results to S3

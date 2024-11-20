@@ -65,6 +65,10 @@ rm -rf ${ROOT_DIR}/src/star && git clone https://github.com/alexdobin/STAR.git $
 rm -rf ${ROOT_DIR}/src/hisat2 && git clone https://github.com/DaehwanKimLab/hisat2.git ${ROOT_DIR}/src/hisat2
 rm -rf ${ROOT_DIR}/src/regtools && git clone https://github.com/griffithlab/regtools ${ROOT_DIR}/src/regtools
 
+curl --silent https://github.com/COMBINE-lab/salmon/archive/refs/tags/v1.10.3.tar.gz --location -o ${ROOT_DIR}/components/salmon.tgz &&
+    tar xf ${ROOT_DIR}/components/salmon.tgz -C ${ROOT_DIR}/src &&
+    mv ${ROOT_DIR}/src/salmon-1.10.3 ${ROOT_DIR}/src/salmon
+
 curl --silent https://github.com/lh3/minimap2/archive/refs/tags/v2.28.tar.gz --location -o ${ROOT_DIR}/components/minimap2.tgz &&
     tar xf ${ROOT_DIR}/components/minimap2.tgz -C ${ROOT_DIR}/src &&
     mv ${ROOT_DIR}/src/minimap2-2.28 ${ROOT_DIR}/src/minimap2
